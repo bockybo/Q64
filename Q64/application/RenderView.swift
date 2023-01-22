@@ -3,6 +3,28 @@ import MetalKit
 
 class RenderView: MTKView {
 	var ctrl: Controller!
+	var renderer: Renderer {return self.delegate as! Renderer}
+	
+	required init(coder: NSCoder) {
+		super.init(coder: coder)
+		self._init()
+	}
+	override init(frame: CGRect, device: MTLDevice?) {
+		super.init(frame: frame, device: device)
+		self._init()
+	}
+	
+	private func _init() {
+		
+		self.colorPixelFormat = Config.color_fmt
+		self.depthStencilPixelFormat = Config.depth_fmt
+		self.preferredFramesPerSecond = Config.fps
+		
+		self.ctrl = Controller(device: self.device!)
+		let clock = CtrlClock(ctrl: self.ctrl)
+		clock.run()
+		
+	}
 	
 	override var acceptsFirstResponder: Bool {return true}
 	override func keyDown(with evt: NSEvent) {
