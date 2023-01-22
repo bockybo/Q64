@@ -15,7 +15,7 @@ class Controller {
 		
 		let bulbmesh = Mesh.sphere(device, seg: 10, type: .line)
 		let gndmesh = Mesh.box(device, seg: 1)
-		let cruisermeshes	= Mesh.load(device, path: "cruiser/cruiser", type: .triangle)
+		let cruisermeshes	= Mesh.load(device, path: "cruiser", type: .triangle)
 		
 		let hues = [
 			v3f(1, 1, 1),
