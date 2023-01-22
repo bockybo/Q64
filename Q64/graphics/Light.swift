@@ -1,8 +1,6 @@
 import MetalKit
 
 
-typealias Lights = Buffer<Light>
-
 struct Light {
 	var pos: v3f
 	var hue: v3f
