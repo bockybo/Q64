@@ -17,5 +17,6 @@ class Config {
 	static let z1: f32 = 2000
 	
 	static let freq = 120.0
+	static let fps = 120
 	
 }
