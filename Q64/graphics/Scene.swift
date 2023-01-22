@@ -2,10 +2,11 @@ import MetalKit
 
 
 class Scene: Renderable {
+	static let maxnlt = 64
 	
 	var lights: Buffer<Light>
-	init(_ device: MTLDevice, nlight: Int) {
-		self.lights = Buffer<Light>(device, mode: .frg, arg: 3, cap: nlight)
+	init(_ device: MTLDevice) {
+		self.lights = Buffer<Light>(device, mode: .frg, arg: 3, cap: Scene.maxnlt)
 	}
 	
 	var proj: m4f = .idt
