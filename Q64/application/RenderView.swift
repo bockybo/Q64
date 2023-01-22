@@ -2,7 +2,7 @@ import MetalKit
 
 
 class RenderView: MTKView {
-	var ctrl: Controller!
+	var ctrl: Ctrl!
 	var renderer: Renderer {return self.delegate as! Renderer}
 	
 	required init(coder: NSCoder) {
@@ -16,12 +16,12 @@ class RenderView: MTKView {
 	
 	private func _init() {
 		
-		self.colorPixelFormat = Config.color_fmt
-		self.depthStencilPixelFormat = Config.depth_fmt
-		self.preferredFramesPerSecond = Config.fps
+		self.colorPixelFormat			= Config.color_fmt
+		self.depthStencilPixelFormat	= Config.depth_fmt
+		self.preferredFramesPerSecond	= Config.fps
 		
-		self.ctrl = Controller(device: self.device!)
-		let clock = CtrlClock(ctrl: self.ctrl)
+		self.ctrl = Demo(device: self.device!)
+		let clock = CtrlClock(ctrl: self.ctrl, tps: Config.tps)
 		clock.run()
 		
 	}
