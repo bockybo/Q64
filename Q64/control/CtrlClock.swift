@@ -5,9 +5,9 @@ class CtrlClock {
 	var time: UInt64
 	var timer: Timer!
 	
-	init(ctrl: Controller) {
+	init(ctrl: Ctrl, tps: Double) {
 		self.time = DispatchTime.now().uptimeNanoseconds
-		self.timer = Timer(timeInterval: 1/Config.tps, repeats: true) {
+		self.timer = Timer(timeInterval: 1/tps, repeats: true) {
 			_ in self.tick(ctrl: ctrl)
 		}
 	}
@@ -19,10 +19,11 @@ class CtrlClock {
 		RunLoop.main.add(self.timer, forMode: .default)
 	}
 	
-	func tick(ctrl: Controller) {
+	func tick(ctrl: Ctrl) {
 		let t0 = self.time
 		let t1 = DispatchTime.now().uptimeNanoseconds
 		self.time = t1
+		if ctrl.paused {return}
 		ctrl.tick(dt: f32(t1 - t0) * 1e-6)
 	}
 	
