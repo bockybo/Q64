@@ -7,7 +7,7 @@ class CtrlClock {
 	
 	init(ctrl: Controller) {
 		self.time = DispatchTime.now().uptimeNanoseconds
-		self.timer = Timer(timeInterval: 1/Config.freq, repeats: true) {
+		self.timer = Timer(timeInterval: 1/Config.tps, repeats: true) {
 			_ in self.tick(ctrl: ctrl)
 		}
 	}
