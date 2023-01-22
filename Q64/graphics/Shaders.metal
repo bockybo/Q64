@@ -21,7 +21,7 @@ typedef struct {
 typedef struct {
 	v3f pos;
 	v3f hue;
-} lightsrc;
+} lsrc;
 
 typedef struct {
 	m4f ctm;
@@ -41,9 +41,10 @@ typedef struct {
 	f32 shine;
 } mfrg;
 
-vertex frg vtx_main(const vtx v				[[stage_in]],
-					constant mvtx &model	[[buffer(1)]],
-					constant svtx &scene	[[buffer(2)]]) {
+
+static inline frg _vtx_base(const vtx v,
+							constant mvtx &model,
+							constant svtx &scene) {
 	
 	v4f pos = model.ctm * v4f(v.pos, 1);
 	v4f nml = model.ctm * v4f(v.nml, 0);
@@ -56,32 +57,64 @@ vertex frg vtx_main(const vtx v				[[stage_in]],
 	
 }
 
-fragment v4f frg_main(const frg f				[[stage_in]],
-					  constant mfrg &model		[[buffer(1)]],
-					  constant sfrg &scene		[[buffer(2)]],
-					  constant lightsrc *lts	[[buffer(3)]]) {
+static inline v4f _frg_base(const frg f,
+							constant mfrg &model,
+							constant sfrg &scene,
+							constant lsrc *lts) {
 	
 	v3f diff = 0;
 	v3f spec = 0;
-
+	
 	for (int i = 0; i < scene.nlt; ++i) {
-		lightsrc l = lts[i];
-
+		lsrc l = lts[i];
+		
 		v3f src = normalize(l.pos - f.pos);
 		v3f dst = normalize(f.pos - scene.cam);
-		v3f ref = reflect(dst, f.nml);
-
+		
 		f32 ksrc = max(0.0, dot(src, f.nml));
-		f32 kdst = max(0.0, dot(src, ref));
-
+		f32 kdst = max(0.0, dot(src, reflect(dst, f.nml)));
+		
 		v3f hue = l.hue / length_squared(l.pos - f.pos);
 		diff += hue * ksrc;
 		spec += hue * pow(kdst, model.shine);
-
+		
 	}
-
+	
 	diff *= model.diff;
 	spec *= model.spec;
-	return v4f(spec + diff * model.hue, 1);
+	v3f base = model.hue;
+	return v4f(spec + diff * base, 1);
 	
 }
+
+
+vertex frg vtx_main(const vtx v				[[stage_in]],
+					constant mvtx &model	[[buffer(1)]],
+					constant svtx &scene	[[buffer(2)]]) {
+	return _vtx_base(v, model, scene);
+}
+
+vertex frg vtx_inst(const vtx v				[[stage_in]],
+					constant mvtx *models	[[buffer(1)]],
+					constant svtx &scene	[[buffer(2)]],
+					uint modelID			[[instance_id]]) {
+	constant mvtx &model = models[modelID];
+	return _vtx_base(v, model, scene);
+}
+
+fragment v4f frg_main(const frg f			[[stage_in]],
+					  constant mfrg &model	[[buffer(1)]],
+					  constant sfrg &scene	[[buffer(2)]],
+					  constant lsrc *lts	[[buffer(3)]]) {
+	return _frg_base(f, model, scene, lts);
+}
+
+//fragment v4f frg_text(const frg f							[[stage_in]],
+//					  constant mfrg &model					[[buffer(1)]],
+//					  constant sfrg &scene					[[buffer(2)]],
+//					  constant lsrc *lts					[[buffer(3)]],
+//					  texture2d<float, access::sample> map	[[texture(0)]],
+//					  sampler sampler						[[sampler(0)]]) {
+//	v4f hue = map.sample(sampler, f.tex);
+//	return _frg_base(f, model, scene, lts);
+//}

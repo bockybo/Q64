@@ -1,7 +1,7 @@
 import MetalKit
 
 
-class Mesh: Renderable {
+struct Mesh: Renderable {
 	let vtxprim: Vtxprim
 	let idxprim: Idxprim
 	
@@ -17,19 +17,19 @@ class Mesh: Renderable {
 	}
 	
 	
-	class func load(_ device: MTLDevice, path: String, type: MTLPrimitiveType = .triangle) -> [Mesh] {
+	static func load(_ device: MTLDevice, path: String, type: MTLPrimitiveType = .triangle) -> [Mesh] {
 		let url = Bundle.main.url(forResource: path, withExtension: "obj")!
 		let asset = MDLAsset(
 			url: url,
-			vertexDescriptor: Renderer.mdldescr,
+			vertexDescriptor: lib.vtxdescr,
 			bufferAllocator: MTKMeshBufferAllocator(device: device)
 		)
 		let mdlmeshes = try! MTKMesh.newMeshes(asset: asset, device: device).modelIOMeshes
 		return mdlmeshes.map {Mesh(device, mesh: $0, type: type)}
 	}
 	
-	convenience init(_ device: MTLDevice, mesh: MDLMesh, type: MTLPrimitiveType = .triangle) {
-		mesh.vertexDescriptor = Renderer.mdldescr
+	init(_ device: MTLDevice, mesh: MDLMesh, type: MTLPrimitiveType = .triangle) {
+		mesh.vertexDescriptor = lib.vtxdescr
 		mesh.addNormals(withAttributeNamed: MDLVertexAttributeNormal, creaseThreshold: 0)
 		let mesh = try! MTKMesh(mesh: mesh, device: device)
 		self.init(
@@ -38,7 +38,7 @@ class Mesh: Renderable {
 		)
 	}
 	
-	convenience init(_ device: MTLDevice, vtcs: [v3f], idcs: [UInt16], type: MTLPrimitiveType = .triangle) {
+	init(_ device: MTLDevice, vtcs: [v3f], idcs: [UInt16], type: MTLPrimitiveType = .triangle) {
 		
 		let alloc = MTKMeshBufferAllocator(device: device)
 		let vtxbuf = alloc.newBuffer(vtcs.count * util.sizeof(v3f.self), type: .vertex)
@@ -59,7 +59,7 @@ class Mesh: Renderable {
 		let mesh = MDLMesh(
 			vertexBuffer: vtxbuf,
 			vertexCount: vtcs.count,
-			descriptor: Renderer.mdldescr,
+			descriptor: lib.vtxdescr,
 			submeshes: subs
 		)
 		
@@ -72,7 +72,7 @@ class Mesh: Renderable {
 	}
 	
 	
-	class func plane(_ device: MTLDevice, seg: UInt32, type: MTLPrimitiveType = .triangle) -> Mesh {
+	static func plane(_ device: MTLDevice, seg: UInt32, type: MTLPrimitiveType = .triangle) -> Mesh {
 		return Mesh(
 			device,
 			mesh: MDLMesh(
@@ -84,7 +84,7 @@ class Mesh: Renderable {
 			type: type
 		)
 	}
-	class func box(_ device: MTLDevice, seg: UInt32, type: MTLPrimitiveType = .triangle) -> Mesh {
+	static func box(_ device: MTLDevice, seg: UInt32, type: MTLPrimitiveType = .triangle) -> Mesh {
 		return Mesh(
 			device,
 			mesh: MDLMesh(
@@ -97,7 +97,7 @@ class Mesh: Renderable {
 			type: type
 		)
 	}
-	class func sphere(_ device: MTLDevice, seg: UInt32, type: MTLPrimitiveType = .triangle) -> Mesh {
+	static func sphere(_ device: MTLDevice, seg: UInt32, type: MTLPrimitiveType = .triangle) -> Mesh {
 		return Mesh(
 			device,
 			mesh: MDLMesh(
