@@ -22,7 +22,7 @@ class Cruiser: Entity {
 		self.vel.z += 0.08 * self.rot.x * cos(self.rot.y)
 		
 		self.pos += self.vel
-		self.vel *= 0.992
+		self.vel *= 0.994
 		self.rot.x *= 0.9
 		self.rot.z *= 0.95
 		
