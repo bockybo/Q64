@@ -13,14 +13,13 @@ class RenderView: MTKView {
 		super.init(frame: frame, device: device)
 		self._init()
 	}
-	
 	private func _init() {
 		
 		self.colorPixelFormat			= Config.color_fmt
 		self.depthStencilPixelFormat	= Config.depth_fmt
 		self.preferredFramesPerSecond	= Config.fps
 		
-		self.ctrl = Demo(device: self.device!)
+		self.ctrl = Demo()
 		let clock = CtrlClock(ctrl: self.ctrl, tps: Config.tps)
 		clock.run()
 		

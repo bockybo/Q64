@@ -7,9 +7,9 @@ class Renderer: NSObject, MTKViewDelegate {
 	let dstate: MTLDepthStencilState
 	let scene: Scene
 	
-	init(device: MTLDevice, scene: Scene) {
-		self.cmdque = device.makeCommandQueue()!
-		self.dstate = lib.dstate(device)
+	init(scene: Scene) {
+		self.cmdque = lib.device.makeCommandQueue()!
+		self.dstate = lib.dstate
 		self.scene = scene
 		super.init()
 	}

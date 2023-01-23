@@ -5,7 +5,7 @@ struct Mesh: Renderable {
 	let vtxprim: Vtxprim
 	let idxprim: Idxprim
 	
-	init(mesh: MTKMesh, type: MTLPrimitiveType) {
+	init(_ mesh: MTKMesh, type: MTLPrimitiveType) {
 		self.vtxprim = Vtxprim(bufs: mesh.vertexBuffers)
 		self.idxprim = Idxprim(subs: mesh.submeshes, type: type)
 	}
@@ -16,33 +16,30 @@ struct Mesh: Renderable {
 		self.idxprim.render(enc: enc, n: n)
 	}
 	
+	static let bufalloc = MTKMeshBufferAllocator(device: lib.device)
 	
-	static func load(_ device: MTLDevice, path: String, type: MTLPrimitiveType = .triangle) -> [Mesh] {
-		let url = Bundle.main.url(forResource: path, withExtension: "obj")!
+	static func load(path: String, type: MTLPrimitiveType = .triangle) -> [Mesh] {
+		let url = util.url(path)!
 		let asset = MDLAsset(
 			url: url,
-			vertexDescriptor: lib.vtxdescr,
-			bufferAllocator: MTKMeshBufferAllocator(device: device)
+			vertexDescriptor: lib.vdescr,
+			bufferAllocator: Mesh.bufalloc
 		)
-		let mdlmeshes = try! MTKMesh.newMeshes(asset: asset, device: device).modelIOMeshes
-		return mdlmeshes.map {Mesh(device, mesh: $0, type: type)}
+		let mdlmeshes = try! MTKMesh.newMeshes(asset: asset, device: lib.device).modelIOMeshes
+		return mdlmeshes.map {Mesh($0, type: type)}
 	}
 	
-	init(_ device: MTLDevice, mesh: MDLMesh, type: MTLPrimitiveType = .triangle) {
-		mesh.vertexDescriptor = lib.vtxdescr
+	init(_ mesh: MDLMesh, type: MTLPrimitiveType = .triangle) {
+		mesh.vertexDescriptor = lib.vdescr
 		mesh.addNormals(withAttributeNamed: MDLVertexAttributeNormal, creaseThreshold: 0)
-		let mesh = try! MTKMesh(mesh: mesh, device: device)
-		self.init(
-			mesh: mesh,
-			type: type
-		)
+		let mesh = try! MTKMesh(mesh: mesh, device: lib.device)
+		self.init(mesh, type: type)
 	}
 	
-	init(_ device: MTLDevice, vtcs: [v3f], idcs: [UInt16], type: MTLPrimitiveType = .triangle) {
+	init(vtcs: [v3f], idcs: [UInt16], type: MTLPrimitiveType = .triangle) {
 		
-		let alloc = MTKMeshBufferAllocator(device: device)
-		let vtxbuf = alloc.newBuffer(vtcs.count * util.sizeof(v3f.self), type: .vertex)
-		let idxbuf = alloc.newBuffer(idcs.count * util.sizeof(UInt16.self), type: .index)
+		let vtxbuf = Mesh.bufalloc.newBuffer(vtcs.count * util.sizeof(v3f.self), type: .vertex)
+		let idxbuf = Mesh.bufalloc.newBuffer(idcs.count * util.sizeof(UInt16.self), type: .index)
 		
 		let vtxptr = vtxbuf.map().bytes.assumingMemoryBound(to: v3f.self)
 		let idxptr = idxbuf.map().bytes.assumingMemoryBound(to: UInt16.self)
@@ -59,53 +56,46 @@ struct Mesh: Renderable {
 		let mesh = MDLMesh(
 			vertexBuffer: vtxbuf,
 			vertexCount: vtcs.count,
-			descriptor: lib.vtxdescr,
+			descriptor: lib.vdescr,
 			submeshes: subs
 		)
 		
-		self.init(
-			device,
-			mesh: mesh,
-			type: type
-		)
+		self.init(mesh, type: type)
 		
 	}
 	
 	
-	static func plane(_ device: MTLDevice, seg: UInt32, type: MTLPrimitiveType = .triangle) -> Mesh {
+	static func plane(seg: UInt32, type: MTLPrimitiveType = .triangle) -> Mesh {
 		return Mesh(
-			device,
-			mesh: MDLMesh(
+			MDLMesh(
 				planeWithExtent: v3f(1, 0, 1),
 				segments: simd_uint2(seg, seg),
 				geometryType: .triangles,
-				allocator: MTKMeshBufferAllocator(device: device)
+				allocator: Mesh.bufalloc
 			),
 			type: type
 		)
 	}
-	static func box(_ device: MTLDevice, seg: UInt32, type: MTLPrimitiveType = .triangle) -> Mesh {
+	static func box(seg: UInt32, type: MTLPrimitiveType = .triangle) -> Mesh {
 		return Mesh(
-			device,
-			mesh: MDLMesh(
+			MDLMesh(
 				boxWithExtent: v3f(1, 1, 1),
 				segments: simd_uint3(seg, seg, seg),
 				inwardNormals: false,
 				geometryType: .triangles,
-				allocator: MTKMeshBufferAllocator(device: device)
+				allocator: Mesh.bufalloc
 			),
 			type: type
 		)
 	}
-	static func sphere(_ device: MTLDevice, seg: UInt32, type: MTLPrimitiveType = .triangle) -> Mesh {
+	static func sphere(seg: UInt32, type: MTLPrimitiveType = .triangle) -> Mesh {
 		return Mesh(
-			device,
-			mesh: MDLMesh(
+			MDLMesh(
 				sphereWithExtent: v3f(1, 1, 1),
 				segments: simd_uint2(seg, seg),
 				inwardNormals: false,
 				geometryType: .triangles,
-				allocator: MTKMeshBufferAllocator(device: device)
+				allocator: Mesh.bufalloc
 			),
 			type: type
 		)
