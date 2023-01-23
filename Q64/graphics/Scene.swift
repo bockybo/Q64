@@ -2,12 +2,9 @@ import MetalKit
 
 
 class Scene: Renderable {
-	static let maxnlt = 64
 	
-	var lights: Buffer<Light>
-	init(_ device: MTLDevice) {
-		self.lights = Buffer<Light>(device, mode: .frg, arg: 3, cap: Scene.maxnlt)
-	}
+	static let maxnlt = 64
+	var lights = Buffer<Light>(Scene.maxnlt)
 	
 	var proj: m4f = .idt
 	var aspect: f32 = 1 {
@@ -31,13 +28,24 @@ class Scene: Renderable {
 		return view * m4f.pos(-self.pos)
 	}
 	
-	var svtx: SceneVtx {return SceneVtx(ctm: self.proj * self.view)}
-	var sfrg: SceneFrg {return SceneFrg(cam: self.view[3].xyz, nlt: self.lights.num)}
+	struct Uniform {
+		let ctm: m4f
+		let cam: v3f
+		let nlt: Int
+	}
+	var uniform: Uniform {
+		let view = self.view
+		return Uniform(
+			ctm: self.proj * view,
+			cam: view[3].xyz,
+			nlt: self.lights.num
+		)
+	}
 	
 	func render(enc: MTLRenderCommandEncoder) {
-		self.svtx.render(enc: enc)
-		self.sfrg.render(enc: enc)
-		enc.setFragmentBuffer(self.lights.buf, offset: 0, index: 3)
+		var uniform = self.uniform
+		enc.setVertexBytes(&uniform, length: util.sizeof(uniform), index: 2)
+		enc.setFragmentBuffer(self.lights.mtl, offset: 0, index: 1)
 		for renderable in self.renderables {
 			renderable.render(enc: enc)
 		}
@@ -46,24 +54,5 @@ class Scene: Renderable {
 	private var renderables: [Renderable] = []
 	func add(_ renderable: Renderable) {self.renderables.append(renderable)}
 	func add(_ renderables: [Renderable]) {self.renderables += renderables}
-	
-}
-
-
-struct SceneVtx: Renderable {
-	let ctm: m4f
-	func render(enc: MTLRenderCommandEncoder) {
-		var svtx = self
-		enc.setVertexBytes(&svtx, length: util.sizeof(SceneVtx.self), index: 2)
-	}
-	
-}
-struct SceneFrg: Renderable {
-	let cam: v3f
-	let nlt: Int
-	func render(enc: MTLRenderCommandEncoder) {
-		var sfrg = self
-		enc.setFragmentBytes(&sfrg, length: util.sizeof(SceneFrg.self), index: 2)
-	}
 	
 }
