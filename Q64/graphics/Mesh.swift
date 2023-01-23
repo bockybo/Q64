@@ -36,34 +36,6 @@ struct Mesh: Renderable {
 		self.init(mesh, type: type)
 	}
 	
-	init(vtcs: [v3f], idcs: [UInt16], type: MTLPrimitiveType = .triangle) {
-		
-		let vtxbuf = Mesh.bufalloc.newBuffer(vtcs.count * util.sizeof(v3f.self), type: .vertex)
-		let idxbuf = Mesh.bufalloc.newBuffer(idcs.count * util.sizeof(UInt16.self), type: .index)
-		
-		let vtxptr = vtxbuf.map().bytes.assumingMemoryBound(to: v3f.self)
-		let idxptr = idxbuf.map().bytes.assumingMemoryBound(to: UInt16.self)
-		vtxptr.assign(from: vtcs, count: vtcs.count)
-		idxptr.assign(from: idcs, count: idcs.count)
-		
-		let subs = [MDLSubmesh(
-			indexBuffer: idxbuf,
-			indexCount: idcs.count,
-			indexType: .uInt16,
-			geometryType: .triangles,
-			material: nil
-		)]
-		let mesh = MDLMesh(
-			vertexBuffer: vtxbuf,
-			vertexCount: vtcs.count,
-			descriptor: lib.vdescr,
-			submeshes: subs
-		)
-		
-		self.init(mesh, type: type)
-		
-	}
-	
 	
 	static func plane(seg: UInt32, type: MTLPrimitiveType = .triangle) -> Mesh {
 		return Mesh(
