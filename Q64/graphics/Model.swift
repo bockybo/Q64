@@ -2,29 +2,62 @@ import MetalKit
 
 
 struct Model: Renderable {
-	let rstate: MTLRenderPipelineState?
+	let texture: MTLTexture?
 	
 	var ctm: m4f = .idt
-	var hue: v3f = v3f(1, 1, 1)
+	var hue: v4f = v4f(1, 1, 1, 1)
 	var diff: f32 = 1
 	var spec: f32 = 0
 	var shine: f32 = 1
 	
 	var ett: Entity?
 	
-	init(meshes: [Mesh] = [], rstate: MTLRenderPipelineState? = nil, ett: Entity? = nil) {
+	static let textureldr = MTKTextureLoader(device: lib.device)
+	
+	init(
+		_ meshes: [Mesh] = [],
+		ett: Entity? = nil,
+		texture: String? = nil
+	) {
 		self.meshes = meshes
-		self.rstate = rstate
 		self.ett = ett
+		if let url = util.url(texture) {
+			self.texture = try! Model.textureldr.newTexture(
+				URL: url,
+				options: nil
+			)
+		} else {
+			self.texture = nil
+		}
 	}
 	
-	var mvtx: ModelVtx {return ModelVtx(ctm: (self.ett?.ctm ?? .idt) * self.ctm)}
-	var mfrg: ModelFrg {return ModelFrg(hue: self.hue, diff: self.diff, spec: self.spec, shine: self.shine)}
+	struct Uniform {
+		let ctm: m4f
+		let hue: v4f
+		let diff: f32
+		let spec: f32
+		let shine: f32
+	}
+	var uniform: Uniform {
+		return Uniform(
+			ctm: (self.ett?.ctm ?? .idt) * self.ctm,
+			hue: self.hue,
+			diff: self.diff,
+			spec: self.spec,
+			shine: self.shine
+		)
+	}
 	
 	func render(enc: MTLRenderCommandEncoder) {
-		if let rstate = self.rstate {enc.setRenderPipelineState(rstate)}
-		self.mvtx.render(enc: enc)
-		self.mfrg.render(enc: enc)
+		if let texture = self.texture {
+			enc.setFragmentTexture(texture, index: 0)
+			enc.setFragmentSamplerState(lib.sstate, index: 0)
+			enc.setRenderPipelineState(lib.rstate_text)
+		} else {
+			enc.setRenderPipelineState(lib.rstate_main)
+		}
+		var uniform = self.uniform
+		enc.setVertexBytes(&uniform, length: util.sizeof(uniform), index: 1)
 		for mesh in self.meshes {
 			mesh.render(enc: enc)
 		}
@@ -34,24 +67,4 @@ struct Model: Renderable {
 	mutating func add(_ mesh: Mesh) {self.meshes.append(mesh)}
 	mutating func add(_ meshes: [Mesh]) {self.meshes += meshes}
 	
-}
-
-
-struct ModelVtx: Renderable {
-	let ctm: m4f
-	func render(enc: MTLRenderCommandEncoder) {
-		var mvtx = self
-		enc.setVertexBytes(&mvtx, length: util.sizeof(ModelVtx.self), index: 1)
-	}
-}
-
-struct ModelFrg: Renderable {
-	let hue: v3f
-	let diff: f32
-	let spec: f32
-	let shine: f32
-	func render(enc: MTLRenderCommandEncoder) {
-		var mfrg = self
-		enc.setFragmentBytes(&mfrg, length: util.sizeof(ModelFrg.self), index: 1)
-	}
 }

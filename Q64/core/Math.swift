@@ -2,6 +2,7 @@ import simd
 
 
 typealias f32 = Float32
+typealias v2f = simd_float2
 typealias v3f = simd_float3
 typealias v4f = simd_float4
 typealias m4f = simd_float4x4

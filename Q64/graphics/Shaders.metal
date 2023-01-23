@@ -3,25 +3,26 @@ using namespace metal;
 
 
 typedef float f32;
+typedef float2 v2f;
 typedef float3 v3f;
 typedef float4 v4f;
 typedef float4x4 m4f;
 
 
 typedef struct {
-	v3f pos [[attribute(0)]];
-	v3f nml	[[attribute(1)]];
-} vtx;
-typedef struct {
-	v4f spos [[position]];
-	v3f pos;
-	v3f nml;
-} frg;
-
-typedef struct {
 	v3f pos;
 	v3f hue;
 } lsrc;
+
+typedef struct {
+	m4f ctm;
+} mvtx;
+typedef struct {
+	v4f hue;
+	f32 diff;
+	f32 spec;
+	f32 shine;
+} mfrg;
 
 typedef struct {
 	m4f ctm;
@@ -32,35 +33,54 @@ typedef struct {
 } sfrg;
 
 typedef struct {
-	m4f ctm;
-} mvtx;
+	mvtx v;
+	mfrg f;
+} umodel;
 typedef struct {
-	v3f hue;
-	f32 diff;
-	f32 spec;
-	f32 shine;
-} mfrg;
+	svtx v;
+	sfrg f;
+} uscene;
+
+
+typedef struct {
+	v3f pos [[attribute(0)]];
+	v3f nml	[[attribute(1)]];
+	v2f tex	[[attribute(2)]];
+} vtx;
+typedef struct {
+	v4f spos [[position]];
+	v3f pos;
+	v3f nml;
+	v2f tex;
+	mfrg model;
+	sfrg scene;
+} frg;
 
 
 static inline frg _vtx_base(const vtx v,
-							constant mvtx &model,
-							constant svtx &scene) {
+							constant umodel &model,
+							constant uscene &scene) {
 	
-	v4f pos = model.ctm * v4f(v.pos, 1);
-	v4f nml = model.ctm * v4f(v.nml, 0);
+	v4f pos = model.v.ctm * v4f(v.pos, 1);
+	v4f nml = model.v.ctm * v4f(v.nml, 0);
 	
 	return {
-		.spos = scene.ctm * pos,
+		.spos = scene.v.ctm * pos,
 		.pos = pos.xyz,
 		.nml = normalize(nml.xyz),
+		.tex = v.tex,
+		.model = model.f,
+		.scene = scene.f
 	};
 	
 }
 
 static inline v4f _frg_base(const frg f,
-							constant mfrg &model,
-							constant sfrg &scene,
+							const v4f base,
 							constant lsrc *lts) {
+	
+	mfrg model = f.model;
+	sfrg scene = f.scene;
 	
 	v3f diff = 0;
 	v3f spec = 0;
@@ -82,39 +102,35 @@ static inline v4f _frg_base(const frg f,
 	
 	diff *= model.diff;
 	spec *= model.spec;
-	v3f base = model.hue;
-	return v4f(spec + diff * base, 1);
+	return v4f(spec + diff * base.rgb, base.a);
 	
 }
 
 
 vertex frg vtx_main(const vtx v				[[stage_in]],
-					constant mvtx &model	[[buffer(1)]],
-					constant svtx &scene	[[buffer(2)]]) {
+					constant umodel &model	[[buffer(1)]],
+					constant uscene &scene	[[buffer(2)]]) {
 	return _vtx_base(v, model, scene);
 }
 
 vertex frg vtx_inst(const vtx v				[[stage_in]],
-					constant mvtx *models	[[buffer(1)]],
-					constant svtx &scene	[[buffer(2)]],
+					constant umodel *models	[[buffer(1)]],
+					constant uscene &scene	[[buffer(2)]],
 					uint modelID			[[instance_id]]) {
-	constant mvtx &model = models[modelID];
+	constant umodel &model = models[modelID];
 	return _vtx_base(v, model, scene);
 }
 
 fragment v4f frg_main(const frg f			[[stage_in]],
-					  constant mfrg &model	[[buffer(1)]],
-					  constant sfrg &scene	[[buffer(2)]],
-					  constant lsrc *lts	[[buffer(3)]]) {
-	return _frg_base(f, model, scene, lts);
+					  constant lsrc *lts	[[buffer(1)]]) {
+	v4f base = f.model.hue;
+	return _frg_base(f, base, lts);
 }
 
-//fragment v4f frg_text(const frg f							[[stage_in]],
-//					  constant mfrg &model					[[buffer(1)]],
-//					  constant sfrg &scene					[[buffer(2)]],
-//					  constant lsrc *lts					[[buffer(3)]],
-//					  texture2d<float, access::sample> map	[[texture(0)]],
-//					  sampler sampler						[[sampler(0)]]) {
-//	v4f hue = map.sample(sampler, f.tex);
-//	return _frg_base(f, model, scene, lts);
-//}
+fragment v4f frg_text(const frg f							[[stage_in]],
+					  constant lsrc *lts					[[buffer(1)]],
+					  texture2d<f32, access::sample> map	[[texture(0)]],
+					  sampler smp							[[sampler(0)]]) {
+	v4f base = f.model.hue * map.sample(smp, f.tex);
+	return _frg_base(f, base, lts);
+}
