@@ -2,26 +2,31 @@ import MetalKit
 
 
 class Instanced: Renderable {
-	let mesh: Mesh
-	var models: [Model]
-	let buf: Buffer<Model.Uniform>
+	var meshes: [Mesh]
+	var material: Material
+	var instances: [Instance]
+	let buffer: MTLBuffer
 	
-	init(_ mesh: Mesh, models: [Model]) {
-		self.mesh = mesh
-		self.models = models
-		self.buf = Buffer<Model.Uniform>(models.count)
+	init(instances: [Instance], material: Material = Material(), meshes: [Mesh] = []) {
+		self.meshes = meshes
+		self.material = material
+		self.instances = instances
+		self.buffer = lib.device.makeBuffer(
+			length: instances.count * util.sizeof(MVtx.self),
+			options: [.storageModeShared])!
 	}
-
+	
 	func render(enc: MTLRenderCommandEncoder) {
-		enc.setRenderPipelineState(lib.rstate_inst)
-		for (i, model) in self.models.enumerated() {
-			self.buf[i] = model.uniform
+		let num = self.instances.count
+		let ptr = self.buffer.contents().assumingMemoryBound(to: MVtx.self)
+		for i in 0..<num {
+			ptr[i] = self.instances[i].mvtx
 		}
-		enc.setVertexBuffer(self.buf.mtl, offset: 0, index: 1)
-		self.mesh.render(enc: enc, n: self.models.count)
+		enc.setVertexBuffer(self.buffer, offset: 0, index: 1)
+		self.material.render(enc: enc)
+		for mesh in self.meshes {
+			mesh.render(enc: enc, num: num)
+		}
 	}
-
-	func add(_ model: Model) {self.models.append(model)}
-	func add(_ models: [Model]) {self.models += models}
-
+	
 }
