@@ -27,16 +27,17 @@ class Demo: Ctrl {
 		let bulbmesh = Mesh.sphere(seg: 10, type: .line)
 		let gndmodel = Model(
 			instance: Instance(ctm: m4f.mag(f32(dim)), hue: v4f(0.5, 0.5, 0.5, 1)),
-			material: Material(diff: 0.5),
+			material: Material(frg: MFrg(diff: 0.5)),
 			meshes: [Mesh.plane(seg: 1, type: .triangle)]
 		)
 		let cruisermodel = Model(
 			instance: Joint(ett: self.cruiser, ctm: m4f.mag(20), hue: v4f(0, 1, 1, 1)),
-			material: Material(path: "steel.jpg", diff: 1.2, spec: 1.4, shine: 16),
+			material: Material(path: "steel.jpg", frg: MFrg(diff: 1.2, spec: 1.4, shine: 16)),
 			meshes: Mesh.load(path: "cruiser.obj", type: .triangle)
 		)
 		
 		var bulbinstances: [Instance] = []
+		var i = 0
 		for x in -nbulb...nbulb {
 			for z in -nbulb...nbulb {
 				let pos = v3f(
@@ -49,7 +50,8 @@ class Demo: Ctrl {
 					ctm: m4f.pos(pos) * m4f.mag(2),
 					hue: v4f(hue, 1)
 				))
-				self.scene.lights.add(Light(pos: pos, hue: hue, amp: 6e4))
+				self.scene.lights[i] = Light(pos: pos, hue: hue, amp: 6e4)
+				i += 1
 			}
 		}
 		let bulbmodel = Instanced(instances: bulbinstances, meshes: [bulbmesh])
