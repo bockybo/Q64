@@ -15,9 +15,9 @@ class Demo: Ctrl {
 		
 		let hues = [
 			v3f(1, 1, 1),
-//			v3f(1, 1, 0),
-//			v3f(0, 1, 1),
-//			v3f(1, 0, 1),
+			v3f(1, 1, 0),
+			v3f(0, 1, 1),
+			v3f(1, 0, 1),
 		]
 		
 		let ybulb = 150
@@ -25,33 +25,18 @@ class Demo: Ctrl {
 		let dim = 2000
 		
 		let bulbmesh = Mesh.sphere(seg: 10, type: .line)
-		var gndmodel = Model(
-			[Mesh.box(seg: 1, type: .triangle)]
+		let gndmodel = Model(
+			instance: Instance(ctm: m4f.mag(f32(dim)), hue: v4f(0.5, 0.5, 0.5, 1)),
+			material: Material(diff: 0.5),
+			meshes: [Mesh.plane(seg: 1, type: .triangle)]
 		)
-		var cruisermodel = Model(
-			Mesh.load(path: "cruiser.obj", type: .triangle),
-			ett: self.cruiser,
-			texture: "steel.jpg"
+		let cruisermodel = Model(
+			instance: Joint(ett: self.cruiser, ctm: m4f.mag(20), hue: v4f(0, 1, 1, 1)),
+			material: Material(path: "steel.jpg", diff: 1.2, spec: 1.4, shine: 16),
+			meshes: Mesh.load(path: "cruiser.obj", type: .triangle)
 		)
 		
-		gndmodel.ctm = m4f.mag(v3f(f32(dim), 5, f32(dim)))
-		gndmodel.diff = 0.5
-		
-		cruisermodel.ctm = m4f.mag(15)
-//		cruisermodel.hue = v4f(0.5 * v3f(0, 1, 1), 1)
-		cruisermodel.diff = 1.2
-		cruisermodel.spec = 1.4
-		cruisermodel.shine = 16
-		
-		
-		self.scene.pos.y = 80
-		self.scene.pos.z = -100
-		self.scene.rot.y = .pi
-		self.cruiser.rot.y = 0.5 * .pi
-		self.cruiser.pos.y = 20
-		
-		
-		var bulbmodels: [Model] = []
+		var bulbinstances: [Instance] = []
 		for x in -nbulb...nbulb {
 			for z in -nbulb...nbulb {
 				let pos = v3f(
@@ -60,18 +45,25 @@ class Demo: Ctrl {
 					f32(z * dim / (2*nbulb + 1))
 				)
 				let hue = hues[Int.random(in: 0..<hues.count)]
-				let light = Light(pos: pos, hue: hue, amp: 2e4)
-				var bulbmodel = Model()
-				bulbmodel.ctm = m4f.pos(pos) * m4f.mag(2)
-				bulbmodel.hue = v4f(hue, 1)
-				bulbmodels.append(bulbmodel)
-				self.scene.lights.add(light)
+				bulbinstances.append(Instance(
+					ctm: m4f.pos(pos) * m4f.mag(2),
+					hue: v4f(hue, 1)
+				))
+				self.scene.lights.add(Light(pos: pos, hue: hue, amp: 6e4))
 			}
 		}
-		self.scene.add(Instanced(bulbmesh, models: bulbmodels))
+		let bulbmodel = Instanced(instances: bulbinstances, meshes: [bulbmesh])
+		
+		self.scene.add(bulbmodel)
 		self.scene.add(gndmodel)
 		self.scene.add(cruisermodel)
 		self.world.append(self.cruiser)
+		
+		self.scene.pos.y = 80
+		self.scene.pos.z = -100
+		self.scene.rot.y = .pi
+		self.cruiser.rot.y = 0.5 * .pi
+		self.cruiser.pos.y = 20
 		
 		
 		Cursor.hide()
