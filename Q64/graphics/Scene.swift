@@ -28,12 +28,9 @@ class Scene: Renderable {
 	}
 	
 	func render(enc: MTLRenderCommandEncoder) {
-		let view = self.view
-		var svtx = SVtx(ctm: self.proj * view)
-		var sfrg = SFrg(cam: view[3].xyz, nlt: self.lights.num)
+		var svtx = SVtx(proj: self.proj, view: self.view)
 		enc.setVertexBytes(&svtx, length: util.sizeof(svtx), index: 2)
-		enc.setFragmentBytes(&sfrg, length: util.sizeof(sfrg), index: 2)
-		self.lights.render(enc: enc)
+		enc.setFragmentBuffer(self.lights.buf, offset: 0, index: 2)
 		for renderable in self.renderables {
 			renderable.render(enc: enc)
 		}
