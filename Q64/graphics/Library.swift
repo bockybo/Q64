@@ -6,7 +6,6 @@ class lib {
 	static let device = MTLCreateSystemDefaultDevice()!
 	
 	static let rstate_main = lib.rstate(vtx: "vtx_main", frg: "frg_main")
-	static let rstate_inst = lib.rstate(vtx: "vtx_inst", frg: "frg_main")
 	static let rstate_text = lib.rstate(vtx: "vtx_main", frg: "frg_text")
 	
 	static let vdescr: MDLVertexDescriptor = {
