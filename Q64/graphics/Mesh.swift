@@ -1,20 +1,39 @@
 import MetalKit
 
 
-struct Mesh: Renderable {
-	let vtxprim: Vtxprim
-	let idxprim: Idxprim
+class Mesh: Renderable {
+	let mesh: MTKMesh
+	let type: MTLPrimitiveType
 	
 	init(_ mesh: MTKMesh, type: MTLPrimitiveType) {
-		self.vtxprim = Vtxprim(bufs: mesh.vertexBuffers)
-		self.idxprim = Idxprim(subs: mesh.submeshes, type: type)
+		self.mesh = mesh
+		self.type = type
 	}
 	
-	func render(enc: MTLRenderCommandEncoder) {self.render(enc: enc, n: 1)}
-	func render(enc: MTLRenderCommandEncoder, n: Int) {
-		self.vtxprim.render(enc: enc)
-		self.idxprim.render(enc: enc, n: n)
+	func render(enc: MTLRenderCommandEncoder) {self.render(enc: enc, num: 1)}
+	func render(enc: MTLRenderCommandEncoder, num: Int) {
+		for (i, buf) in self.mesh.vertexBuffers.enumerated() {
+			enc.setVertexBuffer(buf.buffer, offset: buf.offset, index: i)
+		}
+		for sub in self.mesh.submeshes {
+			enc.drawIndexedPrimitives(
+				type:				self.type,
+				indexCount:			sub.indexCount,
+				indexType:			sub.indexType,
+				indexBuffer:		sub.indexBuffer.buffer,
+				indexBufferOffset:	sub.indexBuffer.offset,
+				instanceCount:		num
+			)
+		}
 	}
+	
+	convenience init(_ mesh: MDLMesh, type: MTLPrimitiveType = .triangle) {
+		mesh.vertexDescriptor = lib.vdescr
+		mesh.addNormals(withAttributeNamed: MDLVertexAttributeNormal, creaseThreshold: 0)
+		let mesh = try! MTKMesh(mesh: mesh, device: lib.device)
+		self.init(mesh, type: type)
+	}
+	
 	
 	static let bufalloc = MTKMeshBufferAllocator(device: lib.device)
 	
@@ -27,13 +46,6 @@ struct Mesh: Renderable {
 		)
 		let mdlmeshes = try! MTKMesh.newMeshes(asset: asset, device: lib.device).modelIOMeshes
 		return mdlmeshes.map {Mesh($0, type: type)}
-	}
-	
-	init(_ mesh: MDLMesh, type: MTLPrimitiveType = .triangle) {
-		mesh.vertexDescriptor = lib.vdescr
-		mesh.addNormals(withAttributeNamed: MDLVertexAttributeNormal, creaseThreshold: 0)
-		let mesh = try! MTKMesh(mesh: mesh, device: lib.device)
-		self.init(mesh, type: type)
 	}
 	
 	
