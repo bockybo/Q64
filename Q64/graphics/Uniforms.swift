@@ -2,21 +2,17 @@ import MetalKit
 
 
 struct SVtx {
-	var ctm: m4f
+	var proj: m4f
+	var view: m4f
 }
-struct SFrg {
-	var cam: v3f
-	var nlt: Int
-}
-
 struct MVtx {
 	var ctm: m4f
 	var hue: v4f
 }
 struct MFrg {
-	var diff: f32
-	var spec: f32
-	var shine: f32
+	var diff: f32 = 1
+	var spec: f32 = 0
+	var shine: f32 = 1
 }
 
 
@@ -47,39 +43,27 @@ class Joint: Instance {
 }
 
 class Material: Renderable {
-	let texture: MTLTexture?
-	var diff: f32
-	var spec: f32
-	var shine: f32
+	let tex: MTLTexture
+	var frg: MFrg
 	
-	init(path: String? = nil, diff: f32 = 1, spec: f32 = 0, shine: f32 = 1) {
-		self.diff = diff
-		self.spec = spec
-		self.shine = shine
-		if let url = util.url(path) {
-			let loader = MTKTextureLoader(device: lib.device)
-			self.texture = try! loader.newTexture(
-				URL: url,
-				options: nil
-			)
-		} else {
-			self.texture = nil
-		}
+	static let texwhite = Material.texload(path: "white.png")
+	static func texload(path: String) -> MTLTexture {
+		let ldr = MTKTextureLoader(device: lib.device)
+		let url = util.url(path)!
+		return try! ldr.newTexture(URL: url, options: nil)
+	}
+	
+	init(_ tex: MTLTexture = Material.texwhite, frg: MFrg = MFrg()) {
+		self.tex = tex
+		self.frg = frg
+	}
+	convenience init(path: String, frg: MFrg = MFrg()) {
+		self.init(Material.texload(path: path), frg: frg)
 	}
 	
 	func render(enc: MTLRenderCommandEncoder) {
-		var mfrg = MFrg(
-			diff: self.diff,
-			spec: self.spec,
-			shine: self.shine)
-		enc.setFragmentBytes(&mfrg, length: util.sizeof(MFrg.self), index: 1)
-		if let texture = self.texture {
-			enc.setFragmentTexture(texture, index: 0)
-			enc.setFragmentSamplerState(lib.sstate, index: 0)
-			enc.setRenderPipelineState(lib.rstate_text)
-		} else {
-			enc.setRenderPipelineState(lib.rstate_main)
-		}
+		enc.setFragmentBytes(&self.frg, length: util.sizeof(self.frg), index: 1)
+		enc.setFragmentTexture(self.tex, index: 0)
 	}
 	
 }

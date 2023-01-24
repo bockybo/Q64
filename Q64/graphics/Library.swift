@@ -5,10 +5,7 @@ class lib {
 	
 	static let device = MTLCreateSystemDefaultDevice()!
 	
-	static let rstate_main = lib.rstate(vtx: "vtx_main", frg: "frg_main")
-	static let rstate_text = lib.rstate(vtx: "vtx_main", frg: "frg_text")
-	
-	static let vdescr: MDLVertexDescriptor = {
+	static let vtxdescr: MDLVertexDescriptor = {
 		let descr = MDLVertexDescriptor()
 		descr.attributes[0] = MDLVertexAttribute(
 			name: MDLVertexAttributePosition,
@@ -33,10 +30,10 @@ class lib {
 		return descr
 	}()
 	
-	static func rstate(vtx: String, frg: String) -> MTLRenderPipelineState {
+	static func rdpstate(vtx: String, frg: String) -> MTLRenderPipelineState {
 		
 		let descr = MTLRenderPipelineDescriptor()
-		descr.vertexDescriptor = lib.vdescr.mtl
+		descr.vertexDescriptor = lib.vtxdescr.mtl
 		
 		descr.colorAttachments[0].pixelFormat	= Config.color_fmt
 		descr.depthAttachmentPixelFormat		= Config.depth_fmt
@@ -55,15 +52,16 @@ class lib {
 		
 		return try! lib.device.makeRenderPipelineState(descriptor: descr)
 	}
+	static let rdpstate = lib.rdpstate(vtx: "vtx_main", frg: "frg_main")
 	
-	static let dstate: MTLDepthStencilState = {
+	static let depstate: MTLDepthStencilState = {
 		let descr = MTLDepthStencilDescriptor()
 		descr.isDepthWriteEnabled = true
 		descr.depthCompareFunction = .less
 		return lib.device.makeDepthStencilState(descriptor: descr)!
 	}()
 	
-	static let sstate: MTLSamplerState = {
+	static let smpstate: MTLSamplerState = {
 		let descr = MTLSamplerDescriptor()
 		descr.normalizedCoordinates = true
 		descr.magFilter = .linear

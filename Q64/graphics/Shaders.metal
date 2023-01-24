@@ -18,6 +18,7 @@ typedef struct {
 	v4f screen [[position]];
 	v3f pos;
 	v3f nml;
+	v3f eye;
 	v2f tex;
 	v4f hue;
 } frg;
@@ -33,88 +34,69 @@ typedef struct {
 } mfrg;
 
 typedef struct {
-	m4f ctm;
+	m4f proj;
+	m4f view;
 } svtx;
-typedef struct {
-	v3f cam;
-	int nlt;
-} sfrg;
 
+#define MAXNLT 64
 typedef struct {
 	v3f pos;
 	v3f hue;
+	f32 amp;
 } lsrc;
 
 
-static inline frg _vtx_base(vtx v,
-			  constant mvtx &model,
-			  constant svtx &scene) {
-
+vertex frg vtx_main(vtx v									[[stage_in]],
+					constant mvtx *models					[[buffer(1)]],
+					constant svtx &scene					[[buffer(2)]],
+					uint modelID							[[instance_id]]) {
+	
+	constant mvtx &model = models[modelID];
+	
 	v4f pos = model.ctm * v4f(v.pos, 1);
 	v4f nml = model.ctm * v4f(v.nml, 0);
-
+	
 	return {
-		.screen = scene.ctm * pos,
+		.screen = scene.proj * scene.view * pos,
 		.pos = pos.xyz,
 		.nml = normalize(nml.xyz),
+		.eye = normalize(pos.xyz - scene.view[3].xyz),
 		.tex = v.tex,
 		.hue = model.hue,
 	};
-
+	
 }
 
-static inline half4 _frg_base(frg f,
-							constant mfrg &model,
-							constant sfrg &scene,
-							constant lsrc *lts
-) {
-
+fragment half4 frg_main(frg f								[[stage_in]],
+						constant mfrg &model				[[buffer(1)]],
+						constant lsrc *lts					[[buffer(2)]],
+						texture2d<f32, access::sample> map	[[texture(0)]],
+						sampler smp							[[sampler(0)]]) {
+	
 	v3f diff = 0;
 	v3f spec = 0;
-
-	for (int i = 0; i < scene.nlt; ++i) {
+	
+	for (int i = 0; i < MAXNLT; ++i) {
 		lsrc l = lts[i];
-
-		v3f src = normalize(l.pos - f.pos);
-		v3f dst = normalize(f.pos - scene.cam);
-
-		f32 ksrc = max(0.0, dot(src, f.nml));
-		f32 kdst = max(0.0, dot(src, reflect(dst, f.nml)));
-
-		v3f hue = l.hue / length_squared(l.pos - f.pos);
-		diff += hue * ksrc;
-		spec += hue * pow(kdst, model.shine);
-
+		if (!l.amp)
+			continue;
+		
+		v3f dist = l.pos - f.pos;
+		v3f dir = normalize(dist);
+		f32 kdiff = saturate(dot(f.nml, dir));
+		f32 kspec = saturate(dot(f.eye, reflect(dir, f.nml)));
+		
+		f32 amp = l.amp / length_squared(dist);
+		v3f hue = l.hue * amp;
+		diff += hue * kdiff;
+		spec += hue * powr(kspec, model.shine);
+		
 	}
-
+	
+	v4f base = f.hue * map.sample(smp, f.tex);
 	diff *= model.diff;
 	spec *= model.spec;
-	return half4(half3(spec + diff * f.hue.rgb), f.hue.a);
-
-}
-
-
-vertex frg vtx_main(vtx v					[[stage_in]],
-					constant mvtx *models	[[buffer(1)]],
-					constant svtx &scene	[[buffer(2)]],
-					uint modelID			[[instance_id]]) {
-	constant mvtx &model = models[modelID];
-	return _vtx_base(v, model, scene);
-}
-
-fragment half4 frg_main(frg f [[stage_in]],
-					  constant mfrg &model	[[buffer(1)]],
-					  constant sfrg &scene	[[buffer(2)]],
-					  constant lsrc *lts	[[buffer(3)]]) {
-	return _frg_base(f, model, scene, lts);
-}
-
-fragment half4 frg_text(frg f [[stage_in]],
-					  constant mfrg &model	[[buffer(1)]],
-					  constant sfrg &scene	[[buffer(2)]],
-					  constant lsrc *lts	[[buffer(3)]],
-					  texture2d<f32, access::sample> map	[[texture(0)]],
-					  sampler smp							[[sampler(0)]]) {
-	f.hue *= map.sample(smp, f.tex);
-	return _frg_base(f, model, scene, lts);
+	half3 rgb = half3(spec + diff * base.rgb);
+	return half4(rgb, base.a);
+	
 }
