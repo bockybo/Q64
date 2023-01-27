@@ -43,13 +43,17 @@ class Material {
 		
 	}
 	
-	func render(enc: MTLRenderCommandEncoder) {
-		var frg = MFrg(
+	var mfrg: MFrg {
+		return MFrg(
 			ambi: self.ambi,
 			diff: self.diff,
 			spec: self.spec,
 			shine: self.shine
 		)
+	}
+	
+	func render(enc: MTLRenderCommandEncoder) {
+		var frg = self.mfrg
 		enc.setFragmentBytes(&frg, length: util.sizeof(frg), index: 1)
 		enc.setFragmentTexture(self.tex, index: 0)
 	}

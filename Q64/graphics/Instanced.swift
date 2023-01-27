@@ -1,7 +1,7 @@
 import MetalKit
 
 
-class Instanced {
+class Instanced: Model {
 	var etts: [Entity]
 	var material: Material
 	var meshes: [Mesh]

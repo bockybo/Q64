@@ -7,8 +7,6 @@ class Scene {
 	var cam = Camera()
 	
 	var models: [Model] = []
-	func add(_ model: Model) {self.models.append(model)}
-	func add(_ models: [Model]) {self.models += models}
 	
 	func light(enc: MTLRenderCommandEncoder) {
 		var cam = self.cam.proj * self.cam.view.inverse

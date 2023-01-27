@@ -26,7 +26,7 @@
 		7E2FDF2F29789B7800DE8F1F /* Config.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2FDF2E29789B7800DE8F1F /* Config.swift */; };
 		7E2FDF3129789CE200DE8F1F /* Shaders.metal in Sources */ = {isa = PBXBuildFile; fileRef = 7E2FDF3029789CE200DE8F1F /* Shaders.metal */; };
 		7E2FDF3329789EA800DE8F1F /* Scene.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2FDF3229789EA800DE8F1F /* Scene.swift */; };
-		7E2FDF392978A28B00DE8F1F /* Model.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2FDF382978A28B00DE8F1F /* Model.swift */; };
+		7E2FDF392978A28B00DE8F1F /* Instance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2FDF382978A28B00DE8F1F /* Instance.swift */; };
 		7E2FDF3B2978A34E00DE8F1F /* Mesh.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2FDF3A2978A34E00DE8F1F /* Mesh.swift */; };
 		7E2FDF3D2978A4D000DE8F1F /* Keybinds.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2FDF3C2978A4D000DE8F1F /* Keybinds.swift */; };
 		7E2FDF3F2978A4D800DE8F1F /* Cursor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2FDF3E2978A4D800DE8F1F /* Cursor.swift */; };
@@ -35,6 +35,7 @@
 		7E2FDF492978AC3400DE8F1F /* Control.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2FDF482978AC3400DE8F1F /* Control.swift */; };
 		7E2FDF4F2979F78000DE8F1F /* Util.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2FDF4E2979F78000DE8F1F /* Util.swift */; };
 		7E2FDF53297A0C8900DE8F1F /* Cruiser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2FDF52297A0C8900DE8F1F /* Cruiser.swift */; };
+		7E3D63E4298399DA00647EB7 /* Model.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E3D63E3298399DA00647EB7 /* Model.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -59,7 +60,7 @@
 		7E2FDF2E29789B7800DE8F1F /* Config.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Config.swift; sourceTree = "<group>"; };
 		7E2FDF3029789CE200DE8F1F /* Shaders.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = Shaders.metal; sourceTree = "<group>"; };
 		7E2FDF3229789EA800DE8F1F /* Scene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Scene.swift; sourceTree = "<group>"; };
-		7E2FDF382978A28B00DE8F1F /* Model.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Model.swift; sourceTree = "<group>"; };
+		7E2FDF382978A28B00DE8F1F /* Instance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Instance.swift; sourceTree = "<group>"; };
 		7E2FDF3A2978A34E00DE8F1F /* Mesh.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Mesh.swift; sourceTree = "<group>"; };
 		7E2FDF3C2978A4D000DE8F1F /* Keybinds.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Keybinds.swift; sourceTree = "<group>"; };
 		7E2FDF3E2978A4D800DE8F1F /* Cursor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Cursor.swift; sourceTree = "<group>"; };
@@ -68,6 +69,7 @@
 		7E2FDF482978AC3400DE8F1F /* Control.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Control.swift; sourceTree = "<group>"; };
 		7E2FDF4E2979F78000DE8F1F /* Util.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Util.swift; sourceTree = "<group>"; };
 		7E2FDF52297A0C8900DE8F1F /* Cruiser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Cruiser.swift; sourceTree = "<group>"; };
+		7E3D63E3298399DA00647EB7 /* Model.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Model.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -150,7 +152,8 @@
 				7E04792B297DDC9600A51674 /* Library.swift */,
 				7E2FDF2A29789A9C00DE8F1F /* Renderer.swift */,
 				7E2FDF3229789EA800DE8F1F /* Scene.swift */,
-				7E2FDF382978A28B00DE8F1F /* Model.swift */,
+				7E2FDF382978A28B00DE8F1F /* Instance.swift */,
+				7E3D63E3298399DA00647EB7 /* Model.swift */,
 				7E04793F297FC24000A51674 /* Instanced.swift */,
 				7E2FDF3A2978A34E00DE8F1F /* Mesh.swift */,
 				7E0479792983615100A51674 /* Camera.swift */,
@@ -263,13 +266,14 @@
 				7E2FDF53297A0C8900DE8F1F /* Cruiser.swift in Sources */,
 				7E04797A2983615100A51674 /* Camera.swift in Sources */,
 				7E2FDF3329789EA800DE8F1F /* Scene.swift in Sources */,
+				7E3D63E4298399DA00647EB7 /* Model.swift in Sources */,
 				7E2FDF432978A93800DE8F1F /* RenderView.swift in Sources */,
 				7E2A1569297BC486000CFCEF /* Lighting.swift in Sources */,
 				7E2FDF3B2978A34E00DE8F1F /* Mesh.swift in Sources */,
 				7E047940297FC24000A51674 /* Instanced.swift in Sources */,
 				7E2FDF192978991200DE8F1F /* Q64.xcdatamodeld in Sources */,
 				7E2FDF3F2978A4D800DE8F1F /* Cursor.swift in Sources */,
-				7E2FDF392978A28B00DE8F1F /* Model.swift in Sources */,
+				7E2FDF392978A28B00DE8F1F /* Instance.swift in Sources */,
 				7E2FDF492978AC3400DE8F1F /* Control.swift in Sources */,
 				7E2A1565297BB647000CFCEF /* CtrlClock.swift in Sources */,
 				7E2FDF412978A79800DE8F1F /* Entity.swift in Sources */,

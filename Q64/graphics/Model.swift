@@ -1,24 +1,9 @@
 import MetalKit
 
 
-class Model {
-	var ett: Entity
-	var material: Material
-	var meshes: [Mesh]
+protocol Model {
 	
-	init(_ ett: Entity, material: Material = Material(), meshes: [Mesh] = []) {
-		self.ett = ett
-		self.material = material
-		self.meshes = meshes
-	}
-	
-	func render(enc: MTLRenderCommandEncoder) {
-		self.material.render(enc: enc)
-		var ctm = self.ett.ctm
-		enc.setVertexBytes(&ctm, length: util.sizeof(ctm), index: 1)
-		for mesh in self.meshes {
-			mesh.render(enc: enc)
-		}
-	}
+	func render(enc: MTLRenderCommandEncoder)
+	var material: Material {get set}
 	
 }
