@@ -25,7 +25,7 @@ class Renderer: NSObject, MTKViewDelegate {
 		var enc: MTLRenderCommandEncoder
 		
 		let descr = lib.shadepassdescr
-		descr.depthAttachment.texture = self.scene.lgt.shdmap
+		descr.depthAttachment.texture = self.shdmap
 		
 		enc = buf.makeRenderCommandEncoder(descriptor: descr)!
 		enc.setRenderPipelineState(lib.shadepipestate)
@@ -36,7 +36,7 @@ class Renderer: NSObject, MTKViewDelegate {
 		enc = buf.makeRenderCommandEncoder(descriptor: view.currentRenderPassDescriptor!)!
 		enc.setRenderPipelineState(lib.lightpipestate)
 		enc.setDepthStencilState(lib.depthstate)
-		enc.setFragmentTexture(self.scene.lgt.shdmap, index: 1)
+		enc.setFragmentTexture(self.shdmap, index: 1)
 		self.scene.light(enc: enc)
 		enc.endEncoding()
 		
@@ -44,5 +44,18 @@ class Renderer: NSObject, MTKViewDelegate {
 		buf.commit()
 		
 	}
+	
+	let shdmap: MTLTexture = {
+		let dim = 16384
+		let descr = MTLTextureDescriptor.texture2DDescriptor(
+			pixelFormat: Config.depth_fmt,
+			width:  dim,
+			height: dim,
+			mipmapped: false
+		)
+		descr.storageMode = .private
+		descr.usage = [.renderTarget, .shaderRead]
+		return lib.device.makeTexture(descriptor: descr)!
+	}()
 	
 }

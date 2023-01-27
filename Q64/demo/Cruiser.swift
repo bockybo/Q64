@@ -16,7 +16,7 @@ class Cruiser: Entity {
 		self.rot.x += 0.003 * dt * self.xmov
 		self.rot.z += 0.008 * dt * self.zmov
 		
-		self.rot.y -= 0.05 * self.rot.z / max(0.4, length(self.vel))
+		self.rot.y -= 0.08 * self.rot.z
 		
 		self.vel.x += 0.02 * self.rot.x * sin(self.rot.y)
 		self.vel.z += 0.02 * self.rot.x * cos(self.rot.y)

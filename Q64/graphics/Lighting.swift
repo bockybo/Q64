@@ -18,19 +18,6 @@ struct Lighting {
 		)
 	}
 	
-	let shdmap: MTLTexture = {
-		let dim = Int(powf(2, 14))
-		let descr = MTLTextureDescriptor.texture2DDescriptor(
-			pixelFormat: Config.depth_fmt,
-			width:  dim,
-			height: dim,
-			mipmapped: false
-		)
-		descr.storageMode = .private
-		descr.usage = [.renderTarget, .shaderRead]
-		return lib.device.makeTexture(descriptor: descr)!
-	}()
-	
 	struct LFrg {
 		var hue = v3f.one
 		var dir = v3f.zero
