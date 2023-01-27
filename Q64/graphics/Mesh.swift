@@ -1,7 +1,7 @@
 import MetalKit
 
 
-class Mesh: Renderable {
+class Mesh {
 	let mesh: MTKMesh
 	let type: MTLPrimitiveType
 	
@@ -28,7 +28,7 @@ class Mesh: Renderable {
 	}
 	
 	convenience init(_ mesh: MDLMesh, type: MTLPrimitiveType = .triangle) {
-		mesh.vertexDescriptor = lib.vdescr
+		mesh.vertexDescriptor = lib.vtxdescr
 		mesh.addNormals(withAttributeNamed: MDLVertexAttributeNormal, creaseThreshold: 0)
 		let mesh = try! MTKMesh(mesh: mesh, device: lib.device)
 		self.init(mesh, type: type)
@@ -41,7 +41,7 @@ class Mesh: Renderable {
 		let url = util.url(path)!
 		let asset = MDLAsset(
 			url: url,
-			vertexDescriptor: lib.vdescr,
+			vertexDescriptor: lib.vtxdescr,
 			bufferAllocator: Mesh.bufalloc
 		)
 		let mdlmeshes = try! MTKMesh.newMeshes(asset: asset, device: lib.device).modelIOMeshes

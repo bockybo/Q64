@@ -6,14 +6,7 @@ class util {
 	class func sizeof<T>(_: T.Type) -> Int {
 		return MemoryLayout<T>.stride
 	}
-	class func alignof<T>(_: T.Type) -> Int {
-		return MemoryLayout<T>.alignment
-	}
-	
 	class func sizeof<T>(_: T) -> Int {
-		return util.sizeof(T.self)
-	}
-	class func alignof<T>(_: T) -> Int {
 		return util.sizeof(T.self)
 	}
 	

@@ -13,15 +13,15 @@ class Cruiser: Entity {
 	
 	func tick(dt: f32) {
 		
-		self.rot.x += 0.004 * dt * self.xmov
-		self.rot.z += 0.009 * dt * self.zmov
+		self.rot.x += 0.003 * dt * self.xmov
+		self.rot.z += 0.008 * dt * self.zmov
 		
-		self.rot.y -= 0.04 * self.rot.z / max(0.3, length(self.vel))
+		self.rot.y -= 0.05 * self.rot.z / max(0.4, length(self.vel))
 		
-		self.vel.x += 0.08 * self.rot.x * sin(self.rot.y)
-		self.vel.z += 0.08 * self.rot.x * cos(self.rot.y)
+		self.vel.x += 0.02 * self.rot.x * sin(self.rot.y)
+		self.vel.z += 0.02 * self.rot.x * cos(self.rot.y)
 		
-		self.pos += self.vel
+		self.pos += 0.9 * self.vel
 		self.vel *= 0.997
 		self.rot.x *= 0.9
 		self.rot.z *= 0.9

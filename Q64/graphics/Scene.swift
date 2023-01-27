@@ -1,43 +1,36 @@
 import MetalKit
 
 
-class Scene: Renderable {
+class Scene {
 	
-	let lights = Lights()
+	var lgt = Lighting()
+	var cam = Camera()
 	
-	var proj: m4f = .idt
-	var aspect: f32 = 1 {
-		didSet {
-			self.proj = m4f.proj(
-				fov: Config.fov,
-				aspect: self.aspect,
-				z0: Config.z0,
-				z1: Config.z1
-			)
+	var models: [Model] = []
+	func add(_ model: Model) {self.models.append(model)}
+	func add(_ models: [Model]) {self.models += models}
+	
+	func light(enc: MTLRenderCommandEncoder) {
+		var cam = self.cam.proj * self.cam.view.inverse
+		var lgt = self.lgt.proj * self.lgt.view.inverse
+//		var eye = self.cam.pos
+		var eye = self.cam.view.inverse[3].xyz
+		var frg = self.lgt.lfrg
+		enc.setVertexBytes(&lgt, length: util.sizeof(lgt), index: 2)
+		enc.setVertexBytes(&cam, length: util.sizeof(cam), index: 3)
+		enc.setFragmentBytes(&frg, length: util.sizeof(frg), index: 2)
+		enc.setFragmentBytes(&eye, length: util.sizeof(eye), index: 3)
+		for model in self.models {
+			model.render(enc: enc)
 		}
 	}
 	
-	var pos = v3f(0, 0, 0)
-	var rot = v3f(0, 0, 0)
-	var view: m4f {
-		var view = m4f.idt
-		view *= m4f.xrot(-self.rot.x)
-		view *= m4f.yrot(-self.rot.y)
-		view *= m4f.zrot(-self.rot.z)
-		return view * m4f.pos(-self.pos)
-	}
-	
-	func render(enc: MTLRenderCommandEncoder) {
-		var svtx = SVtx(proj: self.proj, view: self.view)
-		enc.setVertexBytes(&svtx, length: util.sizeof(svtx), index: 2)
-		enc.setFragmentBuffer(self.lights.buf, offset: 0, index: 2)
-		for renderable in self.renderables {
-			renderable.render(enc: enc)
+	func shade(enc: MTLRenderCommandEncoder) {
+		var lgt = self.lgt.proj * self.lgt.view.inverse
+		enc.setVertexBytes(&lgt, length: util.sizeof(lgt), index: 2)
+		for model in self.models {
+			model.render(enc: enc)
 		}
 	}
-	
-	private var renderables: [Renderable] = []
-	func add(_ renderable: Renderable) {self.renderables.append(renderable)}
-	func add(_ renderables: [Renderable]) {self.renderables += renderables}
 	
 }

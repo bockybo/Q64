@@ -1,29 +1,29 @@
 import MetalKit
 
 
-class Instanced: Renderable {
-	var meshes: [Mesh]
+class Instanced {
+	var etts: [Entity]
 	var material: Material
-	var instances: [Instance]
+	var meshes: [Mesh]
 	let buffer: MTLBuffer
 	
-	init(instances: [Instance], material: Material = Material(), meshes: [Mesh] = []) {
+	init(_ etts: [Entity], material: Material = Material(), meshes: [Mesh] = []) {
 		self.meshes = meshes
 		self.material = material
-		self.instances = instances
+		self.etts = etts
 		self.buffer = lib.device.makeBuffer(
-			length: instances.count * util.sizeof(MVtx.self),
+			length: etts.count * util.sizeof(m4f.self),
 			options: [.storageModeShared])!
 	}
 	
 	func render(enc: MTLRenderCommandEncoder) {
-		let num = self.instances.count
-		let ptr = self.buffer.contents().assumingMemoryBound(to: MVtx.self)
+		self.material.render(enc: enc)
+		let num = self.etts.count
+		let ptr = self.buffer.contents().assumingMemoryBound(to: m4f.self)
 		for i in 0..<num {
-			ptr[i] = self.instances[i].mvtx
+			ptr[i] = self.etts[i].ctm
 		}
 		enc.setVertexBuffer(self.buffer, offset: 0, index: 1)
-		self.material.render(enc: enc)
 		for mesh in self.meshes {
 			mesh.render(enc: enc, num: num)
 		}

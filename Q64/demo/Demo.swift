@@ -6,66 +6,41 @@ class Demo: Ctrl {
 	var binds = Keybinds()
 	var paused = false
 	
-	var world: [Entity] = []
-	var cruiser = Cruiser()
+	let crs: Model
+	
+	let cruiser = Cruiser()
 	var cammov = v3f(0, 0, 0)
 	var camvel = v3f(0, 0, 0)
 	
 	init() {
 		
-		let hues = [
-			v3f(1, 1, 1),
-			v3f(1, 1, 0),
-			v3f(0, 1, 1),
-			v3f(1, 0, 1),
-		]
+		let crspos = v3f(0, 2, 2)
+		let sphpos = v3f(0, 4, 3)
+		let lgtpos = v3f(0, 9, 0)
 		
-		let ybulb = 150
-		let nbulb = 2
-		let dim = 2000
+		let gnd = Model(CTMEntity(m4f.mag(v3f(1000, 0.1, 1000))))
+		let sph = Model(CTMEntity(m4f.pos(sphpos) * m4f.mag(0.2)))
+		self.crs = Model(self.cruiser)
 		
-		let bulbmesh = Mesh.sphere(seg: 10, type: .line)
-		let gndmodel = Model(
-			instance: Instance(ctm: m4f.mag(f32(dim)), hue: v4f(0.5, 0.5, 0.5, 1)),
-			material: Material(frg: MFrg(diff: 0.5)),
-			meshes: [Mesh.plane(seg: 1, type: .triangle)]
-		)
-		let cruisermodel = Model(
-			instance: Joint(ett: self.cruiser, ctm: m4f.mag(20), hue: v4f(0, 1, 1, 1)),
-			material: Material(path: "steel.jpg", frg: MFrg(diff: 1.2, spec: 1.4, shine: 16)),
-			meshes: Mesh.load(path: "cruiser.obj", type: .triangle)
-		)
+		gnd.material.ambi = 0.5
+		gnd.material.diff = 0
+		self.crs.material = Material(hue: v4f(0, 1, 1, 1))
+//		self.crs.material = Material(path: "steel.jpg")
+		self.crs.material.diff = 0.4
+		self.crs.material.spec = 0.6
+		self.crs.material.shine = 8
 		
-		var bulbinstances: [Instance] = []
-		var i = 0
-		for x in -nbulb...nbulb {
-			for z in -nbulb...nbulb {
-				let pos = v3f(
-					f32(x * dim / (2*nbulb + 1)),
-					f32(ybulb),
-					f32(z * dim / (2*nbulb + 1))
-				)
-				let hue = hues[Int.random(in: 0..<hues.count)]
-				bulbinstances.append(Instance(
-					ctm: m4f.pos(pos) * m4f.mag(2),
-					hue: v4f(hue, 1)
-				))
-				self.scene.lights[i] = Light(pos: pos, hue: hue, amp: 6e4)
-				i += 1
-			}
-		}
-		let bulbmodel = Instanced(instances: bulbinstances, meshes: [bulbmesh])
+		gnd.meshes.append(Mesh.plane(seg: 1))
+		sph.meshes.append(Mesh.sphere(seg: 10, type: .line))
+		self.crs.meshes += Mesh.load(path: "cruiser.obj")
+		self.scene.models += [gnd, sph, crs]
 		
-		self.scene.add(bulbmodel)
-		self.scene.add(gndmodel)
-		self.scene.add(cruisermodel)
-		self.world.append(self.cruiser)
+		self.scene.cam.pos = v3f(0, 4, 10)
+		self.scene.cam.rot = v3f(0, 0, 0) * .pi/180
+		self.scene.lgt.src = lgtpos
+		self.scene.lgt.dst = crspos
 		
-		self.scene.pos.y = 80
-		self.scene.pos.z = -100
-		self.scene.rot.y = .pi
-		self.cruiser.rot.y = 0.5 * .pi
-		self.cruiser.pos.y = 20
+		self.cruiser.pos = crspos
 		
 		
 		Cursor.hide()
@@ -101,22 +76,22 @@ class Demo: Ctrl {
 	func tick(dt: f32) {
 		
 		let delta = Cursor.delta
-		self.scene.rot.x -= 9e-4 * dt * delta.y
-		self.scene.rot.y -= 9e-4 * dt * delta.x
+		self.scene.cam.rot.x -= 9e-4 * dt * delta.y
+		self.scene.cam.rot.y -= 9e-4 * dt * delta.x
 		
-		self.scene.rot.x = min(self.scene.rot.x, +0.5 * .pi)
-		self.scene.rot.x = max(self.scene.rot.x, -0.5 * .pi)
+		self.scene.cam.rot.x = min(self.scene.cam.rot.x, +0.5 * .pi)
+		self.scene.cam.rot.x = max(self.scene.cam.rot.x, -0.5 * .pi)
 		
 		if length_squared(self.cammov) > 0 {
-			let mov = normalize(self.cammov) * dt * 3e-2
-			self.camvel += mov * m4f.yrot(-self.scene.rot.y)
+			let mov = normalize(self.cammov) * dt * 3e-3
+			self.camvel += mov * m4f.yrot(-self.scene.cam.rot.y)
 		}
-		self.scene.pos += self.camvel
+		self.scene.cam.pos += self.camvel
 		self.camvel *= 0.92
 		
-		for i in self.world.indices {
-			self.world[i].tick(dt: dt)
-		}
+		self.cruiser.tick(dt: dt)
+		
+		self.scene.lgt.dst = self.cruiser.pos
 		
 	}
 	

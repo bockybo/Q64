@@ -19,6 +19,8 @@ class RenderView: MTKView {
 		self.depthStencilPixelFormat	= Config.depth_fmt
 		self.preferredFramesPerSecond	= Config.fps
 		
+		self.framebufferOnly = false
+		
 		self.ctrl = Demo()
 		let clock = CtrlClock(ctrl: self.ctrl, tps: Config.tps)
 		clock.run()

@@ -7,14 +7,46 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		7E047924297CE1BB00A51674 /* cruiser.obj in Resources */ = {isa = PBXBuildFile; fileRef = 7E047921297CE1BB00A51674 /* cruiser.obj */; };
+		7E04792A297DD6D100A51674 /* Demo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E047929297DD6D100A51674 /* Demo.swift */; };
+		7E04792C297DDC9600A51674 /* Library.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E04792B297DDC9600A51674 /* Library.swift */; };
+		7E047934297F183000A51674 /* steel.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 7E047933297F183000A51674 /* steel.jpg */; };
+		7E04793E297FBEC500A51674 /* Material.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E04793D297FBEC500A51674 /* Material.swift */; };
+		7E047940297FC24000A51674 /* Instanced.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E04793F297FC24000A51674 /* Instanced.swift */; };
+		7E04797A2983615100A51674 /* Camera.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E0479792983615100A51674 /* Camera.swift */; };
+		7E2A1565297BB647000CFCEF /* CtrlClock.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2A1564297BB647000CFCEF /* CtrlClock.swift */; };
+		7E2A1569297BC486000CFCEF /* Lighting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2A1568297BC486000CFCEF /* Lighting.swift */; };
 		7E2FDF142978991200DE8F1F /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2FDF132978991200DE8F1F /* AppDelegate.swift */; };
 		7E2FDF162978991200DE8F1F /* ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2FDF152978991200DE8F1F /* ViewController.swift */; };
 		7E2FDF192978991200DE8F1F /* Q64.xcdatamodeld in Sources */ = {isa = PBXBuildFile; fileRef = 7E2FDF172978991200DE8F1F /* Q64.xcdatamodeld */; };
 		7E2FDF1B2978991300DE8F1F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 7E2FDF1A2978991300DE8F1F /* Assets.xcassets */; };
 		7E2FDF1E2978991300DE8F1F /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 7E2FDF1C2978991300DE8F1F /* Main.storyboard */; };
+		7E2FDF2B29789A9C00DE8F1F /* Renderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2FDF2A29789A9C00DE8F1F /* Renderer.swift */; };
+		7E2FDF2D29789AD900DE8F1F /* Math.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2FDF2C29789AD900DE8F1F /* Math.swift */; };
+		7E2FDF2F29789B7800DE8F1F /* Config.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2FDF2E29789B7800DE8F1F /* Config.swift */; };
+		7E2FDF3129789CE200DE8F1F /* Shaders.metal in Sources */ = {isa = PBXBuildFile; fileRef = 7E2FDF3029789CE200DE8F1F /* Shaders.metal */; };
+		7E2FDF3329789EA800DE8F1F /* Scene.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2FDF3229789EA800DE8F1F /* Scene.swift */; };
+		7E2FDF392978A28B00DE8F1F /* Model.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2FDF382978A28B00DE8F1F /* Model.swift */; };
+		7E2FDF3B2978A34E00DE8F1F /* Mesh.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2FDF3A2978A34E00DE8F1F /* Mesh.swift */; };
+		7E2FDF3D2978A4D000DE8F1F /* Keybinds.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2FDF3C2978A4D000DE8F1F /* Keybinds.swift */; };
+		7E2FDF3F2978A4D800DE8F1F /* Cursor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2FDF3E2978A4D800DE8F1F /* Cursor.swift */; };
+		7E2FDF412978A79800DE8F1F /* Entity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2FDF402978A79800DE8F1F /* Entity.swift */; };
+		7E2FDF432978A93800DE8F1F /* RenderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2FDF422978A93800DE8F1F /* RenderView.swift */; };
+		7E2FDF492978AC3400DE8F1F /* Control.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2FDF482978AC3400DE8F1F /* Control.swift */; };
+		7E2FDF4F2979F78000DE8F1F /* Util.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2FDF4E2979F78000DE8F1F /* Util.swift */; };
+		7E2FDF53297A0C8900DE8F1F /* Cruiser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2FDF52297A0C8900DE8F1F /* Cruiser.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		7E047921297CE1BB00A51674 /* cruiser.obj */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = cruiser.obj; sourceTree = "<group>"; };
+		7E047929297DD6D100A51674 /* Demo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Demo.swift; sourceTree = "<group>"; };
+		7E04792B297DDC9600A51674 /* Library.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Library.swift; sourceTree = "<group>"; };
+		7E047933297F183000A51674 /* steel.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = steel.jpg; sourceTree = "<group>"; };
+		7E04793D297FBEC500A51674 /* Material.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Material.swift; sourceTree = "<group>"; };
+		7E04793F297FC24000A51674 /* Instanced.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Instanced.swift; sourceTree = "<group>"; };
+		7E0479792983615100A51674 /* Camera.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Camera.swift; sourceTree = "<group>"; };
+		7E2A1564297BB647000CFCEF /* CtrlClock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CtrlClock.swift; sourceTree = "<group>"; };
+		7E2A1568297BC486000CFCEF /* Lighting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Lighting.swift; sourceTree = "<group>"; };
 		7E2FDF102978991200DE8F1F /* Q64.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Q64.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		7E2FDF132978991200DE8F1F /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		7E2FDF152978991200DE8F1F /* ViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewController.swift; sourceTree = "<group>"; };
@@ -22,6 +54,20 @@
 		7E2FDF1A2978991300DE8F1F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		7E2FDF1D2978991300DE8F1F /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
 		7E2FDF1F2978991300DE8F1F /* Q64.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Q64.entitlements; sourceTree = "<group>"; };
+		7E2FDF2A29789A9C00DE8F1F /* Renderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Renderer.swift; sourceTree = "<group>"; };
+		7E2FDF2C29789AD900DE8F1F /* Math.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Math.swift; sourceTree = "<group>"; };
+		7E2FDF2E29789B7800DE8F1F /* Config.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Config.swift; sourceTree = "<group>"; };
+		7E2FDF3029789CE200DE8F1F /* Shaders.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = Shaders.metal; sourceTree = "<group>"; };
+		7E2FDF3229789EA800DE8F1F /* Scene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Scene.swift; sourceTree = "<group>"; };
+		7E2FDF382978A28B00DE8F1F /* Model.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Model.swift; sourceTree = "<group>"; };
+		7E2FDF3A2978A34E00DE8F1F /* Mesh.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Mesh.swift; sourceTree = "<group>"; };
+		7E2FDF3C2978A4D000DE8F1F /* Keybinds.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Keybinds.swift; sourceTree = "<group>"; };
+		7E2FDF3E2978A4D800DE8F1F /* Cursor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Cursor.swift; sourceTree = "<group>"; };
+		7E2FDF402978A79800DE8F1F /* Entity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Entity.swift; sourceTree = "<group>"; };
+		7E2FDF422978A93800DE8F1F /* RenderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RenderView.swift; sourceTree = "<group>"; };
+		7E2FDF482978AC3400DE8F1F /* Control.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Control.swift; sourceTree = "<group>"; };
+		7E2FDF4E2979F78000DE8F1F /* Util.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Util.swift; sourceTree = "<group>"; };
+		7E2FDF52297A0C8900DE8F1F /* Cruiser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Cruiser.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -35,6 +81,26 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		7E04791E297CE0E400A51674 /* demo */ = {
+			isa = PBXGroup;
+			children = (
+				7E047929297DD6D100A51674 /* Demo.swift */,
+				7E2FDF52297A0C8900DE8F1F /* Cruiser.swift */,
+				7E047921297CE1BB00A51674 /* cruiser.obj */,
+				7E047933297F183000A51674 /* steel.jpg */,
+			);
+			path = demo;
+			sourceTree = "<group>";
+		};
+		7E047928297DD6AA00A51674 /* control */ = {
+			isa = PBXGroup;
+			children = (
+				7E2FDF482978AC3400DE8F1F /* Control.swift */,
+				7E2A1564297BB647000CFCEF /* CtrlClock.swift */,
+			);
+			path = control;
+			sourceTree = "<group>";
+		};
 		7E2FDF072978991200DE8F1F = {
 			isa = PBXGroup;
 			children = (
@@ -54,8 +120,9 @@
 		7E2FDF122978991200DE8F1F /* Q64 */ = {
 			isa = PBXGroup;
 			children = (
-				7E2FDF292978999200DE8F1F /* engine */,
+				7E04791E297CE0E400A51674 /* demo */,
 				7E2FDF282978998600DE8F1F /* input */,
+				7E047928297DD6AA00A51674 /* control */,
 				7E2FDF272978997600DE8F1F /* core */,
 				7E2FDF262978995500DE8F1F /* graphics */,
 				7E2FDF252978995000DE8F1F /* application */,
@@ -66,8 +133,9 @@
 		7E2FDF252978995000DE8F1F /* application */ = {
 			isa = PBXGroup;
 			children = (
-				7E2FDF152978991200DE8F1F /* ViewController.swift */,
 				7E2FDF132978991200DE8F1F /* AppDelegate.swift */,
+				7E2FDF152978991200DE8F1F /* ViewController.swift */,
+				7E2FDF422978A93800DE8F1F /* RenderView.swift */,
 				7E2FDF1A2978991300DE8F1F /* Assets.xcassets */,
 				7E2FDF1C2978991300DE8F1F /* Main.storyboard */,
 				7E2FDF1F2978991300DE8F1F /* Q64.entitlements */,
@@ -79,6 +147,16 @@
 		7E2FDF262978995500DE8F1F /* graphics */ = {
 			isa = PBXGroup;
 			children = (
+				7E04792B297DDC9600A51674 /* Library.swift */,
+				7E2FDF2A29789A9C00DE8F1F /* Renderer.swift */,
+				7E2FDF3229789EA800DE8F1F /* Scene.swift */,
+				7E2FDF382978A28B00DE8F1F /* Model.swift */,
+				7E04793F297FC24000A51674 /* Instanced.swift */,
+				7E2FDF3A2978A34E00DE8F1F /* Mesh.swift */,
+				7E0479792983615100A51674 /* Camera.swift */,
+				7E2A1568297BC486000CFCEF /* Lighting.swift */,
+				7E04793D297FBEC500A51674 /* Material.swift */,
+				7E2FDF3029789CE200DE8F1F /* Shaders.metal */,
 			);
 			path = graphics;
 			sourceTree = "<group>";
@@ -86,6 +164,10 @@
 		7E2FDF272978997600DE8F1F /* core */ = {
 			isa = PBXGroup;
 			children = (
+				7E2FDF2E29789B7800DE8F1F /* Config.swift */,
+				7E2FDF4E2979F78000DE8F1F /* Util.swift */,
+				7E2FDF2C29789AD900DE8F1F /* Math.swift */,
+				7E2FDF402978A79800DE8F1F /* Entity.swift */,
 			);
 			path = core;
 			sourceTree = "<group>";
@@ -93,15 +175,10 @@
 		7E2FDF282978998600DE8F1F /* input */ = {
 			isa = PBXGroup;
 			children = (
+				7E2FDF3C2978A4D000DE8F1F /* Keybinds.swift */,
+				7E2FDF3E2978A4D800DE8F1F /* Cursor.swift */,
 			);
 			path = input;
-			sourceTree = "<group>";
-		};
-		7E2FDF292978999200DE8F1F /* engine */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = engine;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -162,6 +239,8 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				7E047924297CE1BB00A51674 /* cruiser.obj in Resources */,
+				7E047934297F183000A51674 /* steel.jpg in Resources */,
 				7E2FDF1B2978991300DE8F1F /* Assets.xcassets in Resources */,
 				7E2FDF1E2978991300DE8F1F /* Main.storyboard in Resources */,
 			);
@@ -174,9 +253,30 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				7E2FDF2B29789A9C00DE8F1F /* Renderer.swift in Sources */,
+				7E2FDF3129789CE200DE8F1F /* Shaders.metal in Sources */,
+				7E04792A297DD6D100A51674 /* Demo.swift in Sources */,
+				7E2FDF4F2979F78000DE8F1F /* Util.swift in Sources */,
+				7E04793E297FBEC500A51674 /* Material.swift in Sources */,
 				7E2FDF162978991200DE8F1F /* ViewController.swift in Sources */,
 				7E2FDF142978991200DE8F1F /* AppDelegate.swift in Sources */,
+				7E2FDF53297A0C8900DE8F1F /* Cruiser.swift in Sources */,
+				7E04797A2983615100A51674 /* Camera.swift in Sources */,
+				7E2FDF3329789EA800DE8F1F /* Scene.swift in Sources */,
+				7E2FDF432978A93800DE8F1F /* RenderView.swift in Sources */,
+				7E2A1569297BC486000CFCEF /* Lighting.swift in Sources */,
+				7E2FDF3B2978A34E00DE8F1F /* Mesh.swift in Sources */,
+				7E047940297FC24000A51674 /* Instanced.swift in Sources */,
 				7E2FDF192978991200DE8F1F /* Q64.xcdatamodeld in Sources */,
+				7E2FDF3F2978A4D800DE8F1F /* Cursor.swift in Sources */,
+				7E2FDF392978A28B00DE8F1F /* Model.swift in Sources */,
+				7E2FDF492978AC3400DE8F1F /* Control.swift in Sources */,
+				7E2A1565297BB647000CFCEF /* CtrlClock.swift in Sources */,
+				7E2FDF412978A79800DE8F1F /* Entity.swift in Sources */,
+				7E2FDF2D29789AD900DE8F1F /* Math.swift in Sources */,
+				7E2FDF2F29789B7800DE8F1F /* Config.swift in Sources */,
+				7E04792C297DDC9600A51674 /* Library.swift in Sources */,
+				7E2FDF3D2978A4D000DE8F1F /* Keybinds.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

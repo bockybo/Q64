@@ -5,6 +5,9 @@ class lib {
 	
 	static let device = MTLCreateSystemDefaultDevice()!
 	
+	static let fns = lib.device.makeDefaultLibrary()!
+	static subscript(name: String) -> MTLFunction {return lib.fns.makeFunction(name: name)!}
+	
 	static let vtxdescr: MDLVertexDescriptor = {
 		let descr = MDLVertexDescriptor()
 		descr.attributes[0] = MDLVertexAttribute(
@@ -30,7 +33,14 @@ class lib {
 		return descr
 	}()
 	
-	static func rdpstate(vtx: String, frg: String) -> MTLRenderPipelineState {
+	static let depthstate: MTLDepthStencilState = {
+		let descr = MTLDepthStencilDescriptor()
+		descr.isDepthWriteEnabled = true
+		descr.depthCompareFunction = .less
+		return lib.device.makeDepthStencilState(descriptor: descr)!
+	}()
+	
+	static let lightpipestate: MTLRenderPipelineState = {
 		
 		let descr = MTLRenderPipelineDescriptor()
 		descr.vertexDescriptor = lib.vtxdescr.mtl
@@ -46,32 +56,38 @@ class lib {
 		descr.colorAttachments[0].destinationRGBBlendFactor		= .oneMinusSourceAlpha
 		descr.colorAttachments[0].destinationAlphaBlendFactor	= .oneMinusSourceAlpha
 		
-		let lib = lib.device.makeDefaultLibrary()!
-		descr.vertexFunction	= lib.makeFunction(name: vtx)!
-		descr.fragmentFunction	= lib.makeFunction(name: frg)!
+		descr.vertexFunction		= lib["vtx_light"]
+		descr.fragmentFunction		= lib["frg_main"]
 		
 		return try! lib.device.makeRenderPipelineState(descriptor: descr)
-	}
-	static let rdpstate = lib.rdpstate(vtx: "vtx_main", frg: "frg_main")
-	
-	static let depstate: MTLDepthStencilState = {
-		let descr = MTLDepthStencilDescriptor()
-		descr.isDepthWriteEnabled = true
-		descr.depthCompareFunction = .less
-		return lib.device.makeDepthStencilState(descriptor: descr)!
 	}()
 	
-	static let smpstate: MTLSamplerState = {
-		let descr = MTLSamplerDescriptor()
-		descr.normalizedCoordinates = true
-		descr.magFilter = .linear
-		descr.minFilter = .linear
-		descr.sAddressMode = .repeat
-		descr.tAddressMode = .repeat
-		return lib.device.makeSamplerState(descriptor: descr)!
+	static let shadepipestate: MTLRenderPipelineState = {
+		
+		let descr = MTLRenderPipelineDescriptor()
+		descr.vertexDescriptor = lib.vtxdescr.mtl
+		
+		descr.depthAttachmentPixelFormat = Config.depth_fmt
+		
+		descr.vertexFunction = lib["vtx_shade"]
+		
+		return try! lib.device.makeRenderPipelineState(descriptor: descr)
+	}()
+	
+	static let shadepassdescr: MTLRenderPassDescriptor = {
+		
+		let descr = MTLRenderPassDescriptor()
+		
+		descr.depthAttachment.loadAction = .clear
+		descr.depthAttachment.storeAction = .store
+		descr.depthAttachment.clearDepth = 1.0
+		
+		return descr
+		
 	}()
 	
 }
+
 
 
 extension MDLVertexDescriptor {

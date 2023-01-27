@@ -80,14 +80,20 @@ extension m4f {
 	}
 	
 	static func look(dst: v3f, src: v3f, up: v3f = .y) -> m4f {
-		let dir = normalize(dst - src)
-		let x = normalize(cross(dir, up))
-		let y = normalize(cross(x, dir))
+		let f = normalize(dst - src)
+		let s = normalize(cross(f, up))
+		let u = normalize(cross(s, f))
 		return m4f(
-			v4f(x, 0),
-			v4f(y, 0),
-			v4f(-dir, 0),
-			v4f( src, 1))
+			v4f(  s, 0),
+			v4f(  u, 0),
+			v4f( -f, 0),
+			v4f(src, 1))
+	}
+	
+	static func orth(p0: v3f, p1: v3f) -> m4f {
+		let m = v3f(2, 2, -1) / (p1 - p0)
+		let t = v3f(1, 1,  0) * (p1 + p0)
+		return m4f.pos(-0.5 * t) * m4f.mag(m)
 	}
 	
 }

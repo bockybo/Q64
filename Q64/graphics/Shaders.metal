@@ -18,85 +18,82 @@ typedef struct {
 	v4f screen [[position]];
 	v3f pos;
 	v3f nml;
-	v3f eye;
+	v4f shd;
 	v2f tex;
-	v4f hue;
 } frg;
 
 typedef struct {
-	m4f ctm;
-	v4f hue;
-} mvtx;
-typedef struct {
+	f32 ambi;
 	f32 diff;
 	f32 spec;
 	f32 shine;
 } mfrg;
 
 typedef struct {
-	m4f proj;
-	m4f view;
-} svtx;
-
-#define MAXNLT 64
-typedef struct {
-	v3f pos;
 	v3f hue;
-	f32 amp;
-} lsrc;
+	v3f dir;
+} lfrg;
 
 
-vertex frg vtx_main(vtx v									[[stage_in]],
-					constant mvtx *models					[[buffer(1)]],
-					constant svtx &scene					[[buffer(2)]],
-					uint modelID							[[instance_id]]) {
+vertex frg vtx_light(vtx v									[[stage_in]],
+					 constant m4f *models					[[buffer(1)]],
+					 constant m4f &light					[[buffer(2)]],
+					 constant m4f &scene					[[buffer(3)]],
+					 uint modelID							[[instance_id]]) {
 	
-	constant mvtx &model = models[modelID];
+	constant m4f &model = models[modelID];
 	
-	v4f pos = model.ctm * v4f(v.pos, 1);
-	v4f nml = model.ctm * v4f(v.nml, 0);
+	v4f pos = model * v4f(v.pos, 1);
+	v4f nml = model * v4f(v.nml, 0);
+	
+	v4f shd = light * pos;
+	shd.xy /= shd.w;
+	shd.xy = 0.5 * (1 + shd.xy);
+	shd.y = 1 - shd.y;
 	
 	return {
-		.screen = scene.proj * scene.view * pos,
+		.screen = scene * pos,
 		.pos = pos.xyz,
-		.nml = normalize(nml.xyz),
-		.eye = normalize(pos.xyz - scene.view[3].xyz),
+		.nml = nml.xyz,
+		.shd = shd,
 		.tex = v.tex,
-		.hue = model.hue,
 	};
 	
 }
 
-fragment half4 frg_main(frg f								[[stage_in]],
-						constant mfrg &model				[[buffer(1)]],
-						constant lsrc *lts					[[buffer(2)]],
-						texture2d<f32, access::sample> map	[[texture(0)]],
-						sampler smp							[[sampler(0)]]) {
+vertex v4f vtx_shade(const vtx v							[[stage_in]],
+					 constant m4f *models					[[buffer(1)]],
+					 constant m4f &light					[[buffer(2)]],
+					 uint modelID							[[instance_id]]) {
+	constant m4f &model = models[modelID];
+	return light * model * v4f(v.pos, 1);
+}
+
+fragment v4f frg_main(frg f									[[stage_in]],
+					  constant mfrg &model					[[buffer(1)]],
+					  constant lfrg &lighting				[[buffer(2)]],
+					  constant v3f &eye						[[buffer(3)]],
+					  texture2d<f32, access::sample> texmap	[[texture(0)]],
+					  depth2d  <f32, access::sample> shdmap	[[texture(1)]]) {
 	
-	v3f diff = 0;
-	v3f spec = 0;
+	constexpr sampler smp(coord::normalized, address::clamp_to_edge, filter::linear);
 	
-	for (int i = 0; i < MAXNLT; ++i) {
-		lsrc l = lts[i];
-		if (!l.amp)
-			continue;
-		
-		v3f dist = l.pos - f.pos;
-		v3f dir = normalize(dist);
-		f32 kdiff = saturate(dot(f.nml, dir));
-		f32 kspec = saturate(dot(f.eye, reflect(dir, f.nml)));
-		
-		f32 amp = l.amp / length_squared(dist);
-		v3f hue = l.hue * amp;
-		diff += hue * kdiff;
-		spec += hue * powr(kspec, model.shine);
-		
-	}
+	v4f tex = texmap.sample(smp, f.tex);
+	f32 dep = shdmap.sample(smp, f.shd.xy);
 	
-	v4f base = f.hue * map.sample(smp, f.tex);
-	diff *= model.diff;
-	spec *= model.spec;
-	half3 rgb = half3(spec + diff * base.rgb);
-	return half4(rgb, base.a);
+	if (f.shd.z >= f.shd.w * (dep + 1e-4))
+		return v4f(0, 0, 0, tex.a);
+		
+	v3f dir = -lighting.dir;
+	v3f nml = normalize(f.nml);
+	f32 diff = saturate(dot(dir, nml));
+	f32 spec = saturate(dot(eye, reflect(dir, -nml)));
+	
+	f32 lum = model.ambi;
+	lum += model.diff * diff;
+	lum += model.spec * powr(spec, model.shine);
+	
+	v4f rgb = v4f(lum * lighting.hue, 1);
+	return tex * rgb;
 	
 }

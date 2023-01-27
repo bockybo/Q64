@@ -1,21 +1,21 @@
 import MetalKit
 
 
-class Model: Renderable {
-	var meshes: [Mesh]
+class Model {
+	var ett: Entity
 	var material: Material
-	var instance: Instance
+	var meshes: [Mesh]
 	
-	init(instance: Instance, material: Material = Material(), meshes: [Mesh] = []) {
-		self.meshes = meshes
+	init(_ ett: Entity, material: Material = Material(), meshes: [Mesh] = []) {
+		self.ett = ett
 		self.material = material
-		self.instance = instance
+		self.meshes = meshes
 	}
 	
 	func render(enc: MTLRenderCommandEncoder) {
-		var mvtx = self.instance.mvtx
-		enc.setVertexBytes(&mvtx, length: util.sizeof(mvtx), index: 1)
 		self.material.render(enc: enc)
+		var ctm = self.ett.ctm
+		enc.setVertexBytes(&ctm, length: util.sizeof(ctm), index: 1)
 		for mesh in self.meshes {
 			mesh.render(enc: enc)
 		}
