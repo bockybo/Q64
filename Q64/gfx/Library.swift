@@ -1,5 +1,11 @@
 import MetalKit
 
+func sizeof<T>(_: T.Type) -> Int {
+	return MemoryLayout<T>.stride
+}
+func sizeof<T>(_: T) -> Int {
+	return sizeof(T.self)
+}
 
 class lib {
 	static let device = MTLCreateSystemDefaultDevice()!
@@ -14,19 +20,19 @@ class lib {
 		descr.attributes[0] = MDLVertexAttribute(
 			name: MDLVertexAttributePosition,
 			format: .float3,
-			offset: 0 * util.sizeof(float.self),
+			offset: 0 * sizeof(float.self),
 			bufferIndex: 0
 		)
 		descr.attributes[1] = MDLVertexAttribute(
 			name: MDLVertexAttributeNormal,
 			format: .float3,
-			offset: 3 * util.sizeof(float.self),
+			offset: 3 * sizeof(float.self),
 			bufferIndex: 0
 		)
 		descr.attributes[2] = MDLVertexAttribute(
 			name: MDLVertexAttributeTextureCoordinate,
 			format: .float2,
-			offset: 5 * util.sizeof(float.self),
+			offset: 5 * sizeof(float.self),
 			bufferIndex: 0
 		)
 		descr.setPackedOffsets()
@@ -73,9 +79,14 @@ class lib {
 		return descr
 	}
 	
+	
+	static func url(_ path: String?, ext: String? = nil) -> URL? {
+		return Bundle.main.url(forResource: path, withExtension: ext)
+	}
+	
 	static func texture(path: String) -> MTLTexture {
 		let ldr = MTKTextureLoader(device: lib.device)
-		let url = util.url(path)!
+		let url = lib.url(path)!
 		return try! ldr.newTexture(URL: url, options: nil)
 	}
 	static func texture(
@@ -100,7 +111,7 @@ class lib {
 		let ogn = MTLOrigin(x: 0, y: 0, z: 0)
 		let dim = MTLSize(width: 1, height: 1, depth: 1)
 		let rgn = MTLRegion(origin: ogn, size: dim)
-		tex.replace(region: rgn, mipmapLevel: 0, withBytes: &hue, bytesPerRow: util.sizeof(hue))
+		tex.replace(region: rgn, mipmapLevel: 0, withBytes: &hue, bytesPerRow: sizeof(hue))
 		return tex
 	}()
 	
@@ -108,7 +119,7 @@ class lib {
 	static let meshalloc = MTKMeshBufferAllocator(device: lib.device)
 	
 	static func mesh(path: String) -> [MTKMesh] {
-		let url = util.url(path)!
+		let url = lib.url(path)!
 		return try! MTKMesh.newMeshes(
 			asset: MDLAsset(
 				url: url,
@@ -126,8 +137,8 @@ class lib {
 		nml: Bool = false,
 		tex: Bool = false
 	) -> MTKMesh {
-		let vtxdata = Data(bytes: vtcs, count: vtcs.count * util.sizeof(lib.vtx.self))
-		let idxdata = Data(bytes: idcs, count: idcs.count * util.sizeof(UInt16.self))
+		let vtxdata = Data(bytes: vtcs, count: vtcs.count * sizeof(lib.vtx.self))
+		let idxdata = Data(bytes: idcs, count: idcs.count * sizeof(UInt16.self))
 		let vtxbuf = lib.meshalloc.newBuffer(with: vtxdata, type: .vertex)
 		let idxbuf = lib.meshalloc.newBuffer(with: idxdata, type: .index)
 		let mesh = MDLMesh(

@@ -29,7 +29,6 @@
 		7E2FDF412978A79800DE8F1F /* Entity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2FDF402978A79800DE8F1F /* Entity.swift */; };
 		7E2FDF432978A93800DE8F1F /* RenderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2FDF422978A93800DE8F1F /* RenderView.swift */; };
 		7E2FDF492978AC3400DE8F1F /* Control.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2FDF482978AC3400DE8F1F /* Control.swift */; };
-		7E2FDF4F2979F78000DE8F1F /* Util.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2FDF4E2979F78000DE8F1F /* Util.swift */; };
 		7E3D63E4298399DA00647EB7 /* Model.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E3D63E3298399DA00647EB7 /* Model.swift */; };
 		7E3D63E7298435AF00647EB7 /* BaseEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E3D63E6298435AF00647EB7 /* BaseEntity.swift */; };
 /* End PBXBuildFile section */
@@ -59,7 +58,6 @@
 		7E2FDF402978A79800DE8F1F /* Entity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Entity.swift; sourceTree = "<group>"; };
 		7E2FDF422978A93800DE8F1F /* RenderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RenderView.swift; sourceTree = "<group>"; };
 		7E2FDF482978AC3400DE8F1F /* Control.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Control.swift; sourceTree = "<group>"; };
-		7E2FDF4E2979F78000DE8F1F /* Util.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Util.swift; sourceTree = "<group>"; };
 		7E3D63E3298399DA00647EB7 /* Model.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Model.swift; sourceTree = "<group>"; };
 		7E3D63E6298435AF00647EB7 /* BaseEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BaseEntity.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -146,7 +144,6 @@
 			isa = PBXGroup;
 			children = (
 				7E2FDF2E29789B7800DE8F1F /* Config.swift */,
-				7E2FDF4E2979F78000DE8F1F /* Util.swift */,
 				7E2FDF2C29789AD900DE8F1F /* Math.swift */,
 			);
 			path = core;
@@ -248,7 +245,6 @@
 				7E2FDF2B29789A9C00DE8F1F /* Renderer.swift in Sources */,
 				7E2FDF3129789CE200DE8F1F /* Shaders.metal in Sources */,
 				7E04792A297DD6D100A51674 /* Demo.swift in Sources */,
-				7E2FDF4F2979F78000DE8F1F /* Util.swift in Sources */,
 				7E2635A32996BF790094DE3C /* Uniforms.swift in Sources */,
 				7E2FDF162978991200DE8F1F /* ViewController.swift in Sources */,
 				7E2FDF142978991200DE8F1F /* AppDelegate.swift in Sources */,

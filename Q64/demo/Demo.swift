@@ -30,6 +30,7 @@ class Demo: Ctrl {
 				meshes: lib.mesh(path: "cruiser.obj"),
 //				texture: lib.texture(path: "steel.jpg"),
 				mfrg: MFRG(
+					ambi: 0.1 * float3(0, 1, 1),
 					diff: 0.7 * float3(0, 1, 1),
 					spec: 0.6 * float3(1, 1, 1),
 					shine: 9.0
@@ -39,7 +40,7 @@ class Demo: Ctrl {
 				[BaseETT(.mag(float3(dim, 0.1, dim)))],
 				meshes: [lib.boxmesh(1)],
 				mfrg: MFRG(
-					ambi: 0.1 * float3(0.6, 0.5, 0.5),
+					ambi: 0.2 * float3(0.6, 0.5, 0.5),
 					diff: 0.8 * float3(0.6, 0.5, 0.5)
 				)
 			),
@@ -51,7 +52,7 @@ class Demo: Ctrl {
 				)
 			),
 			Model(
-				[BaseETT(.pos(float3(0, 0, -10)) * .mag(float3(10)))],
+				[BaseETT(.pos(float3(0, 0, -20)) * .mag(float3(10)))],
 				meshes: [lib.mesh(
 					vtcs: [
 						float3(-1, 0, -1),
@@ -78,6 +79,8 @@ class Demo: Ctrl {
 	init() {
 		
 		self.cruiser = self.models[0].entities[0] as! Cruiser
+		self.cruiser.pos = float3(0, 4, 10)
+		
 		self.scene.models = self.models
 		
 		self.scene.cam.pos = float3(0, 10, 30)
@@ -86,8 +89,6 @@ class Demo: Ctrl {
 		self.scene.lgt.hue = float3(1, 1, 1)
 		self.scene.lgt.dst = float3(0, 0, 0)
 		self.scene.lgt.src = float3(10, 50, 10)
-		
-		self.cruiser.pos = float3(0, 2, 10)
 		
 		
 		Cursor.visible = false
@@ -126,6 +127,8 @@ class Demo: Ctrl {
 		
 		self.scene.cam.pos += self.camvel
 		self.camvel *= 0.9
+		
+		self.scene.lgt.dst = self.cruiser.pos
 		
 	}
 	

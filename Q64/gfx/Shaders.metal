@@ -13,14 +13,12 @@ typedef struct {
 } vtx;
 typedef struct {
 	float4 cam [[position]];
-	float4 lgt;
-	float3 pos;
+	float4 pos;
 	float3 nml;
 	float2 tex;
 } frg;
 
 typedef struct {
-	float4x4 lgt;
 	float4x4 cam;
 } svtx;
 typedef struct {
@@ -28,9 +26,10 @@ typedef struct {
 } mvtx;
 
 typedef struct {
-	float3 eyepos;
-	float3 lgtpos;
+	float4x4 lgtctm;
+	float3 lgtsrc;
 	float3 lgthue;
+	float3 eyepos;
 } sfrg;
 typedef struct {
 	float3 ambi;
@@ -51,8 +50,7 @@ vertex frg vtx_light(constant vtx *vtcs			[[buffer(0)]],
 	float4 nml = model.ctm * float4(v.nml, 0);
 	return {
 		.cam = scene.cam * pos,
-		.lgt = scene.lgt * pos,
-		.pos = pos.xyz,
+		.pos = pos,
 		.nml = normalize(nml.xyz),
 		.tex = v.tex
 	};
@@ -64,7 +62,7 @@ vertex float4 vtx_shade(constant vtx *vtcs		[[buffer(0)]],
 						uint iid				[[instance_id]]) {
 	constant vtx &v = vtcs[vid];
 	constant mvtx &model = mdls[iid];
-	return scene.lgt * model.ctm * float4(v.pos, 1);
+	return scene.cam * model.ctm * float4(v.pos, 1);
 }
 
 static inline float shade(float4 loc, depmap2 shdmap) {
@@ -72,16 +70,15 @@ static inline float shade(float4 loc, depmap2 shdmap) {
 	float z = loc.z;
 	float w = loc.w;
 	float2 xy = float2(w + loc.x, w - loc.y) / (2*w);
-	constexpr int m = 8;
+	constexpr int m = 4;
 	int shd = 0;
 	for (int x = 0; x < m; ++x)
 		for (int y = 0; y < m; ++y)
 			shd += z > w * shdmap.sample(smp, xy, int2(x, y) - m/2);
 	return (float)shd / (m*m);
 }
-static inline float2 light(float3 pos, float3 nml, float3 src, float3 dst) {
-//	float3 dirdiff = normalize(src - pos);
-	float3 dirdiff = normalize(-src);
+static inline float2 light(float3 pos, float3 nml, float3 dir, float3 dst) {
+	float3 dirdiff = normalize(-dir);
 	float3 dirspec = normalize(pos - dst);
 	float diff = saturate(dot(dirdiff, nml));
 	float spec = saturate(dot(dirspec, reflect(dirdiff, nml)));
@@ -93,18 +90,13 @@ fragment float4 frg_main(frg f					[[stage_in]],
 						 texmap2 albmap			[[texture(0)]],
 						 depmap2 shdmap			[[texture(1)]]) {
 	constexpr sampler smp(coord::normalized, address::clamp_to_edge, filter::linear);
-
-	float2 lit = light(f.pos, f.nml, scene.lgtpos, scene.eyepos);
-	float diff = lit.x;
-	float spec = lit.y;
-	float shd = shade(f.lgt, shdmap);
-
 	float3 rgb = 0;
-	rgb += model.diff * diff;
-	rgb += model.spec * powr(spec, model.shine);
-	rgb *= 1 - shd;
-	rgb += model.ambi;
-	rgb *= scene.lgthue * albmap.sample(smp, f.tex).rgb;
-	return float4(rgb, 1);
-	
+	float shd = shade(scene.lgtctm * f.pos, shdmap);
+	if (shd < 1) {
+		float2 lit = light(f.pos.xyz, f.nml, scene.lgtsrc, scene.eyepos);
+		rgb += model.diff * lit.x;
+		rgb += model.spec * powr(lit.y, model.shine);
+		rgb *= 1 - shd;
+	}
+	return float4((model.ambi + rgb) * albmap.sample(smp, f.tex).rgb, 1);
 }

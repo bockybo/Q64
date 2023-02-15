@@ -17,7 +17,7 @@ class Model {
 		mfrg: MFRG = MFRG()
 	) {
 		self.buf = lib.device.makeBuffer(
-			length: entities.count * util.sizeof(MVTX.self),
+			length: entities.count * sizeof(MVTX.self),
 			options: .storageModeShared
 		)!
 		self.entities = entities
@@ -28,14 +28,13 @@ class Model {
 	}
 	
 	func draw(enc: MTLRenderCommandEncoder, material: Bool) {
+		enc.setVertexBuffer(self.buf, offset: 0, index: 1)
 		if material {
 			enc.setFragmentTexture(self.texture, index: 0)
-			var mfrg = self.mfrg
-			mfrg.render(enc: enc)
+			self.mfrg.render(enc: enc)
 		}
-		assert(self.buf.length <= self.size)
+		assert(self.buf.length >= self.size)
 		memcpy(self.buf.contents(), self.uniforms, self.size)
-		enc.setVertexBuffer(self.buf, offset: 0, index: 1)
 		for mesh in self.meshes {
 			enc.draw(mesh, type: self.type, num: self.entities.count)
 		}
@@ -43,7 +42,7 @@ class Model {
 	
 	var uniforms: [MVTX] {return self.entities.map {$0.uniform}}
 	
-	var size: Int {return self.entities.count * util.sizeof(MVTX.self)}
-	var cap: Int {return self.buf.length / util.sizeof(MVTX.self)}
+	var size: Int {return self.entities.count * sizeof(MVTX.self)}
+	var cap: Int {return self.buf.length / sizeof(MVTX.self)}
 	
 }

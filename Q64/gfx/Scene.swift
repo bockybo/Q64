@@ -7,15 +7,13 @@ class Scene {
 	var models: [Model] = []
 	
 	func light(enc: MTLRenderCommandEncoder) {
-		var svtx = SVTX(
-			lgt: self.lgt.proj * self.lgt.view.inverse,
-			cam: self.cam.proj * self.cam.view.inverse
-		)
+		var svtx = SVTX(cam: self.cam.proj * self.cam.view.inverse)
 		var sfrg = SFRG(
-			eyepos: self.cam.pos,
-//			lgtpos: self.lgt.src,
-			lgtpos: self.lgt.dst - self.lgt.src,
-			lgthue: self.lgt.hue
+			lgtctm: self.lgt.proj * self.lgt.view.inverse,
+//			lgtdir: self.lgt.src,
+			lgtdir: self.lgt.dst - self.lgt.src,
+			lgthue: self.lgt.hue,
+			eyepos: self.cam.pos
 		)
 		svtx.render(enc: enc)
 		sfrg.render(enc: enc)
@@ -24,9 +22,7 @@ class Scene {
 		}
 	}
 	func shade(enc: MTLRenderCommandEncoder) {
-		var svtx = SVTX(
-			lgt: self.lgt.proj * self.lgt.view.inverse
-		)
+		var svtx = SVTX(cam: self.lgt.proj * self.lgt.view.inverse)
 		svtx.render(enc: enc)
 		for model in self.models {
 			model.draw(enc: enc, material: false)
@@ -65,7 +61,7 @@ class Scene {
 		
 		var hue = float3(1)
 		
-		var fov: float = 90 * .pi/180
+//		var fov: float = 90 * .pi/180
 //		var proj: float4x4 {
 //			return .proj(
 //				fov: self.fov,
@@ -81,14 +77,9 @@ class Scene {
 			)
 		}
 		
-		var src = float3(1)
-		var dst = float3(0)
-		var view: float4x4 {
-			return .look(
-				dst: self.dst,
-				src: self.src
-			)
-		}
+		var view: float4x4 = .look(dst: float3(1), src: float3(0))
+		var src = float3(1) {didSet {self.view = .look(dst: self.dst, src: self.src)}}
+		var dst = float3(0) {didSet {self.view = .look(dst: self.dst, src: self.src)}}
 		
 	}
 	

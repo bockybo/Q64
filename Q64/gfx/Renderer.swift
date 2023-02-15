@@ -11,9 +11,12 @@ class Renderer: NSObject, MTKViewDelegate {
 	
 	let lightpipestate = lib.pipestate("vtx_light", frgfn: "frg_main")
 	let shadepipestate = lib.pipestate("vtx_shade", color: false)
-	let shadepassdescr = lib.passdescr(
-		[-1: lib.texture(dim: uint2(cfg.shdqlt, cfg.shdqlt), fmt: cfg.depth_fmt, usage: [.shaderRead, .renderTarget])]
-	)
+	let shadepassdescr = lib.passdescr([
+		-1: lib.texture(
+			dim: uint2(cfg.shdqlt, cfg.shdqlt),
+			fmt: cfg.depth_fmt,
+			usage: [.shaderRead, .renderTarget])
+	])
 	
 	func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
 		self.scene.cam.aspect = float(size.width) / float(size.height)
@@ -27,7 +30,7 @@ class Renderer: NSObject, MTKViewDelegate {
 			enc in
 			enc.setDepthStencilState(lib.depthstate)
 			enc.setRenderPipelineState(self.shadepipestate)
-			enc.setDepthBias(5, slopeScale: 1, clamp: 1)
+			enc.setDepthBias(1e4, slopeScale: 1, clamp: 1)
 			self.scene.shade(enc: enc)
 		}
 		buf.pass(label: "light", descr: view.currentRenderPassDescriptor!) {
