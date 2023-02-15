@@ -4,7 +4,6 @@ import MetalKit
 class Scene {
 	var lgt = Lighting()
 	var cam = Camera()
-	
 	var models: [Model] = []
 	
 	func light(enc: MTLRenderCommandEncoder) {
@@ -21,8 +20,7 @@ class Scene {
 		svtx.render(enc: enc)
 		sfrg.render(enc: enc)
 		for model in self.models {
-			model.material.render(enc: enc)
-			model.draw(enc: enc)
+			model.draw(enc: enc, material: true)
 		}
 	}
 	func shade(enc: MTLRenderCommandEncoder) {
@@ -31,7 +29,7 @@ class Scene {
 		)
 		svtx.render(enc: enc)
 		for model in self.models {
-			model.draw(enc: enc)
+			model.draw(enc: enc, material: false)
 		}
 	}
 	

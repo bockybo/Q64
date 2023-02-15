@@ -5,11 +5,11 @@ class Demo: Ctrl {
 	let scene = Scene()
 	var binds = Binds()
 	
-	let cruiser = Cruiser()
+	let cruiser: Cruiser
 	var cammov = float3(0)
 	var camvel = float3(0)
 	
-	init() {
+	var models: [Model] = {
 		
 		let dim: float = 250
 		let nbox = 25
@@ -24,29 +24,61 @@ class Demo: Ctrl {
 			boxes.append(BaseETT(.pos(pos) * .mag(mag)))
 		}
 		
-		self.scene.models = [
+		return [
+			Model(
+				[Cruiser()],
+				meshes: lib.mesh(path: "cruiser.obj"),
+//				texture: lib.texture(path: "steel.jpg"),
+				mfrg: MFRG(
+					diff: 0.7 * float3(0, 1, 1),
+					spec: 0.6 * float3(1, 1, 1),
+					shine: 9.0
+				)
+			),
 			Model(
 				[BaseETT(.mag(float3(dim, 0.1, dim)))],
-				meshes: [.box(1)],
-				material: Material(
+				meshes: [lib.boxmesh(1)],
+				mfrg: MFRG(
 					ambi: 0.1 * float3(0.6, 0.5, 0.5),
-					diff: 0.8 * float3(0.6, 0.5, 0.5))
+					diff: 0.8 * float3(0.6, 0.5, 0.5)
+				)
 			),
 			Model(
 				boxes,
-				meshes: [.sph(100)],
-				material: Material(ambi: 0.2 * float3(1, 1, 1))
+				meshes: [lib.sphmesh(100)],
+				mfrg: MFRG(
+					ambi: 0.2 * float3(1, 1, 1)
+				)
 			),
 			Model(
-				[self.cruiser],
-				meshes: MTKMesh.load(path: "cruiser.obj"),
-				material: Material(
-//					tex: lib.texture(path: "steel.jpg"),
-					diff: 0.7 * float3(0, 1, 1),
-					spec: 0.6 * float3(1, 1, 1),
-					shine: 9.0)
-			),
+				[BaseETT(.pos(float3(0, 0, -10)) * .mag(float3(10)))],
+				meshes: [lib.mesh(
+					vtcs: [
+						float3(-1, 0, -1),
+						float3( 0, 0, +1),
+						float3(+1, 0, -1),
+						float3( 0, 1,  0),
+					],
+					idcs: [
+						0, 1, 2,
+						0, 1, 3,
+						1, 2, 3,
+						2, 0, 3,
+					]
+				)],
+				mfrg: MFRG(
+					diff: float3(1, 0, 1),
+					spec: float3(1, 1, 1),
+					shine: 30
+				)
+			)
 		]
+	}()
+	
+	init() {
+		
+		self.cruiser = self.models[0].entities[0] as! Cruiser
+		self.scene.models = self.models
 		
 		self.scene.cam.pos = float3(0, 10, 30)
 		self.scene.cam.rot = float3(0, 0, 0) * .pi/180

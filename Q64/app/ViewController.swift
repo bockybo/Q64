@@ -26,8 +26,7 @@ class ViewController: NSViewController {
 			view.ctrl.tick()
 		}
 		
-		self.renderer = Renderer()
-		self.renderer.scene = view.ctrl.scene
+		self.renderer = Renderer(scene: view.ctrl.scene)
 		self.renderer.mtkView(view, drawableSizeWillChange: view.frame.size)
 		view.delegate = self.renderer
 		

@@ -12,7 +12,7 @@ struct SVTX {
 struct SFRG {
 	var eyepos: float3 = float3(0)
 	var lgtpos: float3 = float3(0)
-	var lgthue: float3 = float3(0)
+	var lgthue: float3 = float3(1)
 	mutating func render(enc: MTLRenderCommandEncoder) {
 		enc.setFragmentBytes(&self, length: util.sizeof(self), index: 2)
 	}
@@ -27,9 +27,9 @@ struct MVTX {
 	
 struct MFRG {
 	var ambi: float3 = float3(0)
-	var diff: float3 = float3(0)
+	var diff: float3 = float3(1)
 	var spec: float3 = float3(0)
-	var shine: float = 0
+	var shine: float = 1
 	mutating func render(enc: MTLRenderCommandEncoder) {
 		enc.setFragmentBytes(&self, length: util.sizeof(self), index: 1)
 	}

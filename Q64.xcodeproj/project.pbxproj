@@ -24,7 +24,6 @@
 		7E2FDF2F29789B7800DE8F1F /* Config.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2FDF2E29789B7800DE8F1F /* Config.swift */; };
 		7E2FDF3129789CE200DE8F1F /* Shaders.metal in Sources */ = {isa = PBXBuildFile; fileRef = 7E2FDF3029789CE200DE8F1F /* Shaders.metal */; };
 		7E2FDF3329789EA800DE8F1F /* Scene.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2FDF3229789EA800DE8F1F /* Scene.swift */; };
-		7E2FDF3B2978A34E00DE8F1F /* Mesh.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2FDF3A2978A34E00DE8F1F /* Mesh.swift */; };
 		7E2FDF3D2978A4D000DE8F1F /* Keystroke.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2FDF3C2978A4D000DE8F1F /* Keystroke.swift */; };
 		7E2FDF3F2978A4D800DE8F1F /* Cursor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2FDF3E2978A4D800DE8F1F /* Cursor.swift */; };
 		7E2FDF412978A79800DE8F1F /* Entity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2FDF402978A79800DE8F1F /* Entity.swift */; };
@@ -55,7 +54,6 @@
 		7E2FDF2E29789B7800DE8F1F /* Config.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Config.swift; sourceTree = "<group>"; };
 		7E2FDF3029789CE200DE8F1F /* Shaders.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = Shaders.metal; sourceTree = "<group>"; };
 		7E2FDF3229789EA800DE8F1F /* Scene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Scene.swift; sourceTree = "<group>"; };
-		7E2FDF3A2978A34E00DE8F1F /* Mesh.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Mesh.swift; sourceTree = "<group>"; };
 		7E2FDF3C2978A4D000DE8F1F /* Keystroke.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Keystroke.swift; sourceTree = "<group>"; };
 		7E2FDF3E2978A4D800DE8F1F /* Cursor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Cursor.swift; sourceTree = "<group>"; };
 		7E2FDF402978A79800DE8F1F /* Entity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Entity.swift; sourceTree = "<group>"; };
@@ -137,7 +135,6 @@
 				7E2FDF2A29789A9C00DE8F1F /* Renderer.swift */,
 				7E2FDF3229789EA800DE8F1F /* Scene.swift */,
 				7E3D63E3298399DA00647EB7 /* Model.swift */,
-				7E2FDF3A2978A34E00DE8F1F /* Mesh.swift */,
 				7E2635A22996BF790094DE3C /* Uniforms.swift */,
 				7E2635A6299C35F40094DE3C /* Encoding.swift */,
 				7E2FDF3029789CE200DE8F1F /* Shaders.metal */,
@@ -260,7 +257,6 @@
 				7E26356E29942D2E0094DE3C /* Binds.swift in Sources */,
 				7E3D63E7298435AF00647EB7 /* BaseEntity.swift in Sources */,
 				7E2FDF432978A93800DE8F1F /* RenderView.swift in Sources */,
-				7E2FDF3B2978A34E00DE8F1F /* Mesh.swift in Sources */,
 				7E2FDF192978991200DE8F1F /* Q64.xcdatamodeld in Sources */,
 				7E2FDF3F2978A4D800DE8F1F /* Cursor.swift in Sources */,
 				7E2FDF492978AC3400DE8F1F /* Control.swift in Sources */,
