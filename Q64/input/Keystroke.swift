@@ -1,18 +1,5 @@
 
 
-
-struct Keybinds {
-	typealias bind = ()->()
-	
-	var keydn: [Keystroke : bind] = [:]
-	var keyup: [Keystroke : bind] = [:]
-	var btndn: [Int : bind] = [:]
-	var btnup: [Int : bind] = [:]
-	var btndrag: [Int : bind] = [:]
-	
-}
-
-
 enum Keystroke: UInt16, CaseIterable {
 	
 	case a = 0

@@ -3,18 +3,21 @@ import Cocoa
 
 class Cursor {
 	
-	class var delta: (x: f32, y: f32) {
+	class var delta: float2 {
 		let (x, y) = CGGetLastMouseDelta()
-		return (x: f32(x), y: f32(y))
+		return float2(float(x), float(y))
 	}
 	
-	class func hide() {
-		CGDisplayHideCursor(CGMainDisplayID())
-		CGAssociateMouseAndMouseCursorPosition(0)
-	}
-	class func show() {
-		CGDisplayShowCursor(CGMainDisplayID())
-		CGAssociateMouseAndMouseCursorPosition(1)
+	static var visible: Bool = true {
+		didSet {
+			if Cursor.visible {
+				CGDisplayShowCursor(CGMainDisplayID())
+				CGAssociateMouseAndMouseCursorPosition(1)
+			} else {
+				CGDisplayHideCursor(CGMainDisplayID())
+				CGAssociateMouseAndMouseCursorPosition(0)
+			}
+		}
 	}
 	
 }

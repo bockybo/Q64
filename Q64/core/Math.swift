@@ -1,99 +1,114 @@
 import simd
 
 
-typealias f32 = Float32
-typealias v2f = simd_float2
-typealias v3f = simd_float3
-typealias v4f = simd_float4
-typealias m4f = simd_float4x4
+typealias float = Float32
+typealias float2 = simd_float2
+typealias float3 = simd_float3
+typealias float4 = simd_float4
+typealias float4x4 = simd_float4x4
+
+typealias uint = UInt32
+typealias uint2 = simd_uint2
+typealias uint3 = simd_uint3
 
 
-extension v3f {
+extension float2 {
+	init(_ z: float) {self.init(z, z)}
 	
-	static let x = v3f(1, 0, 0)
-	static let y = v3f(0, 1, 0)
-	static let z = v3f(0, 0, 1)
+	static func rot(_ rot: float) -> float2 {return .init(cos(rot), sin(rot))}
+	
 }
 
-extension v4f {
-	var xyz: v3f {return simd_make_float3(self)}
+extension float3 {
+	init(_ w: float) {self.init(w, w, w)}
+	
+	var xy: float2 {return simd_make_float2(self)}
+	
+	static let x = float3(1, 0, 0)
+	static let y = float3(0, 1, 0)
+	static let z = float3(0, 0, 1)
+	
 }
 
-extension m4f {
-	static let idt: m4f = matrix_identity_float4x4
+extension float4 {
+	var xy: float2 {return simd_make_float2(self)}
+	var xyz: float3 {return simd_make_float3(self)}
+}
+
+extension float4x4 {
+	static let idt: float4x4 = matrix_identity_float4x4
 	
-	static func *(lhs: m4f, rhs: v3f) -> v3f {return matrix_multiply(lhs, v4f(rhs, 1)).xyz}
-	static func *(lhs: v3f, rhs: m4f) -> v3f {return matrix_multiply(v4f(lhs, 1), rhs).xyz}
-	static func *=(lhs: inout v3f, rhs: m4f) {lhs = lhs * rhs}
-	
-	static func pos(_ pos: v3f) -> m4f {
-		let x = pos.x
-		let y = pos.y
-		let z = pos.z
-		return m4f(
-			v4f(1, 0, 0, 0),
-			v4f(0, 1, 0, 0),
-			v4f(0, 0, 1, 0),
-			v4f(x, y, z, 1))
+	static func pos(_ pos: float3) -> float4x4 {
+		return .init(
+			float4(1, 0, 0, 0),
+			float4(0, 1, 0, 0),
+			float4(0, 0, 1, 0),
+			float4(pos, 1))
 	}
 	
-	static func mag(_ mag: v3f) -> m4f {
-		let x = mag.x
-		let y = mag.y
-		let z = mag.z
-		return m4f(
-			v4f(x, 0, 0, 0),
-			v4f(0, y, 0, 0),
-			v4f(0, 0, z, 0),
-			v4f(0, 0, 0, 1))
+	static func mag(_ mag: float3) -> float4x4 {
+		return .init(
+			float4(mag.x, 0, 0, 0),
+			float4(0, mag.y, 0, 0),
+			float4(0, 0, mag.z, 0),
+			float4(0, 0, 0, 1))
 	}
 	
-	static func rot(_ rot: f32, axes: v3f) -> m4f {
-		let x = axes.x
-		let y = axes.y
-		let z = axes.z
-		let c = cos(rot)
-		let s = sin(rot)
-		let mc = 1 - c
-		return m4f(
-			v4f(x * x * mc + c,     x * y * mc + z * s, x * z * mc - y * s, 0),
-			v4f(y * x * mc - z * s, y * y * mc + c,     y * z * mc + x * s, 0),
-			v4f(z * x * mc + y * s, z * y * mc - x * s, z * z * mc + c,     0),
-			v4f(0, 0, 0, 1))
+	static func xrot(_ dir: float2) -> float4x4 {
+		return .init(
+			float4(1, 0, 0, 0),
+			float4(0, +dir.x, -dir.y, 0),
+			float4(0, +dir.y, +dir.x, 0),
+			float4(0, 0, 0, 1)
+		)
+	}
+	static func yrot(_ dir: float2) -> float4x4 {
+		return .init(
+			float4(+dir.x, 0, +dir.y, 0),
+			float4(0, 1, 0, 0),
+			float4(-dir.y, 0, +dir.x, 0),
+			float4(0, 0, 0, 1)
+		)
+	}
+	static func zrot(_ dir: float2) -> float4x4 {
+		return .init(
+			float4(+dir.x, -dir.y, 0, 0),
+			float4(+dir.y, +dir.x, 0, 0),
+			float4(0, 0, 1, 0),
+			float4(0, 0, 0, 1)
+		)
+	}
+	static func xrot(_ rot: float) -> float4x4 {return .xrot(float2.rot(rot))}
+	static func yrot(_ rot: float) -> float4x4 {return .yrot(float2.rot(rot))}
+	static func zrot(_ rot: float) -> float4x4 {return .zrot(float2.rot(rot))}
+	
+	static func look(dst: float3, src: float3, u: float3 = .y) -> float4x4 {
+		let f = normalize(dst - src)
+		let s = normalize(cross(f, u))
+		let u = normalize(cross(s, f))
+		return .init(
+			float4(  s, 0),
+			float4(  u, 0),
+			float4( -f, 0),
+			float4(src, 1))
 	}
 	
-	static func mag(_ mag: f32) -> m4f {return m4f.mag(v3f(mag, mag, mag))}
-	static func xrot(_ rot: f32) -> m4f {return m4f.rot(rot, axes: .x)}
-	static func yrot(_ rot: f32) -> m4f {return m4f.rot(rot, axes: .y)}
-	static func zrot(_ rot: f32) -> m4f {return m4f.rot(rot, axes: .z)}
-	
-	static func proj(fov: f32, aspect: f32, z0: f32, z1: f32) -> m4f {
+	static func proj(fov: float, aspect: float, z0: float, z1: float) -> float4x4 {
 		let y = 1 / tan(0.5 * fov)
 		let x = y / aspect
 		let z = z1 / (z0 - z1)
 		let w = z * z0
-		return m4f(
-			v4f(x, 0, 0,  0),
-			v4f(0, y, 0,  0),
-			v4f(0, 0, z, -1),
-			v4f(0, 0, w,  0))
+		return .init(
+			float4(x, 0, 0,  0),
+			float4(0, y, 0,  0),
+			float4(0, 0, z, -1),
+			float4(0, 0, w,  0))
 	}
 	
-	static func look(dst: v3f, src: v3f, up: v3f = .y) -> m4f {
-		let f = normalize(dst - src)
-		let s = normalize(cross(f, up))
-		let u = normalize(cross(s, f))
-		return m4f(
-			v4f(  s, 0),
-			v4f(  u, 0),
-			v4f( -f, 0),
-			v4f(src, 1))
+	static func orth(p0: float3, p1: float3) -> float4x4 {
+		let m = float3(2, 2, -1) / (p1 - p0)
+		let t = float3(1, 1,  0) * (p1 + p0) * -0.5
+		return .pos(t) * .mag(m)
 	}
-	
-	static func orth(p0: v3f, p1: v3f) -> m4f {
-		let m = v3f(2, 2, -1) / (p1 - p0)
-		let t = v3f(1, 1,  0) * (p1 + p0)
-		return m4f.pos(-0.5 * t) * m4f.mag(m)
-	}
-	
+
 }

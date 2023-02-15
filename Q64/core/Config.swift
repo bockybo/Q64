@@ -1,7 +1,7 @@
 import MetalKit
 
 
-class Config {
+class cfg {
 	
 	static let win_w = 800
 	static let win_h = 800
@@ -9,11 +9,13 @@ class Config {
 	static let color_fmt: MTLPixelFormat = .bgra8Unorm
 	static let depth_fmt: MTLPixelFormat = .depth32Float
 	
-	static let fov: f32 = 75 * .pi/180
-	static let z0: f32 = 0.1
-	static let z1: f32 = 1e4
+	static let fov: float = 75 * .pi/180
+	static let z0: float = 0.1
+	static let z1: float = 1e4
+	
+	static let shdqlt = 16384
 	
 	static let tps = 120.0
-	static let fps = 120
+	static let fps = 144
 	
 }
