@@ -47,37 +47,44 @@ class lib {
 		return lib.device.makeDepthStencilState(descriptor: descr)!
 	}()
 	
+	static let devlib = lib.device.makeDefaultLibrary()!
+	static let shader = {name in lib.devlib.makeFunction(name: name)!}
+	
 	static func pipestate(
-		_ vtxfn: String,
-		frgfn: String? = nil,
-		color: Bool = true,
-		depth: Bool = true
+		vtxdescr: MTLVertexDescriptor? = MTKMetalVertexDescriptorFromModelIO(lib.vtxdescr)!,
+		vtxfn: MTLFunction? = nil,
+		frgfn: MTLFunction? = nil,
+		fmts: [Int : MTLPixelFormat] = [:]
 	) -> MTLRenderPipelineState {
 		let descr = MTLRenderPipelineDescriptor()
-		descr.vertexDescriptor = MTKMetalVertexDescriptorFromModelIO(lib.vtxdescr)!
-		if color {descr.colorAttachments[0].pixelFormat	= cfg.color_fmt}
-		if depth {descr.depthAttachmentPixelFormat		= cfg.depth_fmt}
-		let devlib = lib.device.makeDefaultLibrary()!
-		descr.vertexFunction = devlib.makeFunction(name: vtxfn)!
-		if let frgfn = frgfn {descr.fragmentFunction = devlib.makeFunction(name: frgfn)!}
+		descr.vertexDescriptor = vtxdescr
+		descr.vertexFunction = vtxfn
+		descr.fragmentFunction = frgfn
+		for (i, fmt) in fmts {
+			if i == -1 {descr.depthAttachmentPixelFormat = fmt}
+			else {descr.colorAttachments[i].pixelFormat = fmt}
+		}
 		return try! lib.device.makeRenderPipelineState(descriptor: descr)
 	}
 	
-	static func passdescr(_ textures: [Int : MTLTexture]) -> MTLRenderPassDescriptor {
+	static func passdescr(dim: uint2, fmts: [Int : MTLPixelFormat] = [:]) -> MTLRenderPassDescriptor {
 		let descr = MTLRenderPassDescriptor()
-		for (i, tex) in textures {
-			if i == -1 {
-				descr.depthAttachment.texture = tex
-				descr.depthAttachment.loadAction = .clear
-				descr.depthAttachment.storeAction = .store
-			} else {
-				descr.colorAttachments[i].texture = tex
-				descr.colorAttachments[i].loadAction = .clear
-				descr.colorAttachments[i].storeAction = .store
-			}
+		for (i, fmt) in fmts {
+			let attr = (i == -1 ? descr.depthAttachment : descr.colorAttachments[i])!
+			attr.texture = lib.texture(dim: dim, fmt: fmt, usage: [.shaderRead, .renderTarget])
+			attr.loadAction = .clear
+			attr.storeAction = .store
 		}
 		return descr
 	}
+	
+	static let gbuffmts: [Int : MTLPixelFormat] = [
+		-1: cfg.depth_fmt,
+		 0: cfg.color_fmt,
+		 1: .rgba8Snorm,
+		 2: .rgba8Snorm,
+		 3: .rgba8Snorm,
+	]
 	
 	
 	static func url(_ path: String?, ext: String? = nil) -> URL? {
@@ -105,15 +112,21 @@ class lib {
 		descr.usage = usage
 		return lib.device.makeTexture(descriptor: descr)!
 	}
-	static var white1x1: MTLTexture = {
+	static func texture(hue: float3) -> MTLTexture {
 		let tex = lib.texture(dim: uint2(1, 1), fmt: cfg.color_fmt, storage: .managed)
-		var hue = simd_uchar4(255, 255, 255, 255)
-		let ogn = MTLOrigin(x: 0, y: 0, z: 0)
-		let dim = MTLSize(width: 1, height: 1, depth: 1)
-		let rgn = MTLRegion(origin: ogn, size: dim)
-		tex.replace(region: rgn, mipmapLevel: 0, withBytes: &hue, bytesPerRow: sizeof(hue))
+		let hue = 255 * hue
+		var src = simd_uchar4(UInt8(hue.z), UInt8(hue.y), UInt8(hue.x), 255)
+		tex.replace(
+			region: MTLRegion(
+				origin: MTLOrigin(x: 0, y: 0, z: 0),
+				size: MTLSize(width: 1, height: 1, depth: 1)),
+			mipmapLevel: 0,
+			withBytes: &src,
+			bytesPerRow: sizeof(src)
+		)
 		return tex
-	}()
+	}
+	static var white1x1 = lib.texture(hue: float3(1, 1, 1))
 	
 	
 	static let meshalloc = MTKMeshBufferAllocator(device: lib.device)

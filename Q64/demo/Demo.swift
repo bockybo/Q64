@@ -29,30 +29,22 @@ class Demo: Ctrl {
 				[Cruiser()],
 				meshes: lib.mesh(path: "cruiser.obj"),
 //				texture: lib.texture(path: "steel.jpg"),
-				mfrg: MFRG(
-					ambi: 0.1 * float3(0, 1, 1),
-					diff: 0.7 * float3(0, 1, 1),
-					spec: 0.6 * float3(1, 1, 1),
-					shine: 9.0
-				)
+				texture: lib.texture(hue: float3(0, 1, 1)),
+				mfrg: MFRG(ambi: 0.1, diff: 0.7, spec: 0.6, shine: 9.0)
 			),
 			Model(
 				[BaseETT(.mag(float3(dim, 0.1, dim)))],
 				meshes: [lib.boxmesh(1)],
-				mfrg: MFRG(
-					ambi: 0.2 * float3(0.6, 0.5, 0.5),
-					diff: 0.8 * float3(0.6, 0.5, 0.5)
-				)
+				texture: lib.texture(hue: float3(0.6, 0.5, 0.5)),
+				mfrg: MFRG(ambi: 0.2, diff: 0.8)
 			),
 			Model(
 				boxes,
 				meshes: [lib.sphmesh(100)],
-				mfrg: MFRG(
-					ambi: 0.2 * float3(1, 1, 1)
-				)
+				mfrg: MFRG(ambi: 0.2)
 			),
 			Model(
-				[BaseETT(.pos(float3(0, 0, -20)) * .mag(float3(10)))],
+				[BaseETT(.mag(float3(4)))],
 				meshes: [lib.mesh(
 					vtcs: [
 						float3(-1, 0, -1),
@@ -67,11 +59,7 @@ class Demo: Ctrl {
 						2, 0, 3,
 					]
 				)],
-				mfrg: MFRG(
-					diff: float3(1, 0, 1),
-					spec: float3(1, 1, 1),
-					shine: 30
-				)
+				texture: lib.texture(hue: float3(1, 0, 1))
 			)
 		]
 	}()
@@ -79,14 +67,14 @@ class Demo: Ctrl {
 	init() {
 		
 		self.cruiser = self.models[0].entities[0] as! Cruiser
-		self.cruiser.pos = float3(0, 4, 10)
+		self.cruiser.pos = float3(0, 5, 0)
 		
 		self.scene.models = self.models
 		
-		self.scene.cam.pos = float3(0, 10, 30)
+		self.scene.cam.pos = float3(0, 10, 20)
 		self.scene.cam.rot = float3(0, 0, 0) * .pi/180
 		
-		self.scene.lgt.hue = float3(1, 1, 1)
+		self.scene.lgt.hue = float3(1, 1, 0.9)
 		self.scene.lgt.dst = float3(0, 0, 0)
 		self.scene.lgt.src = float3(10, 50, 10)
 		
@@ -128,7 +116,7 @@ class Demo: Ctrl {
 		self.scene.cam.pos += self.camvel
 		self.camvel *= 0.9
 		
-		self.scene.lgt.dst = self.cruiser.pos
+//		self.scene.lgt.dst = self.cruiser.pos
 		
 	}
 	

@@ -6,31 +6,36 @@ class Scene {
 	var cam = Camera()
 	var models: [Model] = []
 	
-	func light(enc: MTLRenderCommandEncoder) {
-		var svtx = SVTX(cam: self.cam.proj * self.cam.view.inverse)
-		var sfrg = SFRG(
-			lgtctm: self.lgt.proj * self.lgt.view.inverse,
-//			lgtdir: self.lgt.src,
-			lgtdir: self.lgt.dst - self.lgt.src,
-			lgthue: self.lgt.hue,
-			eyepos: self.cam.pos
-		)
-		svtx.render(enc: enc)
-		sfrg.render(enc: enc)
+//	func light(enc: MTLRenderCommandEncoder) {
+//		var svtx = self.cam.svtx
+//		var sfrg = self.sfrg
+//		svtx.render(enc: enc)
+//		sfrg.render(enc: enc)
+//		self.draw(enc: enc, material: true)
+//	}
+//	func shade(enc: MTLRenderCommandEncoder) {
+//		var svtx = self.lgt.svtx
+//		svtx.render(enc: enc)
+//		self.draw(enc: enc, material: false)
+//	}
+	
+	func draw(enc: MTLRenderCommandEncoder, material: Bool) {
 		for model in self.models {
-			model.draw(enc: enc, material: true)
+			model.draw(enc: enc, material: material)
 		}
 	}
-	func shade(enc: MTLRenderCommandEncoder) {
-		var svtx = SVTX(cam: self.lgt.proj * self.lgt.view.inverse)
-		svtx.render(enc: enc)
-		for model in self.models {
-			model.draw(enc: enc, material: false)
-		}
-	}
+	
+	var sfrg: SFRG {return SFRG(
+		lgtctm: self.lgt.proj * self.lgt.view.inverse,
+//		lgtdir: self.lgt.src,
+		lgtdir: normalize(self.lgt.src - self.lgt.dst),
+		lgthue: self.lgt.hue,
+		eyepos: self.cam.pos
+	)}
 	
 	
 	struct Camera {
+		var svtx: SVTX {return SVTX(cam: self.proj * self.view.inverse)}
 		
 		var proj: float4x4 = .idt
 		var aspect: float = 1 {
@@ -58,18 +63,10 @@ class Scene {
 	}
 	
 	struct Lighting {
+		var svtx: SVTX {return SVTX(cam: self.proj * self.view.inverse)}
 		
 		var hue = float3(1)
 		
-//		var fov: float = 90 * .pi/180
-//		var proj: float4x4 {
-//			return .proj(
-//				fov: self.fov,
-//				aspect: 1,
-//				z0: 10,
-//				z1: 1e10
-//			)
-//		}
 		var proj: float4x4 {
 			return .orth(
 				p0: float3(-200, -200, 0),

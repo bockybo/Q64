@@ -3,8 +3,9 @@ import MetalKit
 
 struct SVTX {
 	var cam: float4x4 = .idt
-	mutating func render(enc: MTLRenderCommandEncoder) {
-		enc.setVertexBytes(&self, length: sizeof(self), index: 2)
+	func render(enc: MTLRenderCommandEncoder) {
+		var svtx = self
+		enc.setVertexBytes(&svtx, length: sizeof(svtx), index: 2)
 	}
 }
 
@@ -13,24 +14,27 @@ struct SFRG {
 	var lgtdir: float3 = float3(0)
 	var lgthue: float3 = float3(1)
 	var eyepos: float3 = float3(0)
-	mutating func render(enc: MTLRenderCommandEncoder) {
-		enc.setFragmentBytes(&self, length: sizeof(self), index: 2)
+	func render(enc: MTLRenderCommandEncoder) {
+		var sfrg = self
+		enc.setFragmentBytes(&sfrg, length: sizeof(sfrg), index: 2)
 	}
 }
 
 struct MVTX {
 	var ctm: float4x4 = .idt
-	mutating func render(enc: MTLRenderCommandEncoder) {
-		enc.setVertexBytes(&self, length: sizeof(self), index: 1)
+	func render(enc: MTLRenderCommandEncoder) {
+		var mvtx = self
+		enc.setVertexBytes(&mvtx, length: sizeof(mvtx), index: 1)
 	}
 }
 	
 struct MFRG {
-	var ambi: float3 = float3(0)
-	var diff: float3 = float3(1)
-	var spec: float3 = float3(0)
+	var ambi: float = 0
+	var diff: float = 1
+	var spec: float = 0
 	var shine: float = 1
-	mutating func render(enc: MTLRenderCommandEncoder) {
-		enc.setFragmentBytes(&self, length: sizeof(self), index: 1)
+	func render(enc: MTLRenderCommandEncoder) {
+		var mfrg = self
+		enc.setFragmentBytes(&mfrg, length: sizeof(mfrg), index: 1)
 	}
 }

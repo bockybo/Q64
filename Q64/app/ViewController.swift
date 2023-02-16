@@ -16,9 +16,8 @@ class ViewController: NSViewController {
 		)
 		self.view = view
 		
-		view.colorPixelFormat			= cfg.color_fmt
-		view.depthStencilPixelFormat	= cfg.depth_fmt
-		view.preferredFramesPerSecond	= cfg.fps
+		view.colorPixelFormat = cfg.color_fmt
+		view.preferredFramesPerSecond = cfg.fps
 		
 		view.ctrl = Demo()
 		self.timer = Timer(timeInterval: 1/cfg.tps, repeats: true) {
@@ -27,7 +26,10 @@ class ViewController: NSViewController {
 		}
 		
 		self.renderer = Renderer(scene: view.ctrl.scene)
-		self.renderer.mtkView(view, drawableSizeWillChange: view.frame.size)
+		self.renderer.mtkView(view, drawableSizeWillChange: CGSize(
+			width: 2 * cfg.win_w,
+			height: 2 * cfg.win_h
+		))
 		view.delegate = self.renderer
 		
 	}
