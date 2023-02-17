@@ -54,6 +54,20 @@ extension float4x4 {
 			float4(0, 0, 0, 1))
 	}
 	
+	static func rot(_ rad: float, axes: float3) -> float4x4 {
+		let ct = cos(rad)
+		let st = sin(rad)
+		let ci = 1 - ct
+		let x = axes.x
+		let y = axes.y
+		let z = axes.z
+		return .init(
+			float4(ct + x * x * ci, y * x * ci + z * st, z * x * ci - y * st, 0),
+			float4(x * y * ci - z * st, ct + y * y * ci, z * y * ci + x * st, 0),
+			float4(x * z * ci + y * st, y * z * ci - x * st, ct + z * z * ci, 0),
+			float4(0, 0, 0, 1))
+	}
+	
 	static func xrot(_ dir: float2) -> float4x4 {
 		return .init(
 			float4(1, 0, 0, 0),
@@ -78,9 +92,17 @@ extension float4x4 {
 			float4(0, 0, 0, 1)
 		)
 	}
-	static func xrot(_ rot: float) -> float4x4 {return .xrot(float2.rot(rot))}
-	static func yrot(_ rot: float) -> float4x4 {return .yrot(float2.rot(rot))}
-	static func zrot(_ rot: float) -> float4x4 {return .zrot(float2.rot(rot))}
+	
+	static func xrot(_ r: float) -> float4x4 {return .xrot(float2.rot(r))}
+	static func yrot(_ r: float) -> float4x4 {return .yrot(float2.rot(r))}
+	static func zrot(_ r: float) -> float4x4 {return .zrot(float2.rot(r))}
+	static func xpos(_ p: float) -> float4x4 {return .pos(float3(p, 0, 0))}
+	static func ypos(_ p: float) -> float4x4 {return .pos(float3(0, p, 0))}
+	static func zpos(_ p: float) -> float4x4 {return .pos(float3(0, 0, p))}
+	static func xmag(_ m: float) -> float4x4 {return .mag(float3(m, 1, 1))}
+	static func ymag(_ m: float) -> float4x4 {return .mag(float3(1, m, 1))}
+	static func zmag(_ m: float) -> float4x4 {return .mag(float3(1, 1, m))}
+	static func mag(_ m: float) -> float4x4 {return .mag(float3(m, m, m))}
 	
 	static func look(dst: float3, src: float3, u: float3 = .y) -> float4x4 {
 		let f = normalize(dst - src)

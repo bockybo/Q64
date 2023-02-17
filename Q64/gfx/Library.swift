@@ -10,12 +10,25 @@ func sizeof<T>(_: T) -> Int {
 class lib {
 	static let device = MTLCreateSystemDefaultDevice()!
 	
+	
+	static let devlib = lib.device.makeDefaultLibrary()!
+	static let vtxshaders = [
+		"main": lib.devlib.makeFunction(name: "vtx_main")!,
+		"shdw": lib.devlib.makeFunction(name: "vtx_shdw")!,
+		"quad": lib.devlib.makeFunction(name: "vtx_quad")!,
+	]
+	static let frgshaders = [
+		"main": lib.devlib.makeFunction(name: "frg_main")!,
+		"quad": lib.devlib.makeFunction(name: "frg_quad")!,
+	]
+	
+	
 	struct vtx {
 		var pos: (float, float, float) = (0, 0, 0)
 		var nml: (float, float, float) = (1, 0, 0)
 		var tex: (float, float) = (0, 0)
 	}
-	static let vtxdescr: MDLVertexDescriptor = {
+	static let mdlvtxdescr: MDLVertexDescriptor = {
 		let descr = MDLVertexDescriptor()
 		descr.attributes[0] = MDLVertexAttribute(
 			name: MDLVertexAttributePosition,
@@ -39,6 +52,8 @@ class lib {
 		descr.setPackedStrides()
 		return descr
 	}()
+	static let mtlvtxdescr = MTKMetalVertexDescriptorFromModelIO(lib.mdlvtxdescr)!
+	
 	
 	static let depthstate: MTLDepthStencilState = {
 		let descr = MTLDepthStencilDescriptor()
@@ -47,154 +62,170 @@ class lib {
 		return lib.device.makeDepthStencilState(descriptor: descr)!
 	}()
 	
-	static let devlib = lib.device.makeDefaultLibrary()!
-	static let shader = {name in lib.devlib.makeFunction(name: name)!}
-	
 	static func pipestate(
-		vtxdescr: MTLVertexDescriptor? = MTKMetalVertexDescriptorFromModelIO(lib.vtxdescr)!,
-		vtxfn: MTLFunction? = nil,
-		frgfn: MTLFunction? = nil,
+		vtxdescr: MTLVertexDescriptor? = lib.mtlvtxdescr,
+		vtxshader: MTLFunction? = nil,
+		frgshader: MTLFunction? = nil,
 		fmts: [Int : MTLPixelFormat] = [:]
 	) -> MTLRenderPipelineState {
 		let descr = MTLRenderPipelineDescriptor()
 		descr.vertexDescriptor = vtxdescr
-		descr.vertexFunction = vtxfn
-		descr.fragmentFunction = frgfn
+		descr.vertexFunction = vtxshader
+		descr.fragmentFunction = frgshader
 		for (i, fmt) in fmts {
-			if i == -1 {descr.depthAttachmentPixelFormat = fmt}
-			else {descr.colorAttachments[i].pixelFormat = fmt}
+			switch i {
+				case -2: descr.stencilAttachmentPixelFormat		= fmt;		break
+				case -1: descr.depthAttachmentPixelFormat		= fmt;		break
+				default: descr.colorAttachments[i].pixelFormat	= fmt
+			}
 		}
 		return try! lib.device.makeRenderPipelineState(descriptor: descr)
 	}
 	
-	static func passdescr(dim: uint2, fmts: [Int : MTLPixelFormat] = [:]) -> MTLRenderPassDescriptor {
+	static func passdescr(fmts: [Int : MTLPixelFormat], size: uint2) -> MTLRenderPassDescriptor {
 		let descr = MTLRenderPassDescriptor()
 		for (i, fmt) in fmts {
-			let attr = (i == -1 ? descr.depthAttachment : descr.colorAttachments[i])!
-			attr.texture = lib.texture(dim: dim, fmt: fmt, usage: [.shaderRead, .renderTarget])
-			attr.loadAction = .clear
-			attr.storeAction = .store
+			let att: MTLRenderPassAttachmentDescriptor
+			switch i {
+				case -2: att = descr.stencilAttachment; 	break
+				case -1: att = descr.depthAttachment; 		break
+				default: att = descr.colorAttachments[i]
+			}
+			att.loadAction = .clear
+			att.storeAction = .store
+			att.texture = lib.texture(
+				fmt: fmt,
+				size: size,
+				storage: .private,
+				usage: [.shaderRead, .renderTarget])
 		}
 		return descr
 	}
 	
-	static let gbuffmts: [Int : MTLPixelFormat] = [
-		-1: cfg.depth_fmt,
-		 0: cfg.color_fmt,
-		 1: .rgba8Snorm,
-		 2: .rgba8Snorm,
-		 3: .rgba8Snorm,
-	]
 	
-	
-	static func url(_ path: String?, ext: String? = nil) -> URL? {
-		return Bundle.main.url(forResource: path, withExtension: ext)
-	}
-	
-	static func texture(path: String) -> MTLTexture {
-		let ldr = MTKTextureLoader(device: lib.device)
-		let url = lib.url(path)!
-		return try! ldr.newTexture(URL: url, options: nil)
-	}
 	static func texture(
-		dim: uint2,
 		fmt: MTLPixelFormat,
+		size: uint2,
 		storage: MTLStorageMode = .private,
 		usage: MTLTextureUsage = .shaderRead
 	) -> MTLTexture {
 		let descr = MTLTextureDescriptor.texture2DDescriptor(
 			pixelFormat: fmt,
-			width:  Int(dim.x),
-			height: Int(dim.y),
+			width:  Int(size.x),
+			height: Int(size.y),
 			mipmapped: false
 		)
 		descr.storageMode = storage
 		descr.usage = usage
 		return lib.device.makeTexture(descriptor: descr)!
 	}
-	static func texture(hue: float3) -> MTLTexture {
-		let tex = lib.texture(dim: uint2(1, 1), fmt: cfg.color_fmt, storage: .managed)
-		let hue = 255 * hue
-		var src = simd_uchar4(UInt8(hue.z), UInt8(hue.y), UInt8(hue.x), 255)
-		tex.replace(
-			region: MTLRegion(
-				origin: MTLOrigin(x: 0, y: 0, z: 0),
-				size: MTLSize(width: 1, height: 1, depth: 1)),
-			mipmapLevel: 0,
-			withBytes: &src,
-			bytesPerRow: sizeof(src)
-		)
-		return tex
+	static func texture(path: String) -> MTLTexture {
+		let ldr = MTKTextureLoader(device: lib.device)
+		let url = Bundle.main.url(forResource: path, withExtension: nil)!
+		return try! ldr.newTexture(URL: url, options: nil)
 	}
-	static var white1x1 = lib.texture(hue: float3(1, 1, 1))
 	
 	
 	static let meshalloc = MTKMeshBufferAllocator(device: lib.device)
 	
-	static func mesh(path: String) -> [MTKMesh] {
-		let url = lib.url(path)!
+	static func mesh(
+		mesh: MDLMesh,
+		nml: Bool = false,
+		tex: Bool = false
+	) -> MTKMesh {
+		if nml {mesh.addNormals(withAttributeNamed: MDLVertexAttributeNormal, creaseThreshold: 0)}
+		if tex {mesh.addUnwrappedTextureCoordinates(forAttributeNamed: MDLVertexAttributeTextureCoordinate)}
+		return try! MTKMesh(mesh: mesh, device: lib.device)
+	}
+	static func meshes(
+		path: String,
+		nml: Bool = false,
+		tex: Bool = false
+	) -> [MTKMesh] {
+		let url = Bundle.main.url(forResource: path, withExtension: nil)!
 		return try! MTKMesh.newMeshes(
 			asset: MDLAsset(
 				url: url,
-				vertexDescriptor: lib.vtxdescr,
+				vertexDescriptor: lib.mdlvtxdescr,
 				bufferAllocator: lib.meshalloc
 			),
 			device: lib.device
-		).metalKitMeshes
+		).modelIOMeshes.map {mesh in lib.mesh(mesh: mesh, nml: nml, tex: tex)}
 	}
 	
 	static func mesh(
 		vtcs: [lib.vtx],
-		idcs: [UInt16],
+		idcs: [uint],
 		type: MDLGeometryType = .triangles,
 		nml: Bool = false,
 		tex: Bool = false
 	) -> MTKMesh {
 		let vtxdata = Data(bytes: vtcs, count: vtcs.count * sizeof(lib.vtx.self))
-		let idxdata = Data(bytes: idcs, count: idcs.count * sizeof(UInt16.self))
+		let idxdata = Data(bytes: idcs, count: idcs.count * sizeof(uint.self))
 		let vtxbuf = lib.meshalloc.newBuffer(with: vtxdata, type: .vertex)
 		let idxbuf = lib.meshalloc.newBuffer(with: idxdata, type: .index)
-		let mesh = MDLMesh(
-			vertexBuffer: vtxbuf,
-			vertexCount: vtcs.count,
-			descriptor: lib.vtxdescr,
-			submeshes: [MDLSubmesh(
-				indexBuffer: idxbuf,
-				indexCount: idcs.count,
-				indexType: .uInt16,
-				geometryType: type,
-				material: nil
-			)]
+		return lib.mesh(
+			mesh: MDLMesh(
+				vertexBuffer: vtxbuf,
+				vertexCount: vtcs.count,
+				descriptor: lib.mdlvtxdescr,
+				submeshes: [MDLSubmesh(
+					indexBuffer: idxbuf,
+					indexCount: idcs.count,
+					indexType: .uInt32,
+					geometryType: type,
+					material: nil
+				)]
+			),
+			nml: nml,
+			tex: tex
 		)
-		if nml {mesh.addNormals(withAttributeNamed: MDLVertexAttributeNormal, creaseThreshold: 0)}
-		if tex {mesh.addUnwrappedTextureCoordinates(forAttributeNamed: MDLVertexAttributeTextureCoordinate)}
-		return try! MTKMesh(mesh: mesh, device: lib.device)
 	}
 	static func mesh(
 		vtcs: [float3],
-		idcs: [UInt16],
+		idcs: [uint],
 		type: MDLGeometryType = .triangles
 	) -> MTKMesh {
-		let vtcs = vtcs.map {pos in lib.vtx(pos: (pos.x, pos.y, pos.z))}
-		let mesh = lib.mesh(vtcs: vtcs, idcs: idcs, type: type, nml: true, tex: true)
-		return mesh
+		return lib.mesh(
+			vtcs: vtcs.map {pos in lib.vtx(pos: (pos.x, pos.y, pos.z))},
+			idcs: idcs,
+			type: type,
+			nml: true,
+			tex: true
+		)
 	}
 	
 	static func boxmesh(_ seg: uint, type: MDLGeometryType = .triangles, invnml: Bool = false) -> MTKMesh {
-		return try! MTKMesh(mesh: MDLMesh(
+		return lib.mesh(mesh: MDLMesh(
 			boxWithExtent:		float3(1),
 			segments:			uint3(seg, seg, seg),
 			inwardNormals: 		invnml,
 			geometryType:		type,
-			allocator:			lib.meshalloc), device: lib.device)
+			allocator:			lib.meshalloc))
 	}
 	static func sphmesh(_ seg: uint, type: MDLGeometryType = .triangles, invnml: Bool = false) -> MTKMesh {
-		return try! MTKMesh(mesh: MDLMesh(
+		return lib.mesh(mesh: MDLMesh(
 			sphereWithExtent: 	float3(1),
 			segments: 			uint2(seg, seg),
 			inwardNormals:		invnml,
 			geometryType: 		type,
-			allocator:			lib.meshalloc), device: lib.device)
+			allocator:			lib.meshalloc))
+	}
+	
+	class Buffer<T> {
+		let buf: MTLBuffer
+		var ptr: UnsafeMutablePointer<T>
+		init(_ len: Int) {
+			self.buf = lib.device.makeBuffer(
+				length: len * sizeof(T.self),
+				options: .storageModeShared)!
+			self.ptr = self.buf.contents().assumingMemoryBound(to: T.self)
+		}
+		var count: Int {return self.buf.length / sizeof(T.self)}
+		subscript(i: Int) -> T {
+			get {return self.ptr[i]}
+			set(value) {self.ptr[i] = value}
+		}
 	}
 	
 }

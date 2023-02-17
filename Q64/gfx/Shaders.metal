@@ -2,6 +2,8 @@
 using namespace metal;
 
 
+
+
 typedef texture2d<float, access::sample> texmap2;
 typedef depth2d  <float, access::sample> depmap2;
 
@@ -12,56 +14,92 @@ typedef struct {
 	packed_float2 tex;
 } vtx;
 typedef struct {
-	float4 cam [[position]];
-	float4 pos;
+	float4 camloc [[position]];
+	float4 lgtloc;
+	float2 texloc;
 	float3 nml;
-	float2 tex;
+	float3 eye;
+	float id;
 } frg;
 
 typedef struct {
-	float4x4 ctm;
-} svtx;
-typedef struct {
-	float4x4 ctm;
-} mvtx;
-typedef struct {
-	float4x4 lgtctm;
-	float3 lgtsrc;
-	float3 lgthue;
-	float3 eyepos;
-} sfrg;
-typedef struct {
-	float ambi;
-	float diff;
-	float spec;
-	float shine;
-} mfrg;
-
-typedef struct {
-	float4 pos [[color(0)]];
+	float4 alb [[color(0)]];
 	float4 nml [[color(1)]];
-	float4 alb [[color(2)]];
-	float4 mat [[color(3)]];
+	float4 eye [[color(2)]];
 } gbuf;
 
 typedef struct {
 	float4 loc [[position]];
 } locfrg;
 
+typedef struct {
+	float4x4 cam;
+	float4x4 lgt;
+	float3 eye;
+} svtx;
+typedef struct {
+	uint id;
+	float4x4 ctm;
+} mvtx;
+typedef struct {
+	float3 lgtdir;
+	float3 lgthue;
+} sfrg;
+typedef struct {
+	float3 ambi;
+	float3 diff;
+	float3 spec;
+	float shine;
+} mfrg;
 
+#define MAXID 128
+
+
+static inline float3 color(float2 loc, texmap2 texmap) {
+	constexpr sampler smp;
+	return is_null_texture(texmap)? 1 : texmap.sample(smp, loc).rgb;
+}
 static inline float shade(float4 loc, depmap2 shdmap) {
-	constexpr sampler smp(coord::normalized, address::clamp_to_edge, filter::linear);
-	float z = loc.z;
-	float w = loc.w;
-	float2 xy = float2(w + loc.x, w - loc.y) / (2*w);
-	constexpr int m = 4;
+	constexpr sampler smp(compare_func::greater);
+	constexpr int m = 8;
+	loc.xyz /= loc.w;
+	loc.xy = 0.5 * float2(1 + loc.x, 1 - loc.y);
 	int shd = 0;
 	for (int x = 0; x < m; ++x)
 		for (int y = 0; y < m; ++y)
-			shd += z > w * shdmap.sample(smp, xy, int2(x, y) - m/2);
+			shd += shdmap.sample_compare(smp, loc.xy, loc.z, int2(x, y) - m/2);
 	return (float)shd / (m*m);
 }
 
+static inline float4 phong(constant mfrg &mat,
+						   float3 dir,
+						   float3 hue,
+						   float3 alb,
+						   float3 nml,
+						   float3 eye,
+						   float shd) {
+	float3 rgb = 0;
+	if (shd < 1) {
+		float diff = dot(dir, nml);
+		float spec = dot(eye, dir - 2*nml*diff);
+		rgb += mat.diff * saturate(diff);
+		rgb += mat.spec * saturate(powr(spec, mat.shine));
+		rgb *= 1 - shd;
+	}
+	rgb = (mat.ambi + rgb) * alb * hue;
+	return float4(rgb, 1);
+}
+
+
+vertex float4 vtx_shdw(constant vtx *vtcs		[[buffer(0)]],
+					   constant mvtx *mdls		[[buffer(1)]],
+					   constant float4x4 &lgt	[[buffer(2)]],
+					   uint vid					[[vertex_id]],
+					   uint iid					[[instance_id]]) {
+	constant vtx &v = vtcs[vid];
+	constant mvtx &mdl = mdls[iid];
+	return lgt * mdl.ctm * float4(v.pos, 1);
+}
 
 vertex frg vtx_main(constant vtx *vtcs			[[buffer(0)]],
 					constant mvtx *mdls			[[buffer(1)]],
@@ -69,25 +107,28 @@ vertex frg vtx_main(constant vtx *vtcs			[[buffer(0)]],
 					uint vid					[[vertex_id]],
 					uint iid					[[instance_id]]) {
 	constant vtx &v = vtcs[vid];
-	constant mvtx &model = mdls[iid];
-	float4 pos = model.ctm * float4(v.pos, 1);
-	float4 nml = model.ctm * float4(v.nml, 0);
+	constant mvtx &mdl = mdls[iid];
+	float4 pos = mdl.ctm * float4(v.pos, 1);
+	float4 nml = mdl.ctm * float4(v.nml, 0);
 	return {
-		.cam = scene.ctm * pos,
-		.pos = pos,
+		.camloc = scene.cam * pos,
+		.lgtloc = scene.lgt * pos,
+		.texloc = v.tex,
 		.nml = normalize(nml.xyz),
-		.tex = v.tex,
+		.eye = normalize(pos.xyz - scene.eye),
+		.id = (float)mdl.id / MAXID
 	};
 }
-
-vertex float4 vtx_shadow(constant vtx *vtcs		[[buffer(0)]],
-						 constant mvtx *mdls	[[buffer(1)]],
-						 constant svtx &scene	[[buffer(2)]],
-						 uint vid				[[vertex_id]],
-						 uint iid				[[instance_id]]) {
-	constant vtx &v = vtcs[vid];
-	constant mvtx &model = mdls[iid];
-	return scene.ctm * model.ctm * float4(v.pos, 1);
+fragment gbuf frg_main(frg f					[[stage_in]],
+					   texmap2 texmap			[[texture(0)]],
+					   depmap2 shdmap			[[texture(1)]]) {
+	float3 alb = color(f.texloc, texmap);
+	float  shd = shade(f.lgtloc, shdmap);
+	return {
+		.alb = float4(alb, f.id),
+		.nml = float4(f.nml, shd),
+		.eye = float4(f.eye, 0),
+	};
 }
 
 vertex locfrg vtx_quad(uint vid [[vertex_id]]) {
@@ -97,48 +138,23 @@ vertex locfrg vtx_quad(uint vid [[vertex_id]]) {
 	};
 	return {.loc = float4(quad_vtcs[vid], 0, 1)};
 }
-
-
-fragment gbuf frg_gbuf(frg f					[[stage_in]],
-					   constant mfrg &model		[[buffer(1)]],
-					   constant sfrg &scene		[[buffer(2)]],
-					   texmap2 albmap			[[texture(0)]],
-					   depmap2 shdmap			[[texture(1)]]) {
-	constexpr sampler smp(coord::normalized, address::clamp_to_edge, filter::linear);
-	float3 alb = albmap.sample(smp, f.tex).rgb;
-	float shd = shade(scene.lgtctm * f.pos, shdmap);
-	return {
-		.pos = float4(f.pos.xyz, 0),
-		.nml = float4(f.nml, 0),
-		.alb = float4(alb, shd),
-		.mat = float4(model.ambi, model.diff, model.spec, model.shine),
-	};
-}
-
-fragment float4 frg_gdir(locfrg f				[[stage_in]],
+fragment float4 frg_quad(locfrg f				[[stage_in]],
+						 constant mfrg *mfrgs	[[buffer(1)]],
 						 constant sfrg &scene	[[buffer(2)]],
-						 texmap2 posmap			[[texture(0)]],
+						 texmap2 albmap			[[texture(0)]],
 						 texmap2 nmlmap			[[texture(1)]],
-						 texmap2 albmap			[[texture(2)]],
-						 texmap2 matmap			[[texture(3)]]) {
+						 texmap2 eyemap			[[texture(2)]]) {
+	
 	uint2 loc = uint2(f.loc.xy);
+	float4 rd_alb = albmap.read(loc);
+	float4 rd_nml = nmlmap.read(loc);
+	float4 rd_eye = eyemap.read(loc);
+	float3 alb = rd_alb.rgb; float  id = rd_alb.a;
+	float3 nml = rd_nml.xyz; float shd = rd_nml.w;
+	float3 eye = rd_eye.xyz; // TODO: USE W :)
+	constant mfrg &mat = mfrgs[(uint)(id * MAXID)];
+	float3 dir = -scene.lgtdir;
+	float3 hue =  scene.lgthue;
+	return phong(mat, dir, hue, alb, nml, eye, shd);
 	
-	float3 pos = posmap.read(loc).xyz;
-	float3 nml = nmlmap.read(loc).xyz;
-	float4 mat = matmap.read(loc);
-	float4 alb_shd = albmap.read(loc);
-	float3 alb = alb_shd.rgb;
-	float shd  = alb_shd.a;
-	
-	float3 rgb = 0;
-	if (shd < 1) {
-		float diff = dot(scene.lgtsrc, nml);
-		float spec = dot(normalize(pos - scene.eyepos), reflect(scene.lgtsrc, nml));
-		rgb += mat.y * saturate(diff);
-		rgb += mat.z * saturate(powr(spec, mat.w));
-		rgb *= 1 - shd;
-	}
-	rgb = (mat.x + rgb) * scene.lgthue * alb;
-	
-	return float4(rgb, 1);
 }

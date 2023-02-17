@@ -2,7 +2,7 @@ import MetalKit
 
 
 class RenderView: MTKView {
-	var ctrl: Ctrl!
+	let ctrl = Demo()
 	
 	override var acceptsFirstResponder: Bool {return true}
 	
