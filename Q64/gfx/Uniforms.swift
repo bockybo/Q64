@@ -1,19 +1,14 @@
 import MetalKit
 
 
-struct SVTX {
-	var cam: float4x4
-	var lgt: float4x4
-	var eye: float3
-}
-
-struct SFRG {
-	var lgtdir: float3
-	var lgthue: float3
+struct LFRG {
+	var hue: float3
+	var dir: float3
+	var rad: float
 }
 
 struct MVTX {
-	var id: uint
+	var imf: uint
 	var ctm: float4x4
 }
 	

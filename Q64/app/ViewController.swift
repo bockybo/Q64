@@ -2,7 +2,6 @@ import MetalKit
 
 class ViewController: NSViewController {
 	var renderer: Renderer!
-	var timer: Timer!
 
 	override func viewDidLoad() {
 		super.viewDidLoad()
@@ -15,22 +14,11 @@ class ViewController: NSViewController {
 		)
 		self.view = view
 		self.renderer = Renderer(view)
-		self.timer = Timer(timeInterval: 1/cfg.tps, repeats: true) {
-			_ in
-			view.ctrl.tick()
-		}
 	}
 	
 	override func viewWillAppear() {
 		let win = self.view.window!
 		win.acceptsMouseMovedEvents = true
-	}
-	
-	override func viewDidAppear() {
-		RunLoop.main.add(self.timer, forMode: .default)
-	}
-	override func viewWillDisappear() {
-		self.timer.invalidate()
 	}
 
 }

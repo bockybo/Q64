@@ -1,12 +1,10 @@
 import MetalKit
 
 
-//	TODO: separate once client/server set up
+// TODO: separate once client/server set up
 //	subview to push hooks -> server doesn't need unifs
 //	subview to pull unifs <- server doesn't need hooks
 class Demo: Ctrl {
-	var time: float = 0
-	var binds = Binds()
 	let scene: Scene = {
 		let dim: float = 300
 		let nsph = 10
@@ -30,22 +28,22 @@ class Demo: Ctrl {
 			nmvtcs: 512,
 			nmfrgs: 8,
 			mdls: [
-//				MDL(ids: 0		..<1, meshes: lib.meshes(path: "cruiser.obj"), tex: lib.texture(path: "steel.jpg")),
-				MDL(ids: 0		..< 1, meshes: lib.meshes(path: "cruiser.obj")),
-				MDL(ids: 1		..< 2, meshes: [lib.boxmesh(1)]),
-				MDL(ids: 2		..< 3, meshes: [lib.mesh(vtcs: ogn_vtcs, idcs: ogn_idcs)]),
-				MDL(ids: 3		..< 4, meshes: [lib.sphmesh(20, invnml: true)], prim: .line),
-				MDL(ids: 4		..<	4+nsph, meshes: [lib.sphmesh(100)]),
-				MDL(ids: 4+nsph	..<	4+nobs, meshes: [lib.boxmesh(1)]),
+//				MDL(iid: 0, 		nid: 1, 		meshes: lib.meshes(path: "cruiser.obj"), tex: lib.texture(path: "steel.jpg")),
+				MDL(iid: 0, 		nid: 1,			meshes: lib.meshes(path: "cruiser.obj")),
+				MDL(iid: 1, 		nid: 1, 		meshes: [lib.boxmesh(1)]),
+				MDL(iid: 2, 		nid: 1, 		meshes: [lib.mesh(vtcs: ogn_vtcs, idcs: ogn_idcs)]),
+				MDL(iid: 3, 		nid: 1, 		meshes: [lib.sphmesh(20, invnml: true)], prim: .line),
+				MDL(iid: 4,			nid: nsph, 		meshes: [lib.sphmesh(100)]),
+				MDL(iid: 4+nsph, 	nid: nbox, 		meshes: [lib.boxmesh(1)]),
 			]
 		)
 		
-		scene.mvtcs[0].id = 0 // CRS
-		scene.mvtcs[1].id = 1 // GND
-		scene.mvtcs[2].id = 2 // OGN
-		scene.mvtcs[3].id = 3 // SUN
-		for i in scene.mdls[4].ids {scene.mvtcs[i].id = 4} // SPH -> OBS
-		for i in scene.mdls[5].ids {scene.mvtcs[i].id = 4} // BOX -> OBS
+		scene.mvtcs[0].imf = 0 // CRS
+		scene.mvtcs[1].imf = 1 // GND
+		scene.mvtcs[2].imf = 2 // OGN
+		scene.mvtcs[3].imf = 3 // SUN
+		for i in 0..<scene.mdls[4].nid {scene.mvtcs[i+scene.mdls[4].iid].imf = 4} // SPH -> OBS
+		for i in 0..<scene.mdls[5].nid {scene.mvtcs[i+scene.mdls[5].iid].imf = 4} // BOX -> OBS
 		
 		scene.mvtcs[1].ctm = .mag(float3(dim, 10, dim))
 		for i in 4..<4+nobs {
@@ -55,22 +53,28 @@ class Demo: Ctrl {
 		
 		scene.mfrgs[0].ambi = 0.1 * float3(0, 1, 1)
 		scene.mfrgs[0].diff = 0.5 * float3(0, 1, 1)
-//		scene.mfrgs[0].spec = 0.6 * float3(1, 1, 1)
+		scene.mfrgs[0].spec = 0.6 * float3(1, 1, 1)
 		scene.mfrgs[0].shine = 5
-		scene.mfrgs[1].ambi = 0.2 * float3(0.6, 0.5, 0.4)
-		scene.mfrgs[1].diff = 0.8 * float3(0.6, 0.5, 0.4)
+		
+		scene.mfrgs[1].ambi = 0.1 * float3(1)
+		scene.mfrgs[1].diff = 0.9 * float3(1)
+		
 		scene.mfrgs[2].diff = 0.6 * float3(1, 0, 1)
 		scene.mfrgs[2].spec = 0.5 * float3(1)
 		scene.mfrgs[2].shine = 32
+		
 		scene.mfrgs[3].ambi = 0.1 * float3(1, 1, 0)
 		scene.mfrgs[3].diff = 0.9 * float3(1, 1, 0)
+		
 		scene.mfrgs[4].ambi = 0.1 * float3(1)
 		scene.mfrgs[4].diff = 1.0 * float3(1)
 		
 		return scene
 	}()
 	
+	var time: float = 0
 	func tick() {
+		if self.paused {return}
 		self.time += 0.001
 		
 		self.cruiser.tick()
@@ -79,19 +83,19 @@ class Demo: Ctrl {
 		self.scene.cam.pos = self.camera.pos
 		self.scene.cam.rot = self.camera.rot
 		
-		let lgtx = cosf(self.time)
-		let lgtz = sinf(self.time)
-		let lgty = sinf(self.time * 10) * 0.1 + 0.5
-		self.scene.lgt = .init(
-			src: float3(lgtx, lgty, lgtz) * 200,
-			dst: float3(0)
+		self.scene.lgt.src = 200 * float3(
+			cosf(self.time),
+			sinf(self.time * 10) * 0.1 + 0.5,
+			sinf(self.time)
 		)
 		
 		self.scene.mvtcs[0].ctm = self.cruiser.ctm * .mag(1.2)
 		self.scene.mvtcs[2].ctm = .mag(float3(2, 7.5, 2)) * .yrot(self.time * 5)
 		self.scene.mvtcs[3].ctm = .pos(self.scene.lgt.src) * .mag(10) * .yrot(self.time * 8)
 		
-		self.scene.mfrgs[0].spec.x = 0.4 * length_squared(self.cruiser.vel)
+//		self.scene.lfrgs[0].hue = float3(1, 1, 1)
+//		self.scene.lfrgs[0].dir = self.scene.lgt.src
+//		self.scene.lfrgs[0].rad = 300
 		
 	}
 	
@@ -114,10 +118,10 @@ class Demo: Ctrl {
 				let mov = float4x4.pos(normalize(self.mov))
 				let rot = float4x4.yrot(self.rot.y)
 				let vel = (rot * mov)[3].xyz
-				self.vel += vel * 0.05
+				self.vel += vel * 0.1
 			}
 			self.pos += self.vel
-			self.vel *= 0.9
+			self.vel *= 0.93
 		}
 	}
 	
@@ -147,12 +151,21 @@ class Demo: Ctrl {
 	}
 	
 	
+	var timer: Timer!
+	var binds = Binds()
+	var paused = false
 	init() {
 		
 		Cursor.visible = false
-		self.binds.key[.esc] = (dn: {Cursor.visible = !Cursor.visible}, up: {})
+		self.binds.key[.esc] = (dn: {
+			self.paused = !self.paused
+			Cursor.visible = self.paused
+		}, up: {})
 		
-		self.binds.ptr[-1] = {sns in self.camera.rot(sns: sns)}
+		self.binds.ptr[-1] = {
+			sns in
+			if !self.paused {self.camera.rot(sns: sns)}
+		}
 		
 		self.binds.key[.spc]	= (dn: {self.camera.mov += .y}, up: {self.camera.mov -= .y})
 		self.binds.key[.f]		= (dn: {self.camera.mov -= .y}, up: {self.camera.mov += .y})
@@ -166,6 +179,14 @@ class Demo: Ctrl {
 		self.binds.key[.lt] 	= (dn: {self.cruiser.mov -= .z}, up: {self.cruiser.mov += .z})
 		self.binds.key[.rt] 	= (dn: {self.cruiser.mov += .z}, up: {self.cruiser.mov -= .z})
 		
+		self.timer = Timer(timeInterval: 1/cfg.tps, repeats: true) {_ in self.tick()}
+		RunLoop.main.add(self.timer, forMode: .default)
+		
+	}
+	
+	deinit {
+		self.timer.invalidate()
+		self.timer = nil
 	}
 	
 }

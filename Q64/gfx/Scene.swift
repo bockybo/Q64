@@ -2,7 +2,8 @@ import MetalKit
 
 
 struct MDL {
-	var ids: Range<Int>
+	var iid: Int
+	var nid: Int
 	var meshes: [MTKMesh] = []
 	var tex: MTLTexture? = nil
 	var prim: MTLPrimitiveType = .triangle
@@ -24,31 +25,38 @@ class Scene {
 		self.mdls = mdls
 	}
 	
-	var svtx: SVTX {return SVTX(
-		cam: self.cam.ctm,
-		lgt: self.lgt.ctm,
-		eye: self.cam.pos
-	)}
-	var sfrg: SFRG {return SFRG(
-		lgtdir: self.lgt.dir,
-		lgthue: self.lgt.hue
-	)}
+	let lfrgs: lib.Buffer<LFRG> = {
+		let lfrgs = lib.Buffer<LFRG>.init(8)
+		lfrgs[0].hue = float3(1, 1, 1)
+		lfrgs[0].dir = float3(0, 10, 0)
+		lfrgs[0].rad = 20
+		return lfrgs
+	}()
+	let d20mesh = lib.mesh(
+		MDLMesh.newIcosahedron(
+			withRadius: 12 / (sqrtf(3) * (3 + sqrtf(5))),
+			inwardNormals: false,
+			allocator: lib.meshalloc
+		), descr: lib.mdlvtxdescrs["base"]!
+	)
+	
 	
 	
 	struct Camera {
 		var pos = float3(0)
 		var rot = float3(0)
 		var mag = float3(1)
-		var proj: float4x4 = .idt
-		var aspect: float = 1 {
-			didSet {
-				self.proj = .proj(
-					fov: cfg.fov,
-					aspect: self.aspect,
-					z0: cfg.z0,
-					z1: cfg.z1
-				)
-			}
+		var fov: float = 90 * .pi/180
+		var asp: float = 1
+		var z0: float = 0.1
+		var z1: float = 1e4
+		var proj: float4x4 {
+			return .persp(
+				fov: self.fov,
+				asp: self.asp,
+				z0: self.z0,
+				z1: self.z1
+			)
 		}
 		var view: float4x4 {
 			var view = float4x4.pos(self.pos) * .mag(self.mag)
@@ -61,18 +69,22 @@ class Scene {
 	}
 	
 	struct Light {
-		static let proj: float4x4 = .orth(
-			p0: float3(-200, -200, 0),
-			p1: float3(+200, +200, 1e10))
-		let view: float4x4
-		var hue: float3
-		init(src: float3 = float3(0), dst: float3 = float3(0), hue: float3 = float3(1)) {
-			self.view = .look(dst: dst, src: src)
-			self.hue = hue
+		var hue = float3(1)
+		var src = float3(0)
+		var dst = float3(0)
+		var p0 = float3(-200, -200, 0)
+		var p1 = float3(+200, +200, 1e10)
+		var dir: float3 {return normalize(self.dst - self.src)}
+		var proj: float4x4 {return .ortho(p0: self.p0, p1: self.p1)}
+		var view: float4x4 {return .look(dst: self.dst, src: self.src)}
+		var ctm: float4x4 {return self.proj * self.view.inverse}
+		var lfrg: LFRG {
+			return LFRG(
+				hue:  self.hue,
+				dir: -self.dir,
+				rad: 0
+			)
 		}
-		var ctm: float4x4 {return Light.proj * self.view.inverse}
-		var src: float3 {return  self.view[3].xyz}
-		var dir: float3 {return -normalize(self.view[2].xyz)}
 	}
 	
 }

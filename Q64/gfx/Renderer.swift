@@ -2,109 +2,283 @@ import MetalKit
 
 
 class Renderer: NSObject, MTKViewDelegate {
-	let gpulock = DispatchSemaphore(value: 1)
-	let cmdque = lib.device.makeCommandQueue()!
-	var scene: Scene
+	private let gpulock = DispatchSemaphore(value: 1)
+	private let cmdque = lib.device.makeCommandQueue()!
+	private var scene: Scene
 	init(_ view: RenderView) {
 		self.scene = view.ctrl.scene
-		view.preferredFramesPerSecond = cfg.fps
-		view.colorPixelFormat = cfg.color_fmt
 		super.init()
+		self.mtkView(view, drawableSizeWillChange: view.frame.size)
+		view.preferredFramesPerSecond = cfg.fps
 		view.delegate = self
-		self.mtkView(view, drawableSizeWillChange: CGSize(
-			width:  2 * view.frame.width,
-			height: 2 * view.frame.height
-		))
 	}
 	
-	let shdwpipe = lib.pipestate(
-		vtxshader: lib.vtxshaders["shdw"],
-		fmts: [-1: cfg.depth_fmt])
-	var shdwpass = lib.passdescr(
-		fmts: [-1: cfg.depth_fmt],
-		size: uint2(cfg.shdqlt, cfg.shdqlt))
-	let gbufpipe = lib.pipestate(
-		vtxshader: lib.vtxshaders["main"],
-		frgshader: lib.frgshaders["main"],
-		fmts: cfg.gbuf_fmts)
-	var gbufpass = lib.passdescr(
-		fmts: cfg.gbuf_fmts,
-		size: uint2(uint(cfg.win_w), uint(cfg.win_h)))
-	let quadpipe = lib.pipestate(
-		vtxdescr: nil,
-		vtxshader: lib.vtxshaders["quad"],
-		frgshader: lib.frgshaders["quad"],
-		fmts: [0: cfg.color_fmt])
+	var shadepass: MTLRenderPassDescriptor!
+	var gbuffpass: MTLRenderPassDescriptor!
+	var lightpass: MTLRenderPassDescriptor!
+	var shadepipe: MTLRenderPipelineState!
+	var gbuffpipe: MTLRenderPipelineState!
+	var quadpipe: MTLRenderPipelineState!
+	var maskpipe: MTLRenderPipelineState!
+	var lpospipe: MTLRenderPipelineState!
+	var shadedep: MTLDepthStencilState!
+	var gbuffdep: MTLDepthStencilState!
+	var quaddep: MTLDepthStencilState!
+	var maskdep: MTLDepthStencilState!
+	var lposdep: MTLDepthStencilState!
 	
+	func mtkView(_ view: MTKView, drawableSizeWillChange _: CGSize) {
+		let w = view.frame.size.width
+		let h = view.frame.size.height
+		
+		self.scene.cam.asp = float(w) / float(h)
+		
+		let color_fmt = MTLPixelFormat.bgra8Unorm
+		let depth_fmt = MTLPixelFormat.depth32Float
+		let stencil_fmt = MTLPixelFormat.depth32Float_stencil8
+		
+		self.shadepass = MTLRenderPassDescriptor()
+		self.gbuffpass = MTLRenderPassDescriptor()
+		self.lightpass = MTLRenderPassDescriptor()
+		
+		
+		self.gbuffpass.stencilAttachment.storeAction = .store
+		self.lightpass.stencilAttachment.loadAction	= .load
+		self.gbuffpass.depthAttachment.storeAction = .store
+		self.lightpass.depthAttachment.loadAction = .load
+		
+		self.lightpass.colorAttachments[0].loadAction = .clear
+		self.lightpass.colorAttachments[0].storeAction = .store
+		
+		self.shadepass.depthAttachment.loadAction  = .clear
+		self.shadepass.depthAttachment.storeAction = .store
+		self.shadepass.depthAttachment.texture = lib.texture(
+			fmt: depth_fmt,
+			size: uint2(uint(cfg.shdqlt), uint(cfg.shdqlt)),
+			storage: .private,
+			usage: [.shaderRead, .renderTarget])
+		
+		self.gbuffpass.colorAttachments[0].loadAction  = .clear
+		self.gbuffpass.colorAttachments[0].storeAction = .store
+		self.gbuffpass.colorAttachments[0].texture = lib.texture(
+			fmt: color_fmt,
+			size: uint2(uint(2 * w), uint(2 * h)),
+			usage: [.shaderRead, .renderTarget])
+		
+		self.gbuffpass.colorAttachments[1].loadAction  = .clear
+		self.gbuffpass.colorAttachments[1].storeAction = .store
+		self.gbuffpass.colorAttachments[1].texture = lib.texture(
+			fmt: .rgba8Snorm,
+			size: uint2(uint(2 * w), uint(2 * h)),
+			usage: [.shaderRead, .renderTarget])
+		
+		self.gbuffpass.colorAttachments[2].loadAction  = .clear
+		self.gbuffpass.colorAttachments[2].storeAction = .store
+		self.gbuffpass.colorAttachments[2].texture = lib.texture(
+			fmt: .rgba32Float,
+			size: uint2(uint(2 * w), uint(2 * h)),
+			usage: [.shaderRead, .renderTarget])
+		
+		let shadepipe = MTLRenderPipelineDescriptor()
+		let gbuffpipe = MTLRenderPipelineDescriptor()
+		let quadpipe = MTLRenderPipelineDescriptor()
+		let maskpipe = MTLRenderPipelineDescriptor()
+		let lpospipe = MTLRenderPipelineDescriptor()
+		
+		
+		shadepipe.vertexDescriptor = lib.mtkvtxdescrs["base"]!
+		gbuffpipe.vertexDescriptor = lib.mtkvtxdescrs["main"]!
+		quadpipe.vertexDescriptor = nil
+		maskpipe.vertexDescriptor = nil
+		lpospipe.vertexDescriptor = nil
+		
+		shadepipe.vertexFunction = lib.vtxshaders["shdw"]
+		gbuffpipe.vertexFunction = lib.vtxshaders["main"]
+		quadpipe.vertexFunction = lib.vtxshaders["quad"]
+		maskpipe.vertexFunction = lib.vtxshaders["mask"]
+		lpospipe.vertexFunction = lib.vtxshaders["lpos"]
+		
+		shadepipe.fragmentFunction = nil
+		gbuffpipe.fragmentFunction = lib.frgshaders["main"]
+		quadpipe.fragmentFunction = lib.frgshaders["light"]
+		maskpipe.fragmentFunction = nil
+		lpospipe.fragmentFunction = lib.frgshaders["light"]
+		
+		gbuffpipe.stencilAttachmentPixelFormat = stencil_fmt
+		quadpipe.stencilAttachmentPixelFormat = stencil_fmt
+		maskpipe.stencilAttachmentPixelFormat = stencil_fmt
+		lpospipe.stencilAttachmentPixelFormat = stencil_fmt
+		
+		shadepipe.depthAttachmentPixelFormat = self.shadepass.depthAttachment.texture!.pixelFormat
+		gbuffpipe.depthAttachmentPixelFormat = stencil_fmt
+		quadpipe.depthAttachmentPixelFormat = stencil_fmt
+		maskpipe.depthAttachmentPixelFormat = stencil_fmt
+		lpospipe.depthAttachmentPixelFormat = stencil_fmt
+		
+		gbuffpipe.colorAttachments[0].pixelFormat = self.gbuffpass.colorAttachments[0].texture!.pixelFormat
+		maskpipe.colorAttachments[0].pixelFormat = color_fmt
+		quadpipe.colorAttachments[0].pixelFormat = color_fmt
+		lpospipe.colorAttachments[0].pixelFormat = color_fmt
+		
+		gbuffpipe.colorAttachments[1].pixelFormat = self.gbuffpass.colorAttachments[1].texture!.pixelFormat
+		gbuffpipe.colorAttachments[2].pixelFormat = self.gbuffpass.colorAttachments[2].texture!.pixelFormat
+		
+		lpospipe.colorAttachments[0].isBlendingEnabled				= true
+		lpospipe.colorAttachments[0].rgbBlendOperation				= .add
+		lpospipe.colorAttachments[0].sourceRGBBlendFactor			= .one
+		lpospipe.colorAttachments[0].destinationRGBBlendFactor 		= .one
+		lpospipe.colorAttachments[0].alphaBlendOperation			= .add
+		lpospipe.colorAttachments[0].sourceAlphaBlendFactor			= .one
+		lpospipe.colorAttachments[0].destinationAlphaBlendFactor	= .one
+		
+		self.shadepipe = try! lib.device.makeRenderPipelineState(descriptor: shadepipe)
+		self.gbuffpipe = try! lib.device.makeRenderPipelineState(descriptor: gbuffpipe)
+		self.quadpipe = try! lib.device.makeRenderPipelineState(descriptor: quadpipe)
+		self.maskpipe = try! lib.device.makeRenderPipelineState(descriptor: maskpipe)
+		self.lpospipe = try! lib.device.makeRenderPipelineState(descriptor: lpospipe)
+		
+		let shadedep = MTLDepthStencilDescriptor()
+		let gbuffdep = MTLDepthStencilDescriptor()
+		let quaddep = MTLDepthStencilDescriptor()
+		let maskdep = MTLDepthStencilDescriptor()
+		let lposdep = MTLDepthStencilDescriptor()
+		
+		shadedep.isDepthWriteEnabled = true
+		shadedep.depthCompareFunction = .lessEqual
+		
+		gbuffdep.isDepthWriteEnabled = true
+		gbuffdep.depthCompareFunction = .less
+		gbuffdep.frontFaceStencil = MTLStencilDescriptor()
+		gbuffdep.frontFaceStencil.depthStencilPassOperation = .replace
+		gbuffdep.backFaceStencil = gbuffdep.frontFaceStencil
+		
+		quaddep.frontFaceStencil = MTLStencilDescriptor()
+		quaddep.frontFaceStencil.stencilCompareFunction = .equal
+		quaddep.frontFaceStencil.readMask = 0xFF
+		quaddep.frontFaceStencil.writeMask = 0x0
+		quaddep.backFaceStencil = quaddep.frontFaceStencil
+		
+		maskdep.depthCompareFunction = .lessEqual
+		maskdep.frontFaceStencil = MTLStencilDescriptor()
+		maskdep.frontFaceStencil.depthFailureOperation = .incrementClamp
+		maskdep.backFaceStencil = maskdep.frontFaceStencil
 	
-	func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
-		self.scene.cam.aspect = float(size.width) / float(size.height)
-		self.gbufpass = lib.passdescr(
-			fmts: cfg.gbuf_fmts,
-			size: uint2(uint(size.width), uint(size.height)))
+		lposdep.depthCompareFunction = .greaterEqual
+		lposdep.frontFaceStencil = MTLStencilDescriptor()
+		lposdep.frontFaceStencil.stencilCompareFunction = .less
+		lposdep.frontFaceStencil.readMask = 0xFF
+		lposdep.frontFaceStencil.writeMask = 0x0
+		lposdep.backFaceStencil = lposdep.frontFaceStencil
+		
+		self.shadedep = lib.device.makeDepthStencilState(descriptor: shadedep)!
+		self.gbuffdep = lib.device.makeDepthStencilState(descriptor: gbuffdep)!
+		self.quaddep = lib.device.makeDepthStencilState(descriptor: quaddep)!
+		self.maskdep = lib.device.makeDepthStencilState(descriptor: maskdep)!
+		self.lposdep = lib.device.makeDepthStencilState(descriptor: lposdep)!
+		
+		view.colorPixelFormat = color_fmt
+		view.depthStencilPixelFormat = stencil_fmt
+		
 	}
 	
 	func draw(in view: MTKView) {
+		let drawable = view.currentDrawable!
+		let depthtex = view.depthStencilTexture!
+		self.gbuffpass.depthAttachment.texture = depthtex
+		self.lightpass.depthAttachment.texture = depthtex
+		self.gbuffpass.stencilAttachment.texture = depthtex
+		self.lightpass.stencilAttachment.texture = depthtex
+		self.lightpass.colorAttachments[0].texture = drawable.texture
+		
 		let buf = self.cmdque.makeCommandBuffer()!
 		buf.addCompletedHandler {_ in self.gpulock.signal()}
 		self.gpulock.wait()
-		buf.pass(label: "shdw", descr: self.shdwpass) {enc in self.rendershdw(enc: enc)}
-		buf.pass(label: "gbuf", descr: self.gbufpass) {enc in self.rendergbuf(enc: enc)}
-		buf.pass(label: "quad", descr: view.currentRenderPassDescriptor!) {enc in self.renderquad(enc: enc)}
-		buf.present(view.currentDrawable!)
+		
+		buf.pass(label: "shade", descr: self.shadepass) {enc in
+			self.rendershdw(enc: enc)
+		}
+		buf.pass(label: "gbuff", descr: self.gbuffpass) {enc in
+			enc.setFragmentTexture(self.shadepass.depthAttachment.texture, index: 1)
+			enc.setStencilReferenceValue(128)
+			self.rendergbuf(enc: enc)
+		}
+		buf.pass(label: "light", descr: self.lightpass) {enc in
+			enc.setFragmentTexture(self.gbuffpass.colorAttachments[0].texture!, index: 0)
+			enc.setFragmentTexture(self.gbuffpass.colorAttachments[1].texture!, index: 1)
+			enc.setFragmentTexture(self.gbuffpass.colorAttachments[2].texture!, index: 2)
+			enc.setStencilReferenceValue(128)
+			self.renderquad(enc: enc)
+			self.rendermask(enc: enc)
+			self.renderlpos(enc: enc)
+		}
+		
+		buf.present(drawable)
 		buf.commit()
+		
 	}
 	
 	private func rendershdw(enc: MTLRenderCommandEncoder) {
-		enc.setRenderPipelineState(self.shdwpipe)
-		enc.setDepthStencilState(lib.depthstate)
-		enc.setCullMode(.back)
-//		enc.setDepthBias(0.015, slopeScale: 7, clamp: 0.02)
+		enc.setRenderPipelineState(self.shadepipe)
+		enc.setDepthStencilState(self.shadedep)
+		enc.setCullMode(.front)
+		enc.setDepthBias(0.015, slopeScale: 7, clamp: 0.02)
 		var ctm = self.scene.lgt.ctm
 		enc.setVertexBytes(&ctm, length: sizeof(ctm), index: 2)
 		enc.setVertexBuffer(self.scene.mvtcs.buf, offset: 0, index: 1)
-		self.drawloop(enc: enc, textured: false)
+		self.drawscene(enc: enc, textured: false)
 	}
 	private func rendergbuf(enc: MTLRenderCommandEncoder) {
-		enc.setRenderPipelineState(self.gbufpipe)
-		enc.setDepthStencilState(lib.depthstate)
+		enc.setRenderPipelineState(self.gbuffpipe)
+		enc.setDepthStencilState(self.gbuffdep)
 		enc.setCullMode(.front)
-		enc.setFragmentTexture(self.shdwpass.depthAttachment.texture, index: 1)
-		var svtx = self.scene.svtx
-		enc.setVertexBytes(&svtx, length: sizeof(svtx), index: 2)
+		var camctm = self.scene.cam.ctm
+		var lgtctm = self.scene.lgt.ctm
+		enc.setVertexBytes(&camctm, length: sizeof(camctm), index: 3)
+		enc.setVertexBytes(&lgtctm, length: sizeof(lgtctm), index: 2)
 		enc.setVertexBuffer(self.scene.mvtcs.buf, offset: 0, index: 1)
-		self.drawloop(enc: enc, textured: true)
+		self.drawscene(enc: enc, textured: true)
 	}
 	private func renderquad(enc: MTLRenderCommandEncoder) {
 		enc.setRenderPipelineState(self.quadpipe)
-		enc.setFragmentTexture(self.gbufpass.colorAttachments[0].texture!, index: 0)
-		enc.setFragmentTexture(self.gbufpass.colorAttachments[1].texture!, index: 1)
-		enc.setFragmentTexture(self.gbufpass.colorAttachments[2].texture!, index: 2)
-		var sfrg = self.scene.sfrg
-		enc.setFragmentBytes(&sfrg, length: sizeof(sfrg), index: 2)
+		enc.setDepthStencilState(self.quaddep)
+		var eye = self.scene.cam.pos
+		var lgt = self.scene.lgt.lfrg
+		enc.setFragmentBytes(&eye, length: sizeof(eye), index: 3)
+		enc.setFragmentBytes(&lgt, length: sizeof(lgt), index: 2)
 		enc.setFragmentBuffer(self.scene.mfrgs.buf, offset: 0, index: 1)
 		enc.draw(6)
 	}
+	private func rendermask(enc: MTLRenderCommandEncoder) {
+		enc.setRenderPipelineState(self.maskpipe)
+		enc.setDepthStencilState(self.maskdep)
+		enc.setCullMode(.back)
+		self.drawd20(enc: enc)
+	}
+	private func renderlpos(enc: MTLRenderCommandEncoder) {
+		enc.setRenderPipelineState(self.lpospipe)
+		enc.setDepthStencilState(self.lposdep)
+		enc.setCullMode(.back)
+		self.drawd20(enc: enc)
+	}
 	
-	private func drawloop(enc: MTLRenderCommandEncoder, textured: Bool) {
-//		var n = 0
-//		for mdl in self.scene.mdls {
-//			enc.setVertexBufferOffset(n * sizeof(MVTX.self), index: 1)
-//			if textured {enc.setFragmentTexture(mdl.tex, index: 0)}
-//			for mesh in mdl.meshes {
-//				enc.draw(mesh, prim: mdl.prim, num: mdl.inst)
-//			}
-//			n += mdl.inst
-//		}
+	private func drawscene(enc: MTLRenderCommandEncoder, textured: Bool) {
 		for mdl in self.scene.mdls {
-			let i = mdl.ids.lowerBound
-			let n = mdl.ids.upperBound - i
-			enc.setVertexBufferOffset(i * sizeof(MVTX.self), index: 1)
+			enc.setVertexBufferOffset(mdl.iid * sizeof(MVTX.self), index: 1)
 			if textured {enc.setFragmentTexture(mdl.tex, index: 0)}
 			for mesh in mdl.meshes {
-				enc.draw(mesh, prim: mdl.prim, num: n)
+				enc.draw(mesh, num: mdl.nid, prim: mdl.prim)
 			}
 		}
+	}
+	private func drawd20(enc: MTLRenderCommandEncoder) {
+		var cam = self.scene.cam.ctm
+		var eye = self.scene.cam.pos
+		enc.setVertexBytes(&cam, length: sizeof(cam), index: 3)
+		enc.setVertexBuffer(self.scene.lfrgs.buf, offset: 0, index: 2)
+		enc.setFragmentBytes(&eye, length: sizeof(eye), index: 3)
+		enc.setFragmentBuffer(self.scene.lfrgs.buf, offset: 0, index: 2)
+		enc.setFragmentBuffer(self.scene.mfrgs.buf, offset: 0, index: 1)
+		enc.draw(self.scene.d20mesh)
 	}
 	
 }
@@ -125,7 +299,7 @@ extension MTLCommandBuffer {
 
 extension MTLRenderCommandEncoder {
 	
-	func draw(_ mesh: MTKMesh, prim: MTLPrimitiveType = .triangle, num: Int = 1) {
+	func draw(_ mesh: MTKMesh, num: Int = 1, prim: MTLPrimitiveType = .triangle) {
 		for buf in mesh.vertexBuffers {
 			self.setVertexBuffer(buf.buffer, offset: buf.offset, index: 0)
 			for sub in mesh.submeshes {
@@ -141,8 +315,8 @@ extension MTLRenderCommandEncoder {
 		}
 	}
 	
-	func draw(_ n: Int, type: MTLPrimitiveType = .triangle) {
-		self.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 6)
+	func draw(_ n: Int, prim: MTLPrimitiveType = .triangle) {
+		self.drawPrimitives(type: prim, vertexStart: 0, vertexCount: n)
 	}
 	
 }

@@ -6,15 +6,15 @@ class RenderView: MTKView {
 	
 	override var acceptsFirstResponder: Bool {return true}
 	
-	override func keyDown				(with evt: NSEvent) {self.key(evt)?.dn?()}
-	override func keyUp					(with evt: NSEvent) {self.key(evt)?.up?()}
+	override func keyDown				(with evt: NSEvent) {self.key(evt)?.dn()}
+	override func keyUp					(with evt: NSEvent) {self.key(evt)?.up()}
 	
-	override func mouseDown				(with evt: NSEvent) {self.btn(evt)?.dn?()}
-	override func mouseUp				(with evt: NSEvent) {self.btn(evt)?.up?()}
-	override func rightMouseDown		(with evt: NSEvent) {self.btn(evt)?.dn?()}
-	override func rightMouseUp			(with evt: NSEvent) {self.btn(evt)?.up?()}
-	override func otherMouseDown		(with evt: NSEvent) {self.btn(evt)?.dn?()}
-	override func otherMouseUp			(with evt: NSEvent) {self.btn(evt)?.up?()}
+	override func mouseDown				(with evt: NSEvent) {self.btn(evt)?.dn()}
+	override func mouseUp				(with evt: NSEvent) {self.btn(evt)?.up()}
+	override func rightMouseDown		(with evt: NSEvent) {self.btn(evt)?.dn()}
+	override func rightMouseUp			(with evt: NSEvent) {self.btn(evt)?.up()}
+	override func otherMouseDown		(with evt: NSEvent) {self.btn(evt)?.dn()}
+	override func otherMouseUp			(with evt: NSEvent) {self.btn(evt)?.up()}
 	
 	override func mouseMoved			(with evt: NSEvent) {self.ptr(evt)}
 	override func mouseDragged			(with evt: NSEvent) {self.ptr(evt)}
@@ -31,7 +31,7 @@ class RenderView: MTKView {
 		guard let btnbind = self.ctrl.binds.btn[btn] else {return nil}
 		let raw = evt.locationInWindow
 		let loc = float2(float(raw.x), float(raw.y))
-		return (dn: {btnbind.dn?(loc)}, up: {btnbind.up?(loc)})
+		return (dn: {btnbind.dn(loc)}, up: {btnbind.up(loc)})
 	}
 	private func ptr(_ evt: NSEvent) {
 		let btn = (NSEvent.pressedMouseButtons > 0) ? evt.buttonNumber : -1

@@ -16,10 +16,12 @@ class lib {
 		"main": lib.devlib.makeFunction(name: "vtx_main")!,
 		"shdw": lib.devlib.makeFunction(name: "vtx_shdw")!,
 		"quad": lib.devlib.makeFunction(name: "vtx_quad")!,
+		"mask": lib.devlib.makeFunction(name: "vtx_mask")!,
+		"lpos": lib.devlib.makeFunction(name: "vtx_lpos")!,
 	]
 	static let frgshaders = [
 		"main": lib.devlib.makeFunction(name: "frg_main")!,
-		"quad": lib.devlib.makeFunction(name: "frg_quad")!,
+		"light": lib.devlib.makeFunction(name: "frg_light")!,
 	]
 	
 	
@@ -28,42 +30,58 @@ class lib {
 		var nml: (float, float, float) = (1, 0, 0)
 		var tex: (float, float) = (0, 0)
 	}
-	static let mdlvtxdescr: MDLVertexDescriptor = {
+	
+	static func mdlvtxdescr(_ attrs: [(fmt: MDLVertexFormat, name: String)]) -> MDLVertexDescriptor {
 		let descr = MDLVertexDescriptor()
-		descr.attributes[0] = MDLVertexAttribute(
-			name: MDLVertexAttributePosition,
-			format: .float3,
-			offset: 0 * sizeof(float.self),
-			bufferIndex: 0
-		)
-		descr.attributes[1] = MDLVertexAttribute(
-			name: MDLVertexAttributeNormal,
-			format: .float3,
-			offset: 3 * sizeof(float.self),
-			bufferIndex: 0
-		)
-		descr.attributes[2] = MDLVertexAttribute(
-			name: MDLVertexAttributeTextureCoordinate,
-			format: .float2,
-			offset: 5 * sizeof(float.self),
-			bufferIndex: 0
-		)
+		for (i, (fmt, name)) in attrs.enumerated() {
+			descr.attributes[i] = MDLVertexAttribute(name: name, format: fmt, offset: 0, bufferIndex: 0)
+		}
 		descr.setPackedOffsets()
 		descr.setPackedStrides()
 		return descr
-	}()
-	static let mtlvtxdescr = MTKMetalVertexDescriptorFromModelIO(lib.mdlvtxdescr)!
+	}
 	
+	static let mdlvtxdescrs = [
+		"base": lib.mdlvtxdescr([
+			(fmt: .float3, name: MDLVertexAttributePosition),
+		]),
+		"main": lib.mdlvtxdescr([
+			(fmt: .float3, name: MDLVertexAttributePosition),
+			(fmt: .float3, name: MDLVertexAttributeNormal),
+			(fmt: .float2, name: MDLVertexAttributeTextureCoordinate),
+		]),
+	]
+	static let mtkvtxdescrs = lib.mdlvtxdescrs.mapValues(MTKMetalVertexDescriptorFromModelIO)
 	
-	static let depthstate: MTLDepthStencilState = {
+	static func depthstate(
+		cmp: MTLCompareFunction,
+		wrt: Bool = false,
+		stencilfront: MTLStencilDescriptor? = nil,
+		stencilback:  MTLStencilDescriptor? = nil
+	) -> MTLDepthStencilState {
 		let descr = MTLDepthStencilDescriptor()
-		descr.isDepthWriteEnabled = true
-		descr.depthCompareFunction = .less
+		descr.isDepthWriteEnabled = wrt
+		descr.depthCompareFunction = cmp
+		descr.frontFaceStencil = stencilfront
+		descr.backFaceStencil = stencilback
 		return lib.device.makeDepthStencilState(descriptor: descr)!
-	}()
+	}
+	static func stencildescr(
+		faildepth:   MTLStencilOperation = .keep,
+		failstencil: MTLStencilOperation = .keep,
+		pass: MTLStencilOperation = .keep,
+		cmp: MTLCompareFunction = .always
+	) -> MTLStencilDescriptor {
+		let descr = MTLStencilDescriptor()
+		descr.depthFailureOperation = faildepth
+		descr.stencilFailureOperation = failstencil
+		descr.depthStencilPassOperation = pass
+		descr.stencilCompareFunction = cmp
+		return descr
+	}
 	
 	static func pipestate(
-		vtxdescr: MTLVertexDescriptor? = lib.mtlvtxdescr,
+		vtxdescr: MTLVertexDescriptor? = nil,
 		vtxshader: MTLFunction? = nil,
 		frgshader: MTLFunction? = nil,
 		fmts: [Int : MTLPixelFormat] = [:]
@@ -129,10 +147,12 @@ class lib {
 	static let meshalloc = MTKMeshBufferAllocator(device: lib.device)
 	
 	static func mesh(
-		mesh: MDLMesh,
+		_ mesh: MDLMesh,
+		descr: MDLVertexDescriptor = lib.mdlvtxdescrs["main"]!,
 		nml: Bool = false,
 		tex: Bool = false
 	) -> MTKMesh {
+		mesh.vertexDescriptor = descr
 		if nml {mesh.addNormals(withAttributeNamed: MDLVertexAttributeNormal, creaseThreshold: 0)}
 		if tex {mesh.addUnwrappedTextureCoordinates(forAttributeNamed: MDLVertexAttributeTextureCoordinate)}
 		return try! MTKMesh(mesh: mesh, device: lib.device)
@@ -146,11 +166,11 @@ class lib {
 		return try! MTKMesh.newMeshes(
 			asset: MDLAsset(
 				url: url,
-				vertexDescriptor: lib.mdlvtxdescr,
+				vertexDescriptor: lib.mdlvtxdescrs["main"]!,
 				bufferAllocator: lib.meshalloc
 			),
 			device: lib.device
-		).modelIOMeshes.map {mesh in lib.mesh(mesh: mesh, nml: nml, tex: tex)}
+		).modelIOMeshes.map {mesh in lib.mesh(mesh, nml: nml, tex: tex)}
 	}
 	
 	static func mesh(
@@ -164,11 +184,10 @@ class lib {
 		let idxdata = Data(bytes: idcs, count: idcs.count * sizeof(uint.self))
 		let vtxbuf = lib.meshalloc.newBuffer(with: vtxdata, type: .vertex)
 		let idxbuf = lib.meshalloc.newBuffer(with: idxdata, type: .index)
-		return lib.mesh(
-			mesh: MDLMesh(
-				vertexBuffer: vtxbuf,
+		return lib.mesh(MDLMesh(
+			vertexBuffer: vtxbuf,
 				vertexCount: vtcs.count,
-				descriptor: lib.mdlvtxdescr,
+				descriptor: lib.mdlvtxdescrs["main"]!,
 				submeshes: [MDLSubmesh(
 					indexBuffer: idxbuf,
 					indexCount: idcs.count,
@@ -196,7 +215,7 @@ class lib {
 	}
 	
 	static func boxmesh(_ seg: uint, type: MDLGeometryType = .triangles, invnml: Bool = false) -> MTKMesh {
-		return lib.mesh(mesh: MDLMesh(
+		return lib.mesh(MDLMesh(
 			boxWithExtent:		float3(1),
 			segments:			uint3(seg, seg, seg),
 			inwardNormals: 		invnml,
@@ -204,7 +223,7 @@ class lib {
 			allocator:			lib.meshalloc))
 	}
 	static func sphmesh(_ seg: uint, type: MDLGeometryType = .triangles, invnml: Bool = false) -> MTKMesh {
-		return lib.mesh(mesh: MDLMesh(
+		return lib.mesh(MDLMesh(
 			sphereWithExtent: 	float3(1),
 			segments: 			uint2(seg, seg),
 			inwardNormals:		invnml,

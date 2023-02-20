@@ -115,9 +115,9 @@ extension float4x4 {
 			float4(src, 1))
 	}
 	
-	static func proj(fov: float, aspect: float, z0: float, z1: float) -> float4x4 {
+	static func persp(fov: float, asp: float, z0: float, z1: float) -> float4x4 {
 		let y = 1 / tan(0.5 * fov)
-		let x = y / aspect
+		let x = y / asp
 		let z = z1 / (z0 - z1)
 		let w = z * z0
 		return .init(
@@ -127,7 +127,7 @@ extension float4x4 {
 			float4(0, 0, w,  0))
 	}
 	
-	static func orth(p0: float3, p1: float3) -> float4x4 {
+	static func ortho(p0: float3, p1: float3) -> float4x4 {
 		let m = float3(2, 2, -1) / (p1 - p0)
 		let t = float3(1, 1,  0) * (p1 + p0) * -0.5
 		return .pos(t) * .mag(m)
