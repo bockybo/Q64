@@ -2,8 +2,25 @@
 using namespace metal;
 
 
+
 typedef texture2d<float, access::sample> texmap2;
-typedef depth2d  <float, access::sample> depmap2;
+typedef   depth2d<float, access::sample> depmap2;
+
+
+typedef struct {
+	half4 dst [[color(0), raster_order_group(0)]];
+} gdst;
+typedef struct {
+	half4 dst [[color(0), raster_order_group(0)]];
+	half4 alb [[color(1), raster_order_group(1)]];
+	half4 nml [[color(2), raster_order_group(1)]];
+	float2 dep [[color(3), raster_order_group(1)]];
+} gbuf;
+typedef struct {
+	float4 loc [[position]];
+	uint iid [[flat]];
+} gpix;
+
 
 typedef struct {
 	packed_float3 pos;
@@ -15,14 +32,9 @@ typedef struct {
 	float4 lgtloc;
 	float2 texloc;
 	float3 nml;
-	float3 pos;
-	float imf;
+	float dep;
+	uint imf [[flat]];
 } frg;
-typedef struct {
-	half4 alb [[color(0)]];
-	half4 nml [[color(1)]];
-	half4 pos [[color(2)]];
-} gbuf;
 
 typedef struct {
 	uint imf;
@@ -40,11 +52,6 @@ typedef struct {
 	float3 dir;
 	float rad;
 } lfrg;
-
-typedef struct {
-	float4 loc [[position]];
-	uint iid [[flat]];
-} pix;
 
 
 static inline float3 color(float2 loc, texmap2 texmap) {
@@ -79,19 +86,30 @@ static inline float3 light(lfrg lgt, mfrg mat, float3 pos, float3 nml, float3 ey
 	float3 spec = mat.spec * pow(kspec, mat.shine);
 	return diff + spec;
 }
+static inline float3 loc_to_wld(float2 loc,
+								float dep,
+								constant float4x4 &invproj,
+								constant float4x4 &invview,
+								constant uint2 &res) {
+	loc *= 2 / (float2)res;
+	loc = float2(loc.x - 1, 1 - loc.y);
+	float4 ndc = invproj * float4(loc, dep, 1); ndc.xyz /= ndc.w;
+	float4 wld = invview * float4(ndc.xyz,  1); wld.xyz /= wld.w;
+	return wld.xyz;
+}
 
 
-vertex float4 vtx_shdw(constant vtx *vtcs			[[buffer(0)]],
-					   constant mvtx *mdls			[[buffer(1)]],
-					   constant float4x4 &lgtctm	[[buffer(2)]],
-					   uint vid						[[vertex_id]],
-					   uint iid						[[instance_id]]) {
+vertex float4 vtx_shade(constant vtx *vtcs			[[buffer(0)]],
+						constant mvtx *mdls			[[buffer(1)]],
+						constant float4x4 &lgtctm	[[buffer(2)]],
+						uint vid					[[vertex_id]],
+						uint iid					[[instance_id]]) {
 	float3 v = vtcs[vid].pos;
 	mvtx mdl = mdls[iid];
 	return lgtctm * mdl.ctm * float4(v, 1);
 }
 
-vertex frg vtx_main(constant vtx *vtcs				[[buffer(0)]],
+vertex frg vtx_gbuf(constant vtx *vtcs				[[buffer(0)]],
 					constant mvtx *mdls				[[buffer(1)]],
 					constant float4x4 &lgtctm		[[buffer(2)]],
 					constant float4x4 &camctm		[[buffer(3)]],
@@ -106,85 +124,70 @@ vertex frg vtx_main(constant vtx *vtcs				[[buffer(0)]],
 		.lgtloc = lgtctm * pos,
 		.texloc = v.tex,
 		.nml = normalize(nml.xyz),
-		.pos = pos.xyz,
-		.imf = (float)mdl.imf,
+		.imf = mdl.imf,
 	};
 }
-fragment gbuf frg_main(frg f						[[stage_in]],
+fragment gbuf frg_gbuf(frg f						[[stage_in]],
 					   texmap2 texmap				[[texture(0)]],
 					   depmap2 shdmap				[[texture(1)]]) {
 	float3 alb = color(f.texloc, texmap);
 	float  shd = shade(f.lgtloc, shdmap);
 	return {
-		.alb = half4(half3(alb), 0),
-		.nml = half4(half3(f.nml), shd),
-		.pos = half4(half3(f.pos), f.imf),
+		.dst = half4(0),
+		.alb = half4((half3)alb, 0),
+		.nml = half4((half3)f.nml, shd),
+		.dep = float2(f.camloc.z, f.imf),
 	};
 }
 
 
-vertex pix vtx_quad(uint vid [[vertex_id]]) {
+vertex gpix vtx_quad(uint vid [[vertex_id]]) {
 	constexpr float2 vtcs[] = {
 		float2(-1,  1), float2( 1, -1), float2(-1, -1),
-		float2(-1,  1), float2( 1,  1), float2( 1, -1)};
+		float2(-1,  1), float2( 1,  1), float2( 1, -1),};
 	float2 v = vtcs[vid];
-	float3 pos = float3(v, 0);
-	float4 loc = float4(pos, 1);
+	float4 loc = float4(v, 0, 1);
 	return {.loc = loc, .iid = 0};
 }
-
-vertex pix vtx_lpos(constant packed_float3 *vtcs		[[buffer(0)]],
-					constant lfrg *lgts					[[buffer(2)]],
-					constant float4x4 &camctm			[[buffer(3)]],
-					uint vid							[[vertex_id]],
-					uint iid							[[instance_id]]) {
+vertex gpix vtx_icos(constant packed_float3 *vtcs		[[buffer(0)]],
+					 constant lfrg *lgts				[[buffer(2)]],
+					 constant float4x4 &camctm			[[buffer(3)]],
+					 uint vid							[[vertex_id]],
+					 uint iid							[[instance_id]]) {
 	float3 v = vtcs[vid];
 	lfrg lgt = lgts[iid];
 	float3 pos = lgt.dir + lgt.rad * v;
 	float4 loc = camctm * float4(pos, 1);
 	return {.loc = loc, .iid = iid};
 }
-vertex float4 vtx_mask(constant packed_float3 *vtcs		[[buffer(0)]],
-					   constant lfrg *lgts				[[buffer(2)]],
-					   constant float4x4 &camctm		[[buffer(3)]],
-					   uint vid							[[vertex_id]],
-					   uint iid							[[instance_id]]) {
-	float3 v = vtcs[vid];
-	lfrg lgt = lgts[iid];
-	float3 pos = lgt.dir + lgt.rad * v;
-	float4 loc = camctm * float4(pos, 1);
-	return loc;
-}
 
-fragment half4 frg_light(pix p					[[stage_in]],
-						 constant mfrg *mats	[[buffer(1)]],
-						 constant lfrg *lgts	[[buffer(2)]],
-						 constant float3 &eye	[[buffer(3)]],
-						 texmap2 albmap			[[texture(0)]],
-						 texmap2 nmlmap			[[texture(1)]],
-						 texmap2 posmap			[[texture(2)]]) {
+fragment gdst frg_light(gbuf buf,
+						gpix pix					[[stage_in]],
+						constant mfrg *mats			[[buffer(1)]],
+						constant lfrg *lgts			[[buffer(2)]],
+						constant float4x4 &invproj	[[buffer(3)]],
+						constant float4x4 &invview	[[buffer(4)]],
+						constant uint2 &res			[[buffer(5)]]) {
+	float3 alb = (float3)buf.alb.rgb;
+	float3 nml = (float3)buf.nml.xyz;
+	float shd = buf.nml.w;
+	float dep = buf.dep.x;
+	float imf = buf.dep.y;
 	
-	uint2 uv = (uint2)p.loc.xy ;
-	float4 rd_alb = albmap.read(uv);
-	float4 rd_nml = nmlmap.read(uv);
-	float4 rd_pos = posmap.read(uv);
-	
-	float3 alb = rd_alb.rgb; // TODO: USE W :)
-	float3 nml = rd_nml.xyz; float shd = rd_nml.w;
-	float3 pos = rd_pos.xyz; float imf = rd_pos.a;
+	float3 pos = loc_to_wld(pix.loc.xy, dep, invproj, invview, res);
 	
 	mfrg mat = mats[(uint)imf];
-	lfrg lgt = lgts[p.iid];
+	lfrg lgt = lgts[pix.iid];
 	
 	if (lgt.rad)
 		lgt = attenuate(lgt, pos);
 	
-	float3 amp = mat.ambi;
-	float lit = 1 - shd;
+	float3 rgb = mat.ambi;
+	float  lit = 1 - shd;
 	if (lit)
-		amp += lit * light(lgt, mat, pos, nml, eye);
+		rgb += lit * light(lgt, mat, pos, nml, invview[3].xyz);
+	rgb *= alb * lgt.hue;
 	
-	float3 rgb = alb * amp * lgt.hue;
-	return half4(half3(rgb), 1);
+	return {buf.dst + half4((half3)rgb, 0)};
 	
 }

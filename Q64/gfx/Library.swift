@@ -12,17 +12,7 @@ class lib {
 	
 	
 	static let devlib = lib.device.makeDefaultLibrary()!
-	static let vtxshaders = [
-		"main": lib.devlib.makeFunction(name: "vtx_main")!,
-		"shdw": lib.devlib.makeFunction(name: "vtx_shdw")!,
-		"quad": lib.devlib.makeFunction(name: "vtx_quad")!,
-		"mask": lib.devlib.makeFunction(name: "vtx_mask")!,
-		"lpos": lib.devlib.makeFunction(name: "vtx_lpos")!,
-	]
-	static let frgshaders = [
-		"main": lib.devlib.makeFunction(name: "frg_main")!,
-		"light": lib.devlib.makeFunction(name: "frg_light")!,
-	]
+	static func shader(_ name: String) -> MTLFunction {return lib.devlib.makeFunction(name: name)!}
 	
 	
 	struct vtx {
@@ -53,71 +43,33 @@ class lib {
 	]
 	static let mtkvtxdescrs = lib.mdlvtxdescrs.mapValues(MTKMetalVertexDescriptorFromModelIO)
 	
+	static func pipestate(
+		vtxdescr: String? = nil,
+		vtxshader: String? = nil,
+		frgshader: String? = nil,
+		_ attach: (MTLRenderPipelineDescriptor)->() = {_ in}
+	) -> MTLRenderPipelineState {
+		let descr = MTLRenderPipelineDescriptor()
+		if let vtxdescr = vtxdescr {descr.vertexDescriptor = lib.mtkvtxdescrs[vtxdescr]!}
+		if let vtxshader = vtxshader {descr.vertexFunction = lib.shader(vtxshader)}
+		if let frgshader = frgshader {descr.fragmentFunction = lib.shader(frgshader)}
+		attach(descr)
+		return try! lib.device.makeRenderPipelineState(descriptor: descr)
+	}
+	
 	static func depthstate(
-		cmp: MTLCompareFunction,
-		wrt: Bool = false,
-		stencilfront: MTLStencilDescriptor? = nil,
-		stencilback:  MTLStencilDescriptor? = nil
+		wrt: Bool,
+		cmp: MTLCompareFunction = .always,
+		_ setop: (MTLStencilDescriptor)->() = {_ in}
 	) -> MTLDepthStencilState {
 		let descr = MTLDepthStencilDescriptor()
 		descr.isDepthWriteEnabled = wrt
 		descr.depthCompareFunction = cmp
-		descr.frontFaceStencil = stencilfront
-		descr.backFaceStencil = stencilback
+		let op = MTLStencilDescriptor()
+		setop(op)
+		descr.frontFaceStencil = op
+		descr.backFaceStencil = op
 		return lib.device.makeDepthStencilState(descriptor: descr)!
-	}
-	static func stencildescr(
-		faildepth:   MTLStencilOperation = .keep,
-		failstencil: MTLStencilOperation = .keep,
-		pass: MTLStencilOperation = .keep,
-		cmp: MTLCompareFunction = .always
-	) -> MTLStencilDescriptor {
-		let descr = MTLStencilDescriptor()
-		descr.depthFailureOperation = faildepth
-		descr.stencilFailureOperation = failstencil
-		descr.depthStencilPassOperation = pass
-		descr.stencilCompareFunction = cmp
-		return descr
-	}
-	
-	static func pipestate(
-		vtxdescr: MTLVertexDescriptor? = nil,
-		vtxshader: MTLFunction? = nil,
-		frgshader: MTLFunction? = nil,
-		fmts: [Int : MTLPixelFormat] = [:]
-	) -> MTLRenderPipelineState {
-		let descr = MTLRenderPipelineDescriptor()
-		descr.vertexDescriptor = vtxdescr
-		descr.vertexFunction = vtxshader
-		descr.fragmentFunction = frgshader
-		for (i, fmt) in fmts {
-			switch i {
-				case -2: descr.stencilAttachmentPixelFormat		= fmt;		break
-				case -1: descr.depthAttachmentPixelFormat		= fmt;		break
-				default: descr.colorAttachments[i].pixelFormat	= fmt
-			}
-		}
-		return try! lib.device.makeRenderPipelineState(descriptor: descr)
-	}
-	
-	static func passdescr(fmts: [Int : MTLPixelFormat], size: uint2) -> MTLRenderPassDescriptor {
-		let descr = MTLRenderPassDescriptor()
-		for (i, fmt) in fmts {
-			let att: MTLRenderPassAttachmentDescriptor
-			switch i {
-				case -2: att = descr.stencilAttachment; 	break
-				case -1: att = descr.depthAttachment; 		break
-				default: att = descr.colorAttachments[i]
-			}
-			att.loadAction = .clear
-			att.storeAction = .store
-			att.texture = lib.texture(
-				fmt: fmt,
-				size: size,
-				storage: .private,
-				usage: [.shaderRead, .renderTarget])
-		}
-		return descr
 	}
 	
 	
@@ -125,7 +77,8 @@ class lib {
 		fmt: MTLPixelFormat,
 		size: uint2,
 		storage: MTLStorageMode = .private,
-		usage: MTLTextureUsage = .shaderRead
+		usage: MTLTextureUsage = .shaderRead,
+		label: String? = nil
 	) -> MTLTexture {
 		let descr = MTLTextureDescriptor.texture2DDescriptor(
 			pixelFormat: fmt,
@@ -135,7 +88,9 @@ class lib {
 		)
 		descr.storageMode = storage
 		descr.usage = usage
-		return lib.device.makeTexture(descriptor: descr)!
+		let tex = lib.device.makeTexture(descriptor: descr)!
+		if let label = label {tex.label = label}
+		return tex
 	}
 	static func texture(path: String) -> MTLTexture {
 		let ldr = MTKTextureLoader(device: lib.device)

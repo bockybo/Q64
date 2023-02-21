@@ -93,7 +93,6 @@ class Demo: Ctrl {
 		self.scene.mvtcs[2].ctm = .mag(float3(2, 7.5, 2)) * .yrot(self.time * 5)
 		self.scene.mvtcs[3].ctm = .pos(self.scene.lgt.src) * .mag(10) * .yrot(self.time * 8)
 		
-//		self.scene.lfrgs[0].hue = float3(1, 1, 1)
 //		self.scene.lfrgs[0].dir = self.scene.lgt.src
 //		self.scene.lfrgs[0].rad = 300
 		

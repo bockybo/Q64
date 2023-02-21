@@ -46,10 +46,10 @@ class Scene {
 		var pos = float3(0)
 		var rot = float3(0)
 		var mag = float3(1)
-		var fov: float = 90 * .pi/180
 		var asp: float = 1
-		var z0: float = 0.1
-		var z1: float = 1e4
+		var fov: float = 90 * .pi/180
+		var z0: float = 1
+		var z1: float = 1e3
 		var proj: float4x4 {
 			return .persp(
 				fov: self.fov,
