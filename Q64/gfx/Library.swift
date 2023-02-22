@@ -13,60 +13,28 @@ class lib {
 	
 	static let devlib = lib.device.makeDefaultLibrary()!
 	static func shader(_ name: String) -> MTLFunction {return lib.devlib.makeFunction(name: name)!}
-	
-	
-	struct vtx {
-		var pos: (float, float, float) = (0, 0, 0)
-		var nml: (float, float, float) = (1, 0, 0)
-		var tex: (float, float) = (0, 0)
-	}
-	
-	static func mdlvtxdescr(_ attrs: [(fmt: MDLVertexFormat, name: String)]) -> MDLVertexDescriptor {
-		let descr = MDLVertexDescriptor()
-		for (i, (fmt, name)) in attrs.enumerated() {
-			descr.attributes[i] = MDLVertexAttribute(name: name, format: fmt, offset: 0, bufferIndex: 0)
-		}
-		descr.setPackedOffsets()
-		descr.setPackedStrides()
-		return descr
-	}
-	
-	static let mdlvtxdescrs = [
-		"base": lib.mdlvtxdescr([
-			(fmt: .float3, name: MDLVertexAttributePosition),
-		]),
-		"main": lib.mdlvtxdescr([
-			(fmt: .float3, name: MDLVertexAttributePosition),
-			(fmt: .float3, name: MDLVertexAttributeNormal),
-			(fmt: .float2, name: MDLVertexAttributeTextureCoordinate),
-		]),
+	static let vtxshaders = [
+		"shade": 	lib.shader("vtx_shade"),
+		"gbuf": 	lib.shader("vtx_gbuf"),
+		"quad": 	lib.shader("vtx_quad"),
+		"icos": 	lib.shader("vtx_icos"),
+		"mask":		lib.shader("vtx_mask"),
 	]
-	static let mtkvtxdescrs = lib.mdlvtxdescrs.mapValues(MTKMetalVertexDescriptorFromModelIO)
+	static let frgshaders = [
+		"gbuf": 	lib.shader("frg_gbuf"),
+		"light": 	lib.shader("frg_light"),
+	]
 	
-	static func pipestate(
-		vtxdescr: String? = nil,
-		vtxshader: String? = nil,
-		frgshader: String? = nil,
-		_ attach: (MTLRenderPipelineDescriptor)->() = {_ in}
-	) -> MTLRenderPipelineState {
+	
+	static func pipestate(_ setup: (MTLRenderPipelineDescriptor)->()) -> MTLRenderPipelineState {
 		let descr = MTLRenderPipelineDescriptor()
-		if let vtxdescr = vtxdescr {descr.vertexDescriptor = lib.mtkvtxdescrs[vtxdescr]!}
-		if let vtxshader = vtxshader {descr.vertexFunction = lib.shader(vtxshader)}
-		if let frgshader = frgshader {descr.fragmentFunction = lib.shader(frgshader)}
-		attach(descr)
+		setup(descr)
 		return try! lib.device.makeRenderPipelineState(descriptor: descr)
 	}
-	
-	static func depthstate(
-		wrt: Bool,
-		cmp: MTLCompareFunction = .always,
-		_ setop: (MTLStencilDescriptor)->() = {_ in}
-	) -> MTLDepthStencilState {
+	static func depthstate(_ setup: (MTLDepthStencilDescriptor, MTLStencilDescriptor)->()) -> MTLDepthStencilState {
 		let descr = MTLDepthStencilDescriptor()
-		descr.isDepthWriteEnabled = wrt
-		descr.depthCompareFunction = cmp
 		let op = MTLStencilDescriptor()
-		setop(op)
+		setup(descr, op)
 		descr.frontFaceStencil = op
 		descr.backFaceStencil = op
 		return lib.device.makeDepthStencilState(descriptor: descr)!
@@ -89,7 +57,7 @@ class lib {
 		descr.storageMode = storage
 		descr.usage = usage
 		let tex = lib.device.makeTexture(descriptor: descr)!
-		if let label = label {tex.label = label}
+		tex.label = label
 		return tex
 	}
 	static func texture(path: String) -> MTLTexture {
@@ -99,11 +67,39 @@ class lib {
 	}
 	
 	
+	
+	struct vtx {
+		var pos: (float, float, float) = (0, 0, 0)
+		var nml: (float, float, float) = (1, 0, 0)
+		var tex: (float, float) = (0, 0)
+	}
+	
+	static func vtxdescr(_ attrs: [(fmt: MDLVertexFormat, name: String)]) -> MDLVertexDescriptor {
+		let descr = MDLVertexDescriptor()
+		for (i, (fmt, name)) in attrs.enumerated() {
+			descr.attributes[i] = MDLVertexAttribute(name: name, format: fmt, offset: 0, bufferIndex: 0)
+		}
+		descr.setPackedOffsets()
+		descr.setPackedStrides()
+		return descr
+	}
+	static let vtxdescrs = [
+		"base": lib.vtxdescr([
+			(fmt: .float3, name: MDLVertexAttributePosition),
+		]),
+		"main": lib.vtxdescr([
+			(fmt: .float3, name: MDLVertexAttributePosition),
+			(fmt: .float3, name: MDLVertexAttributeNormal),
+			(fmt: .float2, name: MDLVertexAttributeTextureCoordinate),
+		]),
+	]
+	
+	
 	static let meshalloc = MTKMeshBufferAllocator(device: lib.device)
 	
 	static func mesh(
 		_ mesh: MDLMesh,
-		descr: MDLVertexDescriptor = lib.mdlvtxdescrs["main"]!,
+		descr: MDLVertexDescriptor = lib.vtxdescrs["main"]!,
 		nml: Bool = false,
 		tex: Bool = false
 	) -> MTKMesh {
@@ -114,6 +110,7 @@ class lib {
 	}
 	static func meshes(
 		path: String,
+		descr: MDLVertexDescriptor = lib.vtxdescrs["main"]!,
 		nml: Bool = false,
 		tex: Bool = false
 	) -> [MTKMesh] {
@@ -121,11 +118,11 @@ class lib {
 		return try! MTKMesh.newMeshes(
 			asset: MDLAsset(
 				url: url,
-				vertexDescriptor: lib.mdlvtxdescrs["main"]!,
+				vertexDescriptor: nil,
 				bufferAllocator: lib.meshalloc
 			),
 			device: lib.device
-		).modelIOMeshes.map {mesh in lib.mesh(mesh, nml: nml, tex: tex)}
+		).modelIOMeshes.map {mesh in lib.mesh(mesh, descr: descr, nml: nml, tex: tex)}
 	}
 	
 	static func mesh(
@@ -142,7 +139,7 @@ class lib {
 		return lib.mesh(MDLMesh(
 			vertexBuffer: vtxbuf,
 				vertexCount: vtcs.count,
-				descriptor: lib.mdlvtxdescrs["main"]!,
+				descriptor: lib.vtxdescrs["main"]!,
 				submeshes: [MDLSubmesh(
 					indexBuffer: idxbuf,
 					indexCount: idcs.count,
@@ -175,7 +172,7 @@ class lib {
 			segments:			uint3(seg, seg, seg),
 			inwardNormals: 		invnml,
 			geometryType:		type,
-			allocator:			lib.meshalloc))
+			allocator:			lib.meshalloc), descr: lib.vtxdescrs["main"]!)
 	}
 	static func sphmesh(_ seg: uint, type: MDLGeometryType = .triangles, invnml: Bool = false) -> MTKMesh {
 		return lib.mesh(MDLMesh(
@@ -183,19 +180,35 @@ class lib {
 			segments: 			uint2(seg, seg),
 			inwardNormals:		invnml,
 			geometryType: 		type,
-			allocator:			lib.meshalloc))
+			allocator:			lib.meshalloc), descr: lib.vtxdescrs["main"]!)
 	}
+	
+	static let quadmesh = lib.mesh(MDLMesh(
+			planeWithExtent: float3(2, 2, 0),
+			segments: uint2(1, 1),
+			geometryType: .triangles,
+			allocator: lib.meshalloc), descr: lib.vtxdescrs["base"]!
+	)
+	static let icosmesh = lib.mesh(MDLMesh(
+			icosahedronWithExtent: float3(12 / (sqrtf(3) * (3 + sqrtf(5)))),
+			inwardNormals: false,
+			geometryType: .triangles,
+			allocator: lib.meshalloc), descr: lib.vtxdescrs["base"]!
+	)
+	
 	
 	class Buffer<T> {
 		let buf: MTLBuffer
-		var ptr: UnsafeMutablePointer<T>
-		init(_ len: Int) {
+		init(_ count: Int) {
 			self.buf = lib.device.makeBuffer(
-				length: len * sizeof(T.self),
+				length: count * sizeof(T.self),
 				options: .storageModeShared)!
-			self.ptr = self.buf.contents().assumingMemoryBound(to: T.self)
 		}
 		var count: Int {return self.buf.length / sizeof(T.self)}
+		var ptr: UnsafeMutableBufferPointer<T> {
+			let start = self.buf.contents().assumingMemoryBound(to: T.self)
+			return .init(start: start, count: self.count)
+		}
 		subscript(i: Int) -> T {
 			get {return self.ptr[i]}
 			set(value) {self.ptr[i] = value}

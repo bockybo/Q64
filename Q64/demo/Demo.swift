@@ -51,6 +51,8 @@ class Demo: Ctrl {
 			scene.mvtcs[i].ctm = .pos(r * (1 - .y)) * .mag(float3(2.5, abs(r.y * 0.3), 2.5))
 		}
 		
+//		scene.mvtcs[4+nobs-1].ctm = .pos(3 * .x) * .mag(float3(1, 20, 1))
+		
 		scene.mfrgs[0].ambi = 0.1 * float3(0, 1, 1)
 		scene.mfrgs[0].diff = 0.5 * float3(0, 1, 1)
 		scene.mfrgs[0].spec = 0.6 * float3(1, 1, 1)

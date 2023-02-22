@@ -41,7 +41,7 @@ class Renderer: NSObject, MTKViewDelegate {
 	static let fmt_depth = MTLPixelFormat.depth32Float_stencil8
 	static let fmt_shade = MTLPixelFormat.depth32Float
 	
-	let shadepass: MTLRenderPassDescriptor = {
+	private let shadepass: MTLRenderPassDescriptor = {
 		let pass = MTLRenderPassDescriptor()
 		pass.depthAttachment.loadAction  = .clear
 		pass.depthAttachment.storeAction = .store
@@ -53,7 +53,7 @@ class Renderer: NSObject, MTKViewDelegate {
 		return pass
 	}()
 	
-	let lightpass: MTLRenderPassDescriptor = {
+	private let lightpass: MTLRenderPassDescriptor = {
 		let pass = MTLRenderPassDescriptor()
 		pass.colorAttachments[0].storeAction 	= .store
 		pass.colorAttachments[1].storeAction 	= .dontCare
@@ -93,58 +93,63 @@ class Renderer: NSObject, MTKViewDelegate {
 		)
 	}}
 	
-	let shadepipe = lib.pipestate(
-		vtxdescr: "base",
-		vtxshader: "vtx_shade"
-	) { descr in
+	private let shadepipe = lib.pipestate {descr in
+		descr.vertexFunction	= lib.vtxshaders["shade"]!
 		descr.depthAttachmentPixelFormat = Renderer.fmt_shade
 	}
-	let gbufpipe = lib.pipestate(
-		vtxdescr: "main",
-		vtxshader: "vtx_gbuf",
-		frgshader: "frg_gbuf"
-	) { descr in
-		descr.stencilAttachmentPixelFormat		= Renderer.fmt_depth
-		descr.depthAttachmentPixelFormat		= Renderer.fmt_depth
-		descr.colorAttachments[0].pixelFormat 	= Renderer.fmt_color
-		descr.colorAttachments[1].pixelFormat 	= Renderer.fmt_gbuf_alb
-		descr.colorAttachments[2].pixelFormat 	= Renderer.fmt_gbuf_nml
-		descr.colorAttachments[3].pixelFormat 	= Renderer.fmt_gbuf_dep
+	private let gbufpipe = lib.pipestate {descr in
+		descr.vertexFunction	= lib.vtxshaders["gbuf"]!
+		descr.fragmentFunction	= lib.frgshaders["gbuf"]!
+		Renderer.attachgbuf(descr)
 	}
-	let quadpipe = lib.pipestate(
-		vtxshader: "vtx_quad",
-		frgshader: "frg_light"
-	) { descr in
-		descr.stencilAttachmentPixelFormat		= Renderer.fmt_depth
-		descr.depthAttachmentPixelFormat		= Renderer.fmt_depth
-		descr.colorAttachments[0].pixelFormat 	= Renderer.fmt_color
-		descr.colorAttachments[1].pixelFormat 	= Renderer.fmt_gbuf_alb
-		descr.colorAttachments[2].pixelFormat 	= Renderer.fmt_gbuf_nml
-		descr.colorAttachments[3].pixelFormat 	= Renderer.fmt_gbuf_dep
+	private let quadpipe = lib.pipestate {descr in
+		descr.vertexFunction	= lib.vtxshaders["quad"]!
+		descr.fragmentFunction	= lib.frgshaders["light"]!
+		Renderer.attachgbuf(descr)
 	}
-	let icospipe = lib.pipestate(
-		vtxshader: "vtx_icos",
-		frgshader: "frg_light"
-	) { descr in
+	private let icospipe = lib.pipestate {descr in
+		descr.vertexFunction	= lib.vtxshaders["icos"]!
+		descr.fragmentFunction	= lib.frgshaders["light"]!
+		Renderer.attachgbuf(descr)
+	}
+	private let maskpipe = lib.pipestate {descr in
+		descr.vertexFunction	= lib.vtxshaders["mask"]!
+		Renderer.attachgbuf(descr)
+	}
+	private static func attachgbuf(_ descr: MTLRenderPipelineDescriptor) {
 		descr.stencilAttachmentPixelFormat		= Renderer.fmt_depth
 		descr.depthAttachmentPixelFormat		= Renderer.fmt_depth
 		descr.colorAttachments[0].pixelFormat 	= Renderer.fmt_color
 		descr.colorAttachments[1].pixelFormat 	= Renderer.fmt_gbuf_alb
 		descr.colorAttachments[2].pixelFormat 	= Renderer.fmt_gbuf_nml
 		descr.colorAttachments[3].pixelFormat 	= Renderer.fmt_gbuf_dep
-//		descr..isBlendingEnabled				= true
-//		descr..rgbBlendOperation				= .add
-//		descr..sourceRGBBlendFactor				= .one
-//		descr..destinationRGBBlendFactor 		= .one
-//		descr..alphaBlendOperation				= .add
-//		descr..sourceAlphaBlendFactor			= .one
-//		descr..destinationAlphaBlendFactor		= .one
 	}
 	
-	let shadedepth = lib.depthstate(wrt: true, cmp: .lessEqual)
-	let gbufdepth = lib.depthstate(wrt: true, cmp: .less)
-	let quaddepth = lib.depthstate(wrt: false)
-	let icosdepth = lib.depthstate(wrt: false)
+	private let shadedepth = lib.depthstate {(descr, op) in
+		descr.isDepthWriteEnabled = true
+		descr.depthCompareFunction = .lessEqual
+	}
+	private let gbufdepth = lib.depthstate {(descr, op) in
+		descr.isDepthWriteEnabled = true
+		descr.depthCompareFunction = .less
+		op.depthStencilPassOperation = .replace
+	}
+	private let quaddepth = lib.depthstate {(descr, op) in
+		op.stencilCompareFunction = .equal
+		op.readMask = 0xFF
+		op.writeMask = 0x0
+	}
+	// TODO: figure out stencil & cullmodes here
+	private let icosdepth = lib.depthstate {(descr, op) in
+		descr.depthCompareFunction = .greaterEqual
+		op.stencilCompareFunction = .less
+		op.readMask = 0xFF
+		op.writeMask = 0x0
+	}
+	private let maskdepth = lib.depthstate {(descr, op) in
+		descr.depthCompareFunction = .greaterEqual
+		op.depthFailureOperation = .incrementClamp
+	}
 	
 	private func draw(in view: MTKView, with buf: MTLCommandBuffer) {
 		self.lightpass.colorAttachments[0].texture	= view.currentDrawable!.texture
@@ -176,7 +181,8 @@ class Renderer: NSObject, MTKViewDelegate {
 		enc.setFragmentBytes(&invview, length: sizeof(invview), index: 4)
 		enc.setFragmentBytes(&self.res, length: sizeof(self.res), index: 5)
 		self.renderquad(enc: enc)
-//		self.rendericos(enc: enc)
+		self.rendermask(enc: enc)
+		self.rendericos(enc: enc)
 	}
 	
 	private func rendergbuf(enc: MTLRenderCommandEncoder) {
@@ -200,14 +206,20 @@ class Renderer: NSObject, MTKViewDelegate {
 		var lgt = self.scene.lgt.lfrg
 		enc.setFragmentBytes(&lgt, length: sizeof(lgt), index: 2)
 		enc.setFragmentBuffer(self.scene.mfrgs.buf, offset: 0, index: 1)
-		enc.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 6)
+		enc.draw(lib.quadmesh)
+	}
+	private func rendermask(enc: MTLRenderCommandEncoder) {
+		enc.setState(self.maskpipe, self.maskdepth, cull: .none)
+		enc.setVertexBuffer(self.scene.lfrgs.buf, offset: 0, index: 2)
+		enc.setFragmentBuffer(self.scene.lfrgs.buf, offset: 0, index: 2)
+		enc.draw(lib.icosmesh)
 	}
 	private func rendericos(enc: MTLRenderCommandEncoder) {
 		enc.setState(self.icospipe, self.icosdepth, cull: .none)
 		enc.setVertexBuffer(self.scene.lfrgs.buf, offset: 0, index: 2)
 		enc.setFragmentBuffer(self.scene.lfrgs.buf, offset: 0, index: 2)
 		enc.setFragmentBuffer(self.scene.mfrgs.buf, offset: 0, index: 1)
-		enc.draw(self.scene.d20mesh)
+		enc.draw(lib.icosmesh)
 	}
 	
 }

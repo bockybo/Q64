@@ -32,14 +32,6 @@ class Scene {
 		lfrgs[0].rad = 20
 		return lfrgs
 	}()
-	let d20mesh = lib.mesh(
-		MDLMesh.newIcosahedron(
-			withRadius: 12 / (sqrtf(3) * (3 + sqrtf(5))),
-			inwardNormals: false,
-			allocator: lib.meshalloc
-		), descr: lib.mdlvtxdescrs["base"]!
-	)
-	
 	
 	
 	struct Camera {
