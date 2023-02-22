@@ -1,7 +1,7 @@
 import MetalKit
 
 
-struct MDL {
+struct Model {
 	var iid: Int
 	var nid: Int
 	var meshes: [MTKMesh] = []
@@ -10,28 +10,32 @@ struct MDL {
 }
 
 class Scene {
-	let mvtcs: lib.Buffer<MVTX>
-	let mfrgs: lib.Buffer<MFRG>
-	var mdls: [MDL]
+	var mdls: [Model]
 	var cam = Camera()
-	var lgt = Light()
-	init(
-		nmvtcs: Int = 512,
-		nmfrgs: Int = 64,
-		mdls: [MDL] = []
-	) {
-		self.mvtcs = .init(nmvtcs)
-		self.mfrgs = .init(nmfrgs)
+//	var lgt = Light()
+	init(_ mdls: [Model] = []) {
 		self.mdls = mdls
 	}
 	
+	let uniforms = lib.Buffer<MDL>(512)
+	
 	let lfrgs: lib.Buffer<LFRG> = {
-		let lfrgs = lib.Buffer<LFRG>.init(8)
-		lfrgs[0].hue = float3(1, 1, 1)
-		lfrgs[0].dir = float3(0, 10, 0)
-		lfrgs[0].rad = 20
+		let lfrgs = lib.Buffer<LFRG>.init(32)
+		for i in 1..<32 {
+			lfrgs[i].hue = [
+				float3(1, 1, 1),
+				float3(1, 1, 0),
+				float3(1, 0, 1),
+				float3(0, 1, 1),
+			].randomElement()!
+			lfrgs[i].rad = 50
+			let x = float.random(in: -125..<125)
+			let y = float.random(in: -125..<125)
+			lfrgs[i].dir = float3(x, 20, y)
+		}
 		return lfrgs
 	}()
+	var lgt = Light() {didSet {self.lfrgs[0] = self.lgt.lfrg}}
 	
 	
 	struct Camera {

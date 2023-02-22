@@ -7,8 +7,8 @@ import MetalKit
 class Demo: Ctrl {
 	let scene: Scene = {
 		let dim: float = 300
-		let nsph = 10
-		let nbox = 20
+		let nsph = 15
+		let nbox = 30
 		let nobs = nsph + nbox
 		
 		let ogn_vtcs = [
@@ -24,63 +24,47 @@ class Demo: Ctrl {
 			2, 0, 3,
 		]
 		
-		let scene = Scene(
-			nmvtcs: 512,
-			nmfrgs: 8,
-			mdls: [
-//				MDL(iid: 0, 		nid: 1, 		meshes: lib.meshes(path: "cruiser.obj"), tex: lib.texture(path: "steel.jpg")),
-				MDL(iid: 0, 		nid: 1,			meshes: lib.meshes(path: "cruiser.obj")),
-				MDL(iid: 1, 		nid: 1, 		meshes: [lib.boxmesh(1)]),
-				MDL(iid: 2, 		nid: 1, 		meshes: [lib.mesh(vtcs: ogn_vtcs, idcs: ogn_idcs)]),
-				MDL(iid: 3, 		nid: 1, 		meshes: [lib.sphmesh(20, invnml: true)], prim: .line),
-				MDL(iid: 4,			nid: nsph, 		meshes: [lib.sphmesh(100)]),
-				MDL(iid: 4+nsph, 	nid: nbox, 		meshes: [lib.boxmesh(1)]),
-			]
-		)
+		let scene = Scene([
+//			Model(iid: 0, 		nid: 1, 	meshes: lib.meshes(path: "cruiser.obj"), tex: lib.texture(path: "steel.jpg")),
+			Model(iid: 0, 		nid: 1,		meshes: lib.meshes(path: "cruiser.obj")),
+			Model(iid: 1, 		nid: 1, 	meshes: [lib.boxmesh(1)]),
+			Model(iid: 2, 		nid: 1, 	meshes: [lib.mesh(vtcs: ogn_vtcs, idcs: ogn_idcs)]),
+			Model(iid: 3, 		nid: 1, 	meshes: [lib.sphmesh(20, invnml: true)], prim: .line),
+			Model(iid: 4,		nid: nsph, 	meshes: [lib.sphmesh(100)]),
+			Model(iid: 4+nsph, 	nid: nbox, 	meshes: [lib.boxmesh(1)]),
+		])
+		scene.uniforms[0].color = 0.5 * float3(0, 1, 1)
+		scene.uniforms[0].shine = 5.0
+		scene.uniforms[1].color = 0.9 * float3(1)
+		scene.uniforms[2].color = 0.6 * float3(1, 0, 1)
+		scene.uniforms[2].shine = 0.5
+		scene.uniforms[3].color = 0.9 * float3(1, 1, 0)
 		
-		scene.mvtcs[0].imf = 0 // CRS
-		scene.mvtcs[1].imf = 1 // GND
-		scene.mvtcs[2].imf = 2 // OGN
-		scene.mvtcs[3].imf = 3 // SUN
-		for i in 0..<scene.mdls[4].nid {scene.mvtcs[i+scene.mdls[4].iid].imf = 4} // SPH -> OBS
-		for i in 0..<scene.mdls[5].nid {scene.mvtcs[i+scene.mdls[5].iid].imf = 4} // BOX -> OBS
+		scene.uniforms[1].ctm = .mag(float3(dim, 10, dim))
 		
-		scene.mvtcs[1].ctm = .mag(float3(dim, 10, dim))
 		for i in 4..<4+nobs {
 			let r = float3.random(in: -1..<1) * dim * 0.45
-			scene.mvtcs[i].ctm = .pos(r * (1 - .y)) * .mag(float3(2.5, abs(r.y * 0.3), 2.5))
+			scene.uniforms[i].ctm = .pos(r * (1 - .y)) * .mag(float3(2.5, abs(r.y * 0.3), 2.5))
+			
+			scene.uniforms[i].color = float3(1)
+			scene.uniforms[i].shine = 0
 		}
-		
-//		scene.mvtcs[4+nobs-1].ctm = .pos(3 * .x) * .mag(float3(1, 20, 1))
-		
-		scene.mfrgs[0].ambi = 0.1 * float3(0, 1, 1)
-		scene.mfrgs[0].diff = 0.5 * float3(0, 1, 1)
-		scene.mfrgs[0].spec = 0.6 * float3(1, 1, 1)
-		scene.mfrgs[0].shine = 5
-		
-		scene.mfrgs[1].ambi = 0.1 * float3(1)
-		scene.mfrgs[1].diff = 0.9 * float3(1)
-		
-		scene.mfrgs[2].diff = 0.6 * float3(1, 0, 1)
-		scene.mfrgs[2].spec = 0.5 * float3(1)
-		scene.mfrgs[2].shine = 32
-		
-		scene.mfrgs[3].ambi = 0.1 * float3(1, 1, 0)
-		scene.mfrgs[3].diff = 0.9 * float3(1, 1, 0)
-		
-		scene.mfrgs[4].ambi = 0.1 * float3(1)
-		scene.mfrgs[4].diff = 1.0 * float3(1)
 		
 		return scene
 	}()
 	
+	var t0 = DispatchTime.now().uptimeNanoseconds
 	var time: float = 0
 	func tick() {
 		if self.paused {return}
 		self.time += 0.001
 		
-		self.cruiser.tick()
-		self.camera.tick()
+		let t1 = DispatchTime.now().uptimeNanoseconds
+		let dt = 1e-7 * float(t1 - self.t0)
+		self.t0 = t1
+		
+		self.cruiser.tick(dt: dt)
+		self.camera.tick(dt: dt)
 		
 		self.scene.cam.pos = self.camera.pos
 		self.scene.cam.rot = self.camera.rot
@@ -91,9 +75,9 @@ class Demo: Ctrl {
 			sinf(self.time)
 		)
 		
-		self.scene.mvtcs[0].ctm = self.cruiser.ctm * .mag(1.2)
-		self.scene.mvtcs[2].ctm = .mag(float3(2, 7.5, 2)) * .yrot(self.time * 5)
-		self.scene.mvtcs[3].ctm = .pos(self.scene.lgt.src) * .mag(10) * .yrot(self.time * 8)
+		self.scene.uniforms[0].ctm = self.cruiser.ctm * .mag(1.2)
+		self.scene.uniforms[2].ctm = .mag(float3(2, 7.5, 2)) * .yrot(self.time * 5)
+		self.scene.uniforms[3].ctm = .pos(self.scene.lgt.src) * .mag(10) * .yrot(self.time * 8)
 		
 //		self.scene.lfrgs[0].dir = self.scene.lgt.src
 //		self.scene.lfrgs[0].rad = 300
@@ -114,14 +98,14 @@ class Demo: Ctrl {
 			self.rot.y += sns.x * 8e-3
 			self.rot.x = max(min(self.rot.x, +0.5 * .pi), -0.5 * .pi)
 		}
-		mutating func tick()  {
+		mutating func tick(dt: float)  {
 			if self.mov != .zero {
 				let mov = float4x4.pos(normalize(self.mov))
 				let rot = float4x4.yrot(self.rot.y)
 				let vel = (rot * mov)[3].xyz
 				self.vel += vel * 0.1
 			}
-			self.pos += self.vel
+			self.pos += self.vel * dt
 			self.vel *= 0.93
 		}
 	}
@@ -131,13 +115,13 @@ class Demo: Ctrl {
 		var pos = float3(0)
 		var rot = float3(0)
 		var vel = float3(0)
-		mutating func tick() {
+		mutating func tick(dt: float) {
 			self.rot.x -= 0.03 * self.mov.x
 			self.rot.z -= 0.08 * self.mov.z
-			self.rot.y -= 0.1 * self.rot.z
+			self.rot.y -= 0.1 * self.rot.z * dt
 			self.vel.x += 0.2 * self.rot.x * sin(-self.rot.y)
 			self.vel.z += 0.2 * self.rot.x * cos(-self.rot.y)
-			self.pos -= 0.1 * self.vel
+			self.pos -= 0.1 * self.vel * dt
 			self.vel *= 0.997
 			self.rot.x *= 0.9
 			self.rot.z *= 0.9

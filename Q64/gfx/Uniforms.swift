@@ -7,14 +7,8 @@ struct LFRG {
 	var rad: float
 }
 
-struct MVTX {
-	var imf: uint
+struct MDL {
 	var ctm: float4x4
-}
-	
-struct MFRG {
-	var ambi: float3
-	var diff: float3
-	var spec: float3
-	var shine: float
+	var color: float3
+	var shine: float // + == achromatic, - == chromatic
 }

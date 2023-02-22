@@ -9,18 +9,17 @@ typedef   depth2d<float, access::sample> depmap2;
 
 typedef struct {
 	half4 dst [[color(0), raster_order_group(0)]];
-} gdst;
+} ldst;
 typedef struct {
 	half4 dst [[color(0), raster_order_group(0)]];
 	half4 alb [[color(1), raster_order_group(1)]];
 	half4 nml [[color(2), raster_order_group(1)]];
-	float2 dep [[color(3), raster_order_group(1)]];
+	float dep [[color(3), raster_order_group(1)]];
 } gbuf;
 typedef struct {
 	float4 loc [[position]];
 	uint iid [[flat]];
 } lpix;
-
 
 typedef struct {
 	packed_float3 pos;
@@ -33,19 +32,14 @@ typedef struct {
 	float2 texloc;
 	float3 nml;
 	float dep;
-	uint imf [[flat]];
+	uint iid [[flat]];
 } frg;
 
 typedef struct {
-	uint imf;
 	float4x4 ctm;
-} mvtx;
-typedef struct {
-	float3 ambi;
-	float3 diff;
-	float3 spec;
-	float shine;
-} mfrg;
+	float3 hue;
+	float shn;
+} model;
 
 typedef struct {
 	float3 hue;
@@ -72,19 +66,48 @@ static inline float shade(float4 loc, depmap2 shdmap) {
 			shd += shdmap.sample_compare(smp, uv, dep, int2(x, y) - m/2);
 	return (float)shd / (m*m);
 }
-static inline float3 light(constant lfrg &lgt,
-						   constant mfrg &mat,
-						   float shd,
+static inline float3 phong(float3 alb,
+						   float shn,
 						   float3 pos,
 						   float3 nml,
+						   float3 eye,
+						   float3 dir) {
+	constexpr float ampdiff = 0.8;
+	constexpr float ampspec = 0.5;
+	float k = dot(nml, dir);
+	if (k < 0)
+		return 0;
+	float3 rgb = ampdiff * max(0.0f, k) * alb;
+	if (shn) {
+		shn *= 255.0f;
+		float3 ref = dir - 2*nml*k;
+		float3 dir = normalize(pos - eye);
+		float b = saturate(dot(dir, ref));
+		if (shn > 0)
+			rgb += ampspec * powr(b, shn);
+		else
+			rgb += ampspec * powr(b, -shn) * alb;
+	}
+	return rgb;
+}
+static inline float3 light(constant lfrg &lgt,
+						   gbuf buf,
+						   float3 pos,
 						   float3 eye) {
+	constexpr float ambi = 0.1;
+	
+	float3 alb = (float3)buf.alb.rgb; float shd = buf.alb.a;
+	float3 nml = (float3)buf.nml.xyz; float shn = buf.nml.w;
+	
 	float lit;
 	float3 rgb;
 	float3 dir;
 	if (!lgt.rad) {
 		lit = 1 - shd;
 		dir = lgt.dir;
-		rgb = mat.ambi;
+		rgb = alb * ambi;
+		if (!lit)
+			return lgt.hue * rgb;
 	} else {
 		dir = lgt.dir - pos;
 		float sqd = length_squared(dir);
@@ -96,45 +119,34 @@ static inline float3 light(constant lfrg &lgt,
 		dir = normalize(dir);
 		rgb = 0;
 	}
-	if (lit > 0) {
-		float kdiff = saturate(dot(nml, dir));
-		float kspec = saturate(dot(normalize(pos - eye), reflect(dir, nml)));
-		rgb += lit * mat.diff * kdiff;
-		rgb += lit * mat.spec * pow(kspec, mat.shine);
-	}
-	return lgt.hue * rgb;
-}
-static inline float3 loc_to_wld(float2 loc,
-								float dep,
-								constant float4x4 &invproj,
-								constant float4x4 &invview,
-								constant uint2 &res) {
-	loc *= 2 / (float2)res;
-	loc = float2(loc.x - 1, 1 - loc.y);
-	float4 ndc = invproj * float4(loc, dep, 1); ndc.xyz /= ndc.w;
-	float4 wld = invview * float4(ndc.xyz,  1); wld.xyz /= wld.w;
-	return wld.xyz;
+	rgb += lit * lgt.hue * phong(alb,
+								 shn,
+								 pos,
+								 nml,
+								 eye,
+								 dir);
+	return rgb;
 }
 
 
-vertex float4 vtx_shade(constant vtx *vtcs			[[buffer(0)]],
-						constant mvtx *mdls			[[buffer(1)]],
+vertex float4 vtx_shade(const device vtx *vtcs		[[buffer(0)]],
+						constant model *mdls		[[buffer(1)]],
 						constant float4x4 &lgtctm	[[buffer(2)]],
 						uint vid					[[vertex_id]],
 						uint iid					[[instance_id]]) {
+	constant model &mdl = mdls[iid];
 	float3 v = vtcs[vid].pos;
-	mvtx mdl = mdls[iid];
 	return lgtctm * mdl.ctm * float4(v, 1);
 }
 
-vertex frg vtx_gbuf(constant vtx *vtcs				[[buffer(0)]],
-					constant mvtx *mdls				[[buffer(1)]],
+vertex frg vtx_gbuf(const device vtx *vtcs			[[buffer(0)]],
+					constant model *mdls			[[buffer(1)]],
 					constant float4x4 &lgtctm		[[buffer(2)]],
 					constant float4x4 &camctm		[[buffer(3)]],
 					uint vid						[[vertex_id]],
 					uint iid						[[instance_id]]) {
+	constant model &mdl = mdls[iid];
 	vtx v = vtcs[vid];
-	mvtx mdl = mdls[iid];
 	float4 pos = mdl.ctm * float4(v.pos, 1);
 	float4 nml = mdl.ctm * float4(v.nml, 0);
 	return {
@@ -142,30 +154,33 @@ vertex frg vtx_gbuf(constant vtx *vtcs				[[buffer(0)]],
 		.lgtloc = lgtctm * pos,
 		.texloc = v.tex,
 		.nml = normalize(nml.xyz),
-		.imf = mdl.imf,
+		.iid = iid,
 	};
 }
-fragment gbuf frg_gbuf(frg f						[[stage_in]],
+fragment gbuf frg_gbuf(const frg f					[[stage_in]],
+					   constant model *mdls			[[buffer(1)]],
 					   texmap2 albmap				[[texture(0)]],
 					   depmap2 shdmap				[[texture(1)]]) {
-	float3 alb = color(f.texloc, albmap);
+	constant model &mdl = mdls[f.iid];
+	float3 alb = color(f.texloc, albmap) * mdl.hue;
 	float  shd = shade(f.lgtloc, shdmap);
 	return {
 		.dst = half4(0),
-		.alb = half4((half3)alb, 0),
-		.nml = half4((half3)f.nml, shd),
-		.dep = float2(f.camloc.z, f.imf),
+		.alb = half4((half3)alb, shd),
+		.nml = half4((half3)f.nml, mdl.shn/255.0f),
+		.dep = f.camloc.z,
 	};
 }
 
 
-vertex lpix vtx_quad(constant packed_float3 *vtcs		[[buffer(0)]],
-					 uint vid							[[vertex_id]]) {
+vertex lpix vtx_quad(const device packed_float3 *vtcs	[[buffer(0)]],
+					 uint vid							[[vertex_id]],
+					 uint iid							[[instance_id]]) {
 	float3 pos = vtcs[vid];
 	float4 loc = float4(pos, 1);
-	return {.loc = loc, .iid = 0};
+	return {.loc = loc, .iid = iid};
 }
-vertex lpix vtx_icos(constant packed_float3 *vtcs		[[buffer(0)]],
+vertex lpix vtx_icos(const device packed_float3 *vtcs	[[buffer(0)]],
 					 constant lfrg *lgts				[[buffer(2)]],
 					 constant float4x4 &camctm			[[buffer(3)]],
 					 uint vid							[[vertex_id]],
@@ -176,7 +191,7 @@ vertex lpix vtx_icos(constant packed_float3 *vtcs		[[buffer(0)]],
 	float4 loc = camctm * float4(pos, 1);
 	return {.loc = loc, .iid = iid};
 }
-vertex float4 vtx_mask(constant packed_float3 *vtcs		[[buffer(0)]],
+vertex float4 vtx_mask(const device packed_float3 *vtcs	[[buffer(0)]],
 					   constant lfrg *lgts				[[buffer(2)]],
 					   constant float4x4 &camctm		[[buffer(3)]],
 					   uint vid							[[vertex_id]],
@@ -188,30 +203,19 @@ vertex float4 vtx_mask(constant packed_float3 *vtcs		[[buffer(0)]],
 	return loc;
 }
 
-fragment gdst frg_light(gbuf buf,
-						lpix pix						[[stage_in]],
-						constant mfrg *mats				[[buffer(1)]],
+fragment ldst frg_light(const gbuf buf,
+						const lpix pix					[[stage_in]],
 						constant lfrg *lgts				[[buffer(2)]],
-						constant float4x4 &invproj		[[buffer(3)]],
-						constant float4x4 &invview		[[buffer(4)]],
+						constant float4x4 &inv			[[buffer(3)]],
+						constant float3 &eye			[[buffer(4)]],
 						constant uint2 &res				[[buffer(5)]]) {
-	float3 alb = (float3)buf.alb.rgb;
-	float3 nml = (float3)buf.nml.xyz;
-	float shd = buf.nml.w;
-	float dep = buf.dep.x;
-	float imf = buf.dep.y;
 	
-//	return {!lgts[pix.iid].rad ? 1 : buf.dst};
+	float2 uv = pix.loc.xy;
+	uv *= 2 / (float2)res;
+	uv = float2(uv.x - 1, 1 - uv.y);
+	float4 pos = inv * float4(uv, buf.dep, 1);
 	
-	float3 pos = loc_to_wld(pix.loc.xy, dep, invproj, invview, res);
-	
-	float3 rgb = alb * light(lgts[pix.iid],
-							 mats[(uint)imf],
-							 shd,
-							 pos,
-							 nml,
-							 invview[3].xyz);
-	
+	float3 rgb = light(lgts[pix.iid], buf, pos.xyz/pos.w, eye);
 	return {buf.dst + half4((half3)rgb, 0)};
 	
 }
