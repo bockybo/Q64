@@ -33,21 +33,33 @@ class Demo: Ctrl {
 			Model(iid: 4,		nid: nsph, 	meshes: [lib.sphmesh(100)]),
 			Model(iid: 4+nsph, 	nid: nbox, 	meshes: [lib.boxmesh(1)]),
 		])
-		scene.uniforms[0].color = 0.5 * float3(0, 1, 1)
-		scene.uniforms[0].shine = 5.0
-		scene.uniforms[1].color = 0.9 * float3(1)
-		scene.uniforms[2].color = 0.6 * float3(1, 0, 1)
-		scene.uniforms[2].shine = 0.5
-		scene.uniforms[3].color = 0.9 * float3(1, 1, 0)
+		
+		scene.lgt.hue = 1.0 * float3(0.95, 0.85, 0.65)
+		
+		scene.uniforms[0].color = float3(0, 1, 1)
+		scene.uniforms[0].rough = 0.5
+		scene.uniforms[0].metal = 0.9
+		scene.uniforms[1].color = float3(1, 1, 1)
+		scene.uniforms[1].rough = 1.0
+		scene.uniforms[1].metal = 0.0
+		scene.uniforms[2].color = float3(1, 0, 1)
+		scene.uniforms[2].rough = 1.0
+		scene.uniforms[2].metal = 0.0
+		scene.uniforms[3].color = float3(1, 1, 0)
+		scene.uniforms[3].rough = 1.0
+		scene.uniforms[3].metal = 0.0
 		
 		scene.uniforms[1].ctm = .mag(float3(dim, 10, dim))
 		
 		for i in 4..<4+nobs {
+			
 			let r = float3.random(in: -1..<1) * dim * 0.45
-			scene.uniforms[i].ctm = .pos(r * (1 - .y)) * .mag(float3(2.5, abs(r.y * 0.3), 2.5))
+			scene.uniforms[i].ctm = .pos(r * (1 - .y)) * .mag(float3(2.5, 0.4 * abs(r.y), 2.5))
 			
 			scene.uniforms[i].color = float3(1)
-			scene.uniforms[i].shine = 0
+			scene.uniforms[i].rough = 1.0
+			scene.uniforms[i].metal = 0.0
+			
 		}
 		
 		return scene
@@ -57,7 +69,7 @@ class Demo: Ctrl {
 	var time: float = 0
 	func tick() {
 		if self.paused {return}
-		self.time += 0.001
+		self.time += 0.0015
 		
 		let t1 = DispatchTime.now().uptimeNanoseconds
 		let dt = 1e-7 * float(t1 - self.t0)
@@ -69,13 +81,13 @@ class Demo: Ctrl {
 		self.scene.cam.pos = self.camera.pos
 		self.scene.cam.rot = self.camera.rot
 		
-		self.scene.lgt.src = 200 * float3(
+		self.scene.lgt.src = 300 * float3(
 			cosf(self.time),
-			sinf(self.time * 10) * 0.1 + 0.5,
+			sinf(self.time * 10) * 0.12 + 0.5,
 			sinf(self.time)
 		)
 		
-		self.scene.uniforms[0].ctm = self.cruiser.ctm * .mag(1.2)
+		self.scene.uniforms[0].ctm = self.cruiser.ctm * .mag(1.5)
 		self.scene.uniforms[2].ctm = .mag(float3(2, 7.5, 2)) * .yrot(self.time * 5)
 		self.scene.uniforms[3].ctm = .pos(self.scene.lgt.src) * .mag(10) * .yrot(self.time * 8)
 		
@@ -106,7 +118,7 @@ class Demo: Ctrl {
 				self.vel += vel * 0.1
 			}
 			self.pos += self.vel * dt
-			self.vel *= 0.93
+			self.vel *= 0.9
 		}
 	}
 	

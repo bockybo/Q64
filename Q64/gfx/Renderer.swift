@@ -30,13 +30,12 @@ class Renderer: NSObject, MTKViewDelegate {
 		self.scene.cam.asp = float(size.width / size.height)
 		view.colorPixelFormat = Renderer.fmt_color
 		view.depthStencilPixelFormat = Renderer.fmt_depth
-		view.clearDepth = 1.0
 	}
 	
 	
 	static let fmt_gbuf_alb = MTLPixelFormat.rgba8Unorm
 	static let fmt_gbuf_nml = MTLPixelFormat.rgba8Snorm
-	static let fmt_gbuf_dep = MTLPixelFormat.r32Float
+	static let fmt_gbuf_dep = MTLPixelFormat.rg32Float
 	static let fmt_color = MTLPixelFormat.bgra8Unorm
 	static let fmt_depth = MTLPixelFormat.depth32Float_stencil8
 	static let fmt_shade = MTLPixelFormat.depth32Float
@@ -55,18 +54,18 @@ class Renderer: NSObject, MTKViewDelegate {
 	
 	private let lightpass: MTLRenderPassDescriptor = {
 		let pass = MTLRenderPassDescriptor()
+		pass.stencilAttachment.loadAction  		= .clear
+		pass.stencilAttachment.storeAction 		= .dontCare
+		pass.depthAttachment.loadAction  		= .clear
+		pass.depthAttachment.storeAction 		= .dontCare
+		pass.colorAttachments[0].loadAction		= .clear
 		pass.colorAttachments[0].storeAction 	= .store
 		pass.colorAttachments[1].storeAction 	= .dontCare
 		pass.colorAttachments[2].storeAction 	= .dontCare
 		pass.colorAttachments[3].storeAction 	= .dontCare
-		pass.depthAttachment.storeAction 		= .dontCare
-		pass.stencilAttachment.storeAction 		= .dontCare
-		pass.colorAttachments[0].loadAction		= .clear
-		pass.colorAttachments[1].loadAction		= .clear
-		pass.colorAttachments[2].loadAction		= .clear
-		pass.colorAttachments[3].loadAction		= .clear
-		pass.depthAttachment.loadAction  		= .clear
-		pass.stencilAttachment.loadAction  		= .clear
+		
+		pass.stencilAttachment.loadAction = .clear
+		
 		return pass
 	}()
 	var res = uint2(0, 0) {didSet {
@@ -125,30 +124,29 @@ class Renderer: NSObject, MTKViewDelegate {
 		descr.colorAttachments[3].pixelFormat 	= Renderer.fmt_gbuf_dep
 	}
 	
-	private let shadedepth = lib.depthstate {(descr, op) in
-		descr.isDepthWriteEnabled = true
-		descr.depthCompareFunction = .lessEqual
+	private let shadedepth = lib.depthstate {descr in
+		descr.isDepthWriteEnabled 							= true
+		descr.depthCompareFunction 							= .lessEqual
 	}
-	private let gbufdepth = lib.depthstate {(descr, op) in
-		descr.isDepthWriteEnabled = true
-		descr.depthCompareFunction = .less
-		op.depthStencilPassOperation = .replace
+	private let gbufdepth = lib.depthstate {descr in
+		descr.isDepthWriteEnabled							 = true
+		descr.depthCompareFunction 							= .less
+		descr.frontFaceStencil.depthStencilPassOperation	= .replace
+		descr.backFaceStencil.depthStencilPassOperation		= .replace
 	}
-	private let quaddepth = lib.depthstate {(descr, op) in
-		op.stencilCompareFunction = .equal
-		op.readMask = 0xFF
-		op.writeMask = 0x0
+	private let quaddepth = lib.depthstate {descr in
+		descr.frontFaceStencil.stencilCompareFunction		= .equal
+		descr.backFaceStencil.stencilCompareFunction		= .equal
 	}
-	// TODO: figure out stencil & cullmodes here
-	private let icosdepth = lib.depthstate {(descr, op) in
-		descr.depthCompareFunction = .greaterEqual
-		op.stencilCompareFunction = .less
-		op.readMask = 0xFF
-		op.writeMask = 0x0
+	private let maskdepth = lib.depthstate {descr in
+		descr.depthCompareFunction							= .less
+		descr.frontFaceStencil.depthFailureOperation		= .incrementWrap
+		descr.backFaceStencil.depthFailureOperation			= .decrementWrap
 	}
-	private let maskdepth = lib.depthstate {(descr, op) in
-		descr.depthCompareFunction = .less
-		op.depthFailureOperation = .incrementClamp
+	private let icosdepth = lib.depthstate {descr in
+		descr.depthCompareFunction							= .greater
+		descr.frontFaceStencil.stencilCompareFunction		= .notEqual
+		descr.backFaceStencil.stencilCompareFunction		= .notEqual
 	}
 	
 	private func draw(in view: MTKView, with buf: MTLCommandBuffer) {
@@ -158,7 +156,7 @@ class Renderer: NSObject, MTKViewDelegate {
 		
 		buf.pass(label: "shade", descr: self.shadepass) {enc in
 			enc.setState(self.shadepipe, self.shadedepth, cull: .front)
-			enc.setDepthBias(0.015, slopeScale: 7, clamp: 0.02)
+			enc.setDepthBias(0.0015, slopeScale: 5, clamp: 0.02)
 			var ctm = self.scene.lgt.ctm
 			enc.setVertexBytes(&ctm, length: sizeof(ctm), index: 2)
 			enc.setVertexBuffer(self.scene.uniforms.buf, offset: 0, index: 1)
@@ -171,23 +169,26 @@ class Renderer: NSObject, MTKViewDelegate {
 		
 		buf.pass(label: "light", descr: self.lightpass) {enc in
 			enc.setStencilReferenceValue(128)
+			enc.setFrontFacing(.counterClockwise)
+			
 			var lgt = self.scene.lgt.ctm
 			var cam = self.scene.cam.ctm
 			enc.setVertexBytes(&cam, length: sizeof(cam), index: 3)
 			enc.setVertexBytes(&lgt, length: sizeof(lgt), index: 2)
 			
-			enc.setState(self.gbufpipe, self.gbufdepth, cull: .front)
-			enc.setFragmentTexture(self.shadepass.depthAttachment.texture!, index: 1)
+			enc.setState(self.gbufpipe, self.gbufdepth, cull: .back)
+			enc.setFragmentTexture(self.shadepass.depthAttachment.texture!, index: 2)
+			
 			enc.setVertexBuffer(self.scene.uniforms.buf, offset: 0, index: 1)
 			enc.setFragmentBuffer(self.scene.uniforms.buf, offset: 0, index: 1)
 			for mdl in self.scene.mdls {
-				enc.setFragmentTexture(mdl.tex, index: 0)
+				enc.setFragmentTexture(mdl.tex, index: 1)
 				for mesh in mdl.meshes {
 					enc.draw(mesh, prim: mdl.prim, iid: mdl.iid, nid: mdl.nid)
 				}
 			}
 			
-			var inv = self.scene.cam.view * self.scene.cam.proj.inverse
+			var inv = cam.inverse
 			var eye = self.scene.cam.pos
 			enc.setFragmentBytes(&inv, length: sizeof(inv), index: 3)
 			enc.setFragmentBytes(&eye, length: sizeof(eye), index: 4)
@@ -196,18 +197,19 @@ class Renderer: NSObject, MTKViewDelegate {
 			enc.setFragmentBuffer(self.scene.lfrgs.buf, offset: 0, index: 2)
 			enc.setVertexBuffer(self.scene.lfrgs.buf, offset: 0, index: 2)
 			
-			enc.setState(self.quadpipe, self.quaddepth, cull: .none)
+			enc.setState(self.quadpipe, self.quaddepth, cull: .front)
 			enc.draw(lib.quadmesh, iid: 0, nid: 1)
 			enc.setState(self.maskpipe, self.maskdepth, cull: .none)
-			enc.draw(lib.icosmesh, iid: 1, nid: 31)
-			enc.setState(self.icospipe, self.icosdepth, cull: .none)
-			enc.draw(lib.icosmesh, iid: 1, nid: 31)
+			enc.draw(lib.icosmesh, iid: 1, nid: self.scene.lfrgs.count-1)
+			enc.setState(self.icospipe, self.icosdepth, cull: .front)
+			enc.draw(lib.icosmesh, iid: 1, nid: self.scene.lfrgs.count-1)
 		
 		}
 		
 	}
 	
 }
+
 
 
 extension MTLCommandBuffer {

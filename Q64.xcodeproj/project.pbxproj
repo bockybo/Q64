@@ -12,7 +12,6 @@
 		7E04792C297DDC9600A51674 /* Library.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E04792B297DDC9600A51674 /* Library.swift */; };
 		7E047934297F183000A51674 /* steel.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 7E047933297F183000A51674 /* steel.jpg */; };
 		7E26356E29942D2E0094DE3C /* Binds.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E26356D29942D2E0094DE3C /* Binds.swift */; };
-		7E2635A32996BF790094DE3C /* Uniforms.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2635A22996BF790094DE3C /* Uniforms.swift */; };
 		7E2FDF142978991200DE8F1F /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2FDF132978991200DE8F1F /* AppDelegate.swift */; };
 		7E2FDF162978991200DE8F1F /* ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2FDF152978991200DE8F1F /* ViewController.swift */; };
 		7E2FDF192978991200DE8F1F /* Q64.xcdatamodeld in Sources */ = {isa = PBXBuildFile; fileRef = 7E2FDF172978991200DE8F1F /* Q64.xcdatamodeld */; };
@@ -35,7 +34,6 @@
 		7E04792B297DDC9600A51674 /* Library.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Library.swift; sourceTree = "<group>"; };
 		7E047933297F183000A51674 /* steel.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = steel.jpg; sourceTree = "<group>"; };
 		7E26356D29942D2E0094DE3C /* Binds.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Binds.swift; sourceTree = "<group>"; };
-		7E2635A22996BF790094DE3C /* Uniforms.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Uniforms.swift; sourceTree = "<group>"; };
 		7E2FDF102978991200DE8F1F /* Q64.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Q64.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		7E2FDF132978991200DE8F1F /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		7E2FDF152978991200DE8F1F /* ViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewController.swift; sourceTree = "<group>"; };
@@ -123,7 +121,6 @@
 				7E04792B297DDC9600A51674 /* Library.swift */,
 				7E2FDF2A29789A9C00DE8F1F /* Renderer.swift */,
 				7E2FDF3229789EA800DE8F1F /* Scene.swift */,
-				7E2635A22996BF790094DE3C /* Uniforms.swift */,
 				7E2FDF3029789CE200DE8F1F /* Shaders.metal */,
 			);
 			path = gfx;
@@ -224,7 +221,6 @@
 				7E2FDF2B29789A9C00DE8F1F /* Renderer.swift in Sources */,
 				7E2FDF3129789CE200DE8F1F /* Shaders.metal in Sources */,
 				7E04792A297DD6D100A51674 /* Demo.swift in Sources */,
-				7E2635A32996BF790094DE3C /* Uniforms.swift in Sources */,
 				7E2FDF162978991200DE8F1F /* ViewController.swift in Sources */,
 				7E2FDF142978991200DE8F1F /* AppDelegate.swift in Sources */,
 				7E2FDF3329789EA800DE8F1F /* Scene.swift in Sources */,

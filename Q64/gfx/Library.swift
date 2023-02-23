@@ -31,12 +31,9 @@ class lib {
 		setup(descr)
 		return try! lib.device.makeRenderPipelineState(descriptor: descr)
 	}
-	static func depthstate(_ setup: (MTLDepthStencilDescriptor, MTLStencilDescriptor)->()) -> MTLDepthStencilState {
+	static func depthstate(_ setup: (MTLDepthStencilDescriptor)->()) -> MTLDepthStencilState {
 		let descr = MTLDepthStencilDescriptor()
-		let op = MTLStencilDescriptor()
-		setup(descr, op)
-		descr.frontFaceStencil = op
-		descr.backFaceStencil = op
+		setup(descr)
 		return lib.device.makeDepthStencilState(descriptor: descr)!
 	}
 	
@@ -104,7 +101,7 @@ class lib {
 		tex: Bool = false
 	) -> MTKMesh {
 		mesh.vertexDescriptor = descr
-		if nml {mesh.addNormals(withAttributeNamed: MDLVertexAttributeNormal, creaseThreshold: 0)}
+		if nml {mesh.addNormals(withAttributeNamed: MDLVertexAttributeNormal, creaseThreshold: 0.0)}
 		if tex {mesh.addUnwrappedTextureCoordinates(forAttributeNamed: MDLVertexAttributeTextureCoordinate)}
 		return try! MTKMesh(mesh: mesh, device: lib.device)
 	}
@@ -187,28 +184,26 @@ class lib {
 			planeWithExtent: float3(2, 2, 0),
 			segments: uint2(1, 1),
 			geometryType: .triangles,
-			allocator: lib.meshalloc), descr: lib.vtxdescrs["base"]!
-	)
+			allocator: lib.meshalloc), descr: lib.vtxdescrs["base"]!)
 	static let icosmesh = lib.mesh(MDLMesh(
 			icosahedronWithExtent: float3(12 / (sqrtf(3) * (3 + sqrtf(5)))),
 			inwardNormals: false,
 			geometryType: .triangles,
-			allocator: lib.meshalloc), descr: lib.vtxdescrs["base"]!
-	)
+			allocator: lib.meshalloc), descr: lib.vtxdescrs["base"]!)
 	
 	
 	class Buffer<T> {
 		let buf: MTLBuffer
+		let ptr: UnsafeMutableBufferPointer<T>
 		init(_ count: Int) {
 			self.buf = lib.device.makeBuffer(
 				length: count * sizeof(T.self),
 				options: .storageModeShared)!
+			let raw = self.buf.contents()
+			let ptr = raw.assumingMemoryBound(to: T.self)
+			self.ptr = .init(start: ptr, count: count)
 		}
-		var count: Int {return self.buf.length / sizeof(T.self)}
-		var ptr: UnsafeMutableBufferPointer<T> {
-			let start = self.buf.contents().assumingMemoryBound(to: T.self)
-			return .init(start: start, count: self.count)
-		}
+		var count: Int {return self.ptr.count}
 		subscript(i: Int) -> T {
 			get {return self.ptr[i]}
 			set(value) {self.ptr[i] = value}

@@ -2,7 +2,6 @@
 using namespace metal;
 
 
-
 typedef texture2d<float, access::sample> texmap2;
 typedef   depth2d<float, access::sample> depmap2;
 
@@ -14,7 +13,7 @@ typedef struct {
 	half4 dst [[color(0), raster_order_group(0)]];
 	half4 alb [[color(1), raster_order_group(1)]];
 	half4 nml [[color(2), raster_order_group(1)]];
-	float dep [[color(3), raster_order_group(1)]];
+	float2 dep [[color(3), raster_order_group(1)]];
 } gbuf;
 typedef struct {
 	float4 loc [[position]];
@@ -31,21 +30,21 @@ typedef struct {
 	float4 lgtloc;
 	float2 texloc;
 	float3 nml;
-	float dep;
 	uint iid [[flat]];
 } frg;
 
 typedef struct {
 	float4x4 ctm;
 	float3 hue;
-	float shn;
+	float rgh;
+	float mtl;
 } model;
 
 typedef struct {
 	float3 hue;
-	float3 dir;
+	float3 pos;
 	float rad;
-} lfrg;
+} light;
 
 
 static inline float3 color(float2 loc, texmap2 albmap) {
@@ -56,7 +55,7 @@ static inline float3 color(float2 loc, texmap2 albmap) {
 }
 static inline float shade(float4 loc, depmap2 shdmap) {
 	constexpr sampler smp(compare_func::greater);
-	constexpr int m = 8;
+	constexpr int m = 4;
 	float dep = loc.z / loc.w;
 	float2 uv = loc.xy / loc.w;
 	uv = 0.5 * float2(1 + uv.x, 1 - uv.y);
@@ -65,67 +64,6 @@ static inline float shade(float4 loc, depmap2 shdmap) {
 		for (int y = 0; y < m; ++y)
 			shd += shdmap.sample_compare(smp, uv, dep, int2(x, y) - m/2);
 	return (float)shd / (m*m);
-}
-static inline float3 phong(float3 alb,
-						   float shn,
-						   float3 pos,
-						   float3 nml,
-						   float3 eye,
-						   float3 dir) {
-	constexpr float ampdiff = 0.8;
-	constexpr float ampspec = 0.5;
-	float k = dot(nml, dir);
-	if (k < 0)
-		return 0;
-	float3 rgb = ampdiff * max(0.0f, k) * alb;
-	if (shn) {
-		shn *= 255.0f;
-		float3 ref = dir - 2*nml*k;
-		float3 dir = normalize(pos - eye);
-		float b = saturate(dot(dir, ref));
-		if (shn > 0)
-			rgb += ampspec * powr(b, shn);
-		else
-			rgb += ampspec * powr(b, -shn) * alb;
-	}
-	return rgb;
-}
-static inline float3 light(constant lfrg &lgt,
-						   gbuf buf,
-						   float3 pos,
-						   float3 eye) {
-	constexpr float ambi = 0.1;
-	
-	float3 alb = (float3)buf.alb.rgb; float shd = buf.alb.a;
-	float3 nml = (float3)buf.nml.xyz; float shn = buf.nml.w;
-	
-	float lit;
-	float3 rgb;
-	float3 dir;
-	if (!lgt.rad) {
-		lit = 1 - shd;
-		dir = lgt.dir;
-		rgb = alb * ambi;
-		if (!lit)
-			return lgt.hue * rgb;
-	} else {
-		dir = lgt.dir - pos;
-		float sqd = length_squared(dir);
-		float sqr = lgt.rad * lgt.rad;
-		if (sqd > sqr)
-			return 0;
-		float att = 1 - sqd/sqr;
-		lit = att * att;
-		dir = normalize(dir);
-		rgb = 0;
-	}
-	rgb += lit * lgt.hue * phong(alb,
-								 shn,
-								 pos,
-								 nml,
-								 eye,
-								 dir);
-	return rgb;
 }
 
 
@@ -157,18 +95,21 @@ vertex frg vtx_gbuf(const device vtx *vtcs			[[buffer(0)]],
 		.iid = iid,
 	};
 }
+
 fragment gbuf frg_gbuf(const frg f					[[stage_in]],
 					   constant model *mdls			[[buffer(1)]],
-					   texmap2 albmap				[[texture(0)]],
-					   depmap2 shdmap				[[texture(1)]]) {
+					   texmap2 albmap				[[texture(1)]],
+					   depmap2 shdmap				[[texture(2)]]) {
 	constant model &mdl = mdls[f.iid];
+	float3 nml = f.nml;
 	float3 alb = color(f.texloc, albmap) * mdl.hue;
-	float  shd = shade(f.lgtloc, shdmap);
+	float shd = shade(f.lgtloc, shdmap);
+	float dep = f.camloc.z;
 	return {
-		.dst = half4(0),
-		.alb = half4((half3)alb, shd),
-		.nml = half4((half3)f.nml, mdl.shn/255.0f),
-		.dep = f.camloc.z,
+		.dst = 0,
+		.alb = half4((half3)alb, mdl.rgh),
+		.nml = half4((half3)nml, mdl.mtl),
+		.dep = float2(dep, shd),
 	};
 }
 
@@ -181,41 +122,100 @@ vertex lpix vtx_quad(const device packed_float3 *vtcs	[[buffer(0)]],
 	return {.loc = loc, .iid = iid};
 }
 vertex lpix vtx_icos(const device packed_float3 *vtcs	[[buffer(0)]],
-					 constant lfrg *lgts				[[buffer(2)]],
-					 constant float4x4 &camctm			[[buffer(3)]],
+					 constant light *lgts				[[buffer(2)]],
+					 constant float4x4 &cam				[[buffer(3)]],
 					 uint vid							[[vertex_id]],
 					 uint iid							[[instance_id]]) {
 	float3 v = vtcs[vid];
-	lfrg lgt = lgts[iid];
-	float3 pos = lgt.dir + lgt.rad * v;
-	float4 loc = camctm * float4(pos, 1);
+	light lgt = lgts[iid];
+	float3 pos = lgt.pos + lgt.rad * v;
+	float4 loc = cam * float4(pos, 1);
 	return {.loc = loc, .iid = iid};
 }
 vertex float4 vtx_mask(const device packed_float3 *vtcs	[[buffer(0)]],
-					   constant lfrg *lgts				[[buffer(2)]],
-					   constant float4x4 &camctm		[[buffer(3)]],
+					   constant light *lgts				[[buffer(2)]],
+					   constant float4x4 &cam			[[buffer(3)]],
 					   uint vid							[[vertex_id]],
 					   uint iid							[[instance_id]]) {
 	float3 v = vtcs[vid];
-	lfrg lgt = lgts[iid];
-	float3 pos = lgt.dir + lgt.rad * v;
-	float4 loc = camctm * float4(pos, 1);
+	light lgt = lgts[iid];
+	float3 pos = lgt.pos + lgt.rad * v;
+	float4 loc = cam * float4(pos, 1);
 	return loc;
 }
 
-fragment ldst frg_light(const gbuf buf,
+#define AMBI 0.08f
+#define DIFF 0.92f
+#define DIAL 0.04f
+static inline float G1(float asq, float ndx) {
+	float cossq = ndx * ndx;
+	float tansq = (1.0f - cossq) / max(cossq, 1e-4);
+	return 2.0f / (1.0f + sqrt(1.0f + asq * tansq));
+}
+static inline float3 BDRF(float rgh,
+						  float mtl,
+						  float3 alb,
+						  float3 nml, float3 dir,
+						  float3 pos, float3 eye) {
+	float ndl = dot(nml = normalize(nml),
+					dir = normalize(dir));
+	if (ndl <= 0)
+		return 0;
+	float3 v = normalize(eye - pos);
+	float3 h = normalize(dir + v);
+	float ndv = dot(nml, v);
+	float ndh = dot(nml, h);
+	float vdh = dot(v, h);
+	float3 fd = mix(alb, 0.0f, mtl) * DIFF / M_PI_F;
+	float3 f0 = mix(DIAL, alb, mtl);
+	float rsq = rgh * rgh;
+	float asq = rsq * rsq;
+	float c = 1.0f + ndh * ndh * (asq - 1.0f);
+	float D = step(0.0f, ndh) * asq / (M_PI_F * c * c);
+	float G = G1(asq, ndl) * G1(asq, ndv);
+	float3 F = f0 + (1.0f - f0) * powr(1.0f - abs(vdh), 5.0f);
+	float3 fs = (D * G * F) / (4.0f * ndl * abs(ndv));
+	return max(0.0f, ndl * (fs + fd));
+}
+
+fragment ldst frg_light(gbuf buf,
 						const lpix pix					[[stage_in]],
-						constant lfrg *lgts				[[buffer(2)]],
+						constant light *lgts			[[buffer(2)]],
 						constant float4x4 &inv			[[buffer(3)]],
 						constant float3 &eye			[[buffer(4)]],
 						constant uint2 &res				[[buffer(5)]]) {
 	
-	float2 uv = pix.loc.xy;
-	uv *= 2 / (float2)res;
-	uv = float2(uv.x - 1, 1 - uv.y);
-	float4 pos = inv * float4(uv, buf.dep, 1);
+	float3 alb = (float3)buf.alb.rgb; float rgh = buf.alb.a;
+	float3 nml = (float3)buf.nml.xyz; float mtl = buf.nml.a;
+	float dep = buf.dep.x;
+	float shd = buf.dep.y;
 	
-	float3 rgb = light(lgts[pix.iid], buf, pos.xyz/pos.w, eye);
-	return {buf.dst + half4((half3)rgb, 0)};
+	float3 ndc = float3(pix.loc.x * 2/(float)res.x - 1,
+						1 - pix.loc.y * 2/(float)res.y,
+						dep);
+	float4 wld = inv * float4(ndc, 1);
+	float3 pos = wld.xyz / wld.w;
+	
+	light lgt = lgts[pix.iid];
+	float3 hue = lgt.hue;
+	float3 dir = lgt.pos;
+	
+	float lit = 1 - shd;
+	if (!lgt.rad)
+		buf.dst.rgb += half3(AMBI * hue * alb);
+	else {
+		float sqd = length_squared(dir -= pos);
+		float sqr = lgt.rad * lgt.rad;
+		if (sqd > sqr)
+			return {buf.dst};
+		float att = 1 - sqrt(sqd/sqr);
+		lit *= att * att;
+	}
+	if (!lit)
+		return {buf.dst};
+	
+	float3 rgb = lit * hue * BDRF(rgh, mtl, alb, nml, dir, pos, eye);
+	buf.dst.rgb += (half3)rgb;
+	return {buf.dst};
 	
 }
