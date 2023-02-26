@@ -2,20 +2,31 @@ import MetalKit
 
 
 struct Model {
-	var iid: Int
-	var nid: Int
 	var meshes: [MTKMesh] = []
-	var tex: MTLTexture? = nil
+	var material = Material()
+	var nid = 1
 	var prim: MTLPrimitiveType = .triangle
 	
+	struct Material {
+		var alb: MTLTexture? = nil
+		var nml: MTLTexture? = nil
+		var rgh: MTLTexture? = nil
+		var mtl: MTLTexture? = nil
+	}
+	
 	struct Unif {
-		var ctm: float4x4
-		var color: float3
-		var rough: float
-		var metal: float
+		var ctm: float4x4 = .idt {didSet {
+			let inv = self.ctm.inverse.transpose
+			self.inv[0] = inv[0].xyz
+			self.inv[1] = inv[1].xyz
+			self.inv[2] = inv[2].xyz
+		}}
+		var inv: float3x3 = .idt
 	}
 	
 }
+
+
 
 class Scene {
 	var mdls: [Model]
@@ -24,13 +35,17 @@ class Scene {
 		self.mdls = mdls
 	}
 	
-	let uniforms = lib.Buffer<Model.Unif>(512)
+	let uniforms: lib.Buffer<Model.Unif> = {
+		let unifs = lib.Buffer<Model.Unif>.init(128)
+		for i in 0..<unifs.count {unifs[i] = .init()}
+		return unifs
+	}()
 	
-	let lfrgs: lib.Buffer<Light.Unif> = {
-		let lfrgs = lib.Buffer<Light.Unif>.init(64)
-		for i in 1..<64 {
-			lfrgs[i].rad = 150
-			lfrgs[i].hue = [
+	let lights: lib.Buffer<Sun.Unif> = {
+		let lights = lib.Buffer<Sun.Unif>.init(32)
+		for i in 1..<lights.count {
+			lights[i].rad = 100
+			lights[i].hue = [
 				float3(1, 1, 1),
 				float3(1, 1, 0),
 				float3(1, 0, 1),
@@ -38,19 +53,19 @@ class Scene {
 			].randomElement()!
 			let x = float.random(in: -150..<150)
 			let y = float.random(in: -150..<150)
-			lfrgs[i].pos = float3(x, 20, y)
+			lights[i].pos = float3(x, 25, y)
 		}
-		return lfrgs
+		return lights
 	}()
 	// (tmp.) TODO: unify w/ pt buf & org
-	var lgt = Light() {didSet {self.lfrgs[0] = self.lgt.unif}}
+	var sun = Sun() {didSet {self.lights[0] = self.sun.unif}}
 	
 	
 	struct Camera {
 		
 		var asp: float = 1
-		var fov: float = 90 * .pi/180
-		var z0: float = 1
+		var fov: float = 65 * .pi/180
+		var z0: float = 0.1
 		var z1: float = 1e3
 		var proj: float4x4 {
 			return .persp(
@@ -77,14 +92,14 @@ class Scene {
 		
 	}
 	
-	struct Light {
+	struct Sun {
 		var hue = float3(1)
 		var src = float3(0)
 		var dst = float3(0)
 		var dir: float3 {return normalize(self.dst - self.src)}
 		
-		var p0 = float3(-200, -200, 0)
-		var p1 = float3(+200, +200, 1e5)
+		var p0 = float3(-400, -400, 0.1)
+		var p1 = float3(+400, +400, 1e10)
 		var proj: float4x4 {return .ortho(p0: self.p0, p1: self.p1)}
 		var view: float4x4 {return .look(dst: self.dst, src: self.src)}
 		var ctm: float4x4 {return self.proj * self.view.inverse}

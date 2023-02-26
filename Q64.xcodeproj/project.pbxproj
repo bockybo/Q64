@@ -10,8 +10,14 @@
 		7E047924297CE1BB00A51674 /* cruiser.obj in Resources */ = {isa = PBXBuildFile; fileRef = 7E047921297CE1BB00A51674 /* cruiser.obj */; };
 		7E04792A297DD6D100A51674 /* Demo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E047929297DD6D100A51674 /* Demo.swift */; };
 		7E04792C297DDC9600A51674 /* Library.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E04792B297DDC9600A51674 /* Library.swift */; };
-		7E047934297F183000A51674 /* steel.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 7E047933297F183000A51674 /* steel.jpg */; };
 		7E26356E29942D2E0094DE3C /* Binds.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E26356D29942D2E0094DE3C /* Binds.swift */; };
+		7E2E35DA29AB3FDC006E80E3 /* Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2E35D929AB3FDC006E80E3 /* Extensions.swift */; };
+		7E2E35E129AB4AA5006E80E3 /* brick_nml.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 7E2E35DB29AB4AA3006E80E3 /* brick_nml.jpg */; };
+		7E2E35E229AB4AA5006E80E3 /* steel_alb.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 7E2E35DC29AB4AA3006E80E3 /* steel_alb.jpg */; };
+		7E2E35E329AB4AA5006E80E3 /* dirt_nml.png in Resources */ = {isa = PBXBuildFile; fileRef = 7E2E35DD29AB4AA4006E80E3 /* dirt_nml.png */; };
+		7E2E35E429AB4AA5006E80E3 /* brick_alb.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 7E2E35DE29AB4AA4006E80E3 /* brick_alb.jpg */; };
+		7E2E35E529AB4AA5006E80E3 /* dirt_alb.png in Resources */ = {isa = PBXBuildFile; fileRef = 7E2E35DF29AB4AA5006E80E3 /* dirt_alb.png */; };
+		7E2E35E629AB4AA5006E80E3 /* dirt_rgh.png in Resources */ = {isa = PBXBuildFile; fileRef = 7E2E35E029AB4AA5006E80E3 /* dirt_rgh.png */; };
 		7E2FDF142978991200DE8F1F /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2FDF132978991200DE8F1F /* AppDelegate.swift */; };
 		7E2FDF162978991200DE8F1F /* ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2FDF152978991200DE8F1F /* ViewController.swift */; };
 		7E2FDF192978991200DE8F1F /* Q64.xcdatamodeld in Sources */ = {isa = PBXBuildFile; fileRef = 7E2FDF172978991200DE8F1F /* Q64.xcdatamodeld */; };
@@ -32,8 +38,14 @@
 		7E047921297CE1BB00A51674 /* cruiser.obj */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = cruiser.obj; sourceTree = "<group>"; };
 		7E047929297DD6D100A51674 /* Demo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Demo.swift; sourceTree = "<group>"; };
 		7E04792B297DDC9600A51674 /* Library.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Library.swift; sourceTree = "<group>"; };
-		7E047933297F183000A51674 /* steel.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = steel.jpg; sourceTree = "<group>"; };
 		7E26356D29942D2E0094DE3C /* Binds.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Binds.swift; sourceTree = "<group>"; };
+		7E2E35D929AB3FDC006E80E3 /* Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Extensions.swift; sourceTree = "<group>"; };
+		7E2E35DB29AB4AA3006E80E3 /* brick_nml.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = brick_nml.jpg; sourceTree = "<group>"; };
+		7E2E35DC29AB4AA3006E80E3 /* steel_alb.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = steel_alb.jpg; sourceTree = "<group>"; };
+		7E2E35DD29AB4AA4006E80E3 /* dirt_nml.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = dirt_nml.png; sourceTree = "<group>"; };
+		7E2E35DE29AB4AA4006E80E3 /* brick_alb.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = brick_alb.jpg; sourceTree = "<group>"; };
+		7E2E35DF29AB4AA5006E80E3 /* dirt_alb.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = dirt_alb.png; sourceTree = "<group>"; };
+		7E2E35E029AB4AA5006E80E3 /* dirt_rgh.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = dirt_rgh.png; sourceTree = "<group>"; };
 		7E2FDF102978991200DE8F1F /* Q64.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Q64.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		7E2FDF132978991200DE8F1F /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		7E2FDF152978991200DE8F1F /* ViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewController.swift; sourceTree = "<group>"; };
@@ -68,7 +80,12 @@
 			children = (
 				7E047929297DD6D100A51674 /* Demo.swift */,
 				7E047921297CE1BB00A51674 /* cruiser.obj */,
-				7E047933297F183000A51674 /* steel.jpg */,
+				7E2E35DE29AB4AA4006E80E3 /* brick_alb.jpg */,
+				7E2E35DB29AB4AA3006E80E3 /* brick_nml.jpg */,
+				7E2E35DF29AB4AA5006E80E3 /* dirt_alb.png */,
+				7E2E35DD29AB4AA4006E80E3 /* dirt_nml.png */,
+				7E2E35E029AB4AA5006E80E3 /* dirt_rgh.png */,
+				7E2E35DC29AB4AA3006E80E3 /* steel_alb.jpg */,
 			);
 			path = demo;
 			sourceTree = "<group>";
@@ -119,6 +136,7 @@
 			isa = PBXGroup;
 			children = (
 				7E04792B297DDC9600A51674 /* Library.swift */,
+				7E2E35D929AB3FDC006E80E3 /* Extensions.swift */,
 				7E2FDF2A29789A9C00DE8F1F /* Renderer.swift */,
 				7E2FDF3229789EA800DE8F1F /* Scene.swift */,
 				7E2FDF3029789CE200DE8F1F /* Shaders.metal */,
@@ -204,9 +222,14 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				7E2E35E529AB4AA5006E80E3 /* dirt_alb.png in Resources */,
 				7E047924297CE1BB00A51674 /* cruiser.obj in Resources */,
-				7E047934297F183000A51674 /* steel.jpg in Resources */,
+				7E2E35E229AB4AA5006E80E3 /* steel_alb.jpg in Resources */,
+				7E2E35E129AB4AA5006E80E3 /* brick_nml.jpg in Resources */,
+				7E2E35E629AB4AA5006E80E3 /* dirt_rgh.png in Resources */,
 				7E2FDF1B2978991300DE8F1F /* Assets.xcassets in Resources */,
+				7E2E35E429AB4AA5006E80E3 /* brick_alb.jpg in Resources */,
+				7E2E35E329AB4AA5006E80E3 /* dirt_nml.png in Resources */,
 				7E2FDF1E2978991300DE8F1F /* Main.storyboard in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -229,6 +252,7 @@
 				7E2FDF192978991200DE8F1F /* Q64.xcdatamodeld in Sources */,
 				7E2FDF3F2978A4D800DE8F1F /* Cursor.swift in Sources */,
 				7E2FDF492978AC3400DE8F1F /* Control.swift in Sources */,
+				7E2E35DA29AB3FDC006E80E3 /* Extensions.swift in Sources */,
 				7E2FDF2D29789AD900DE8F1F /* Math.swift in Sources */,
 				7E2FDF2F29789B7800DE8F1F /* Config.swift in Sources */,
 				7E04792C297DDC9600A51674 /* Library.swift in Sources */,

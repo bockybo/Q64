@@ -5,6 +5,7 @@ typealias float = Float32
 typealias float2 = simd_float2
 typealias float3 = simd_float3
 typealias float4 = simd_float4
+typealias float3x3 = simd_float3x3
 typealias float4x4 = simd_float4x4
 
 typealias uint = UInt32
@@ -12,27 +13,32 @@ typealias uint2 = simd_uint2
 typealias uint3 = simd_uint3
 
 
+extension SIMD2 {
+	init(_ scalar: Scalar) {self.init(repeating: scalar)}
+}
+extension SIMD3 {
+	init(_ scalar: Scalar) {self.init(repeating: scalar)}
+	var xy: SIMD2<Scalar> {return .init(self.x, self.y)}
+}
+extension SIMD4 {
+	init(_ scalar: Scalar) {self.init(repeating: scalar)}
+	var xy:  SIMD2<Scalar> {return .init(self.x, self.y)}
+	var xyz: SIMD3<Scalar> {return .init(self.x, self.y, self.z)}
+}
+
+
 extension float2 {
-	init(_ z: float) {self.init(z, z)}
-	
 	static func rot(_ rot: float) -> float2 {return .init(cos(rot), sin(rot))}
-	
 }
 
 extension float3 {
-	init(_ w: float) {self.init(w, w, w)}
-	
-	var xy: float2 {return simd_make_float2(self)}
-	
 	static let x = float3(1, 0, 0)
 	static let y = float3(0, 1, 0)
 	static let z = float3(0, 0, 1)
-	
 }
 
-extension float4 {
-	var xy: float2 {return simd_make_float2(self)}
-	var xyz: float3 {return simd_make_float3(self)}
+extension float3x3 {
+	static let idt: float3x3 = matrix_identity_float3x3
 }
 
 extension float4x4 {

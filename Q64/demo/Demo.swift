@@ -5,99 +5,121 @@ import MetalKit
 //	subview to push hooks -> server doesn't need unifs
 //	subview to pull unifs <- server doesn't need hooks
 class Demo: Ctrl {
+	static let dim: float = 400
+	static let nsph = 20
+	static let nbox = 30
+	
+	static let mdls = [
+		Model( // CRUISER
+			meshes: lib.meshes(path: "cruiser.obj"),
+			material: .init(
+//				alb: lib.texture(path: "steel_alb.jpg"),
+				alb: lib.texture(src: float4(0, 1, 1, 1), fmt: .rgba32Float),
+				rgh: lib.texture(src: float(0.1), fmt: .r32Float),
+				mtl: lib.texture(src: float(0.0), fmt: .r32Float)
+			)
+			 ),
+		Model( // GND
+			meshes: [meshlib.box(dim: float3(Demo.dim, 10, Demo.dim))],
+			material: .init(
+//				alb: lib.texture(path: "dirt_alb.png"),
+				nml: lib.texture(path: "dirt_nml.png"),
+				rgh: lib.texture(path: "dirt_rgh.png")
+			)
+			 ),
+		Model( // OGN
+			meshes: [meshlib.sph(dim: float3(4, 11, 4))],
+			material: .init(
+				alb: lib.texture(src: float4(1, 0, 1, 1), fmt: .rgba32Float),
+				rgh: lib.texture(src: float(0.1), fmt: .r32Float),
+				mtl: lib.texture(src: float(0.0), fmt: .r32Float)
+			)
+			 ),
+		Model( // SUN
+			meshes: [meshlib.sph(dim: float3(10), seg: uint2(20), inwd: true)],
+			material: .init(
+				alb: lib.texture(src: float4(1, 1, 0, 1), fmt: .rgba32Float)
+			),
+			prim: .line
+			 ),
+		Model( // SPH
+			meshes: [meshlib.sph(seg: uint2(100, 10))],
+			material: .init(
+				rgh: lib.texture(src: float(0.2), fmt: .r32Float),
+				mtl: lib.texture(src: float(1.0), fmt: .r32Float)
+			),
+			nid: Demo.nsph
+			 ),
+		Model( // BOX
+			meshes: [meshlib.box()],
+			material: .init(
+				alb: lib.texture(path: "brick_alb.jpg"),
+				nml: lib.texture(path: "brick_nml.jpg"),
+				rgh: lib.texture(src: float(0.2), fmt: .r32Float),
+				mtl: lib.texture(src: float(1.0), fmt: .r32Float)
+			),
+			nid: Demo.nbox
+			 ),
+	]
+	
 	let scene: Scene = {
-		let dim: float = 300
-		let nsph = 15
-		let nbox = 30
-		let nobs = nsph + nbox
+		let scene = Scene(Demo.mdls)
 		
-		let ogn_vtcs = [
-			float3(-1, 0, -1),
-			float3( 0, 0, +1),
-			float3(+1, 0, -1),
-			float3( 0, 1,  0),
-		]
-		let ogn_idcs: [uint] = [
-			0, 1, 2,
-			0, 1, 3,
-			1, 2, 3,
-			2, 0, 3,
-		]
+		scene.sun.hue = 5 * normalize(float3(0.95, 0.85, 0.65))
+		scene.sun.dst = float3(0)
+		scene.sun.src = float3(1, 0.5, 1) * Demo.dim
 		
-		let scene = Scene([
-//			Model(iid: 0, 		nid: 1, 	meshes: lib.meshes(path: "cruiser.obj"), tex: lib.texture(path: "steel.jpg")),
-			Model(iid: 0, 		nid: 1,		meshes: lib.meshes(path: "cruiser.obj")),
-			Model(iid: 1, 		nid: 1, 	meshes: [lib.boxmesh(1)]),
-			Model(iid: 2, 		nid: 1, 	meshes: [lib.mesh(vtcs: ogn_vtcs, idcs: ogn_idcs)]),
-			Model(iid: 3, 		nid: 1, 	meshes: [lib.sphmesh(20, invnml: true)], prim: .line),
-			Model(iid: 4,		nid: nsph, 	meshes: [lib.sphmesh(100)]),
-			Model(iid: 4+nsph, 	nid: nbox, 	meshes: [lib.boxmesh(1)]),
-		])
-		
-		scene.lgt.hue = 1.0 * float3(0.95, 0.85, 0.65)
-		
-		scene.uniforms[0].color = float3(0, 1, 1)
-		scene.uniforms[0].rough = 0.5
-		scene.uniforms[0].metal = 0.9
-		scene.uniforms[1].color = float3(1, 1, 1)
-		scene.uniforms[1].rough = 1.0
-		scene.uniforms[1].metal = 0.0
-		scene.uniforms[2].color = float3(1, 0, 1)
-		scene.uniforms[2].rough = 1.0
-		scene.uniforms[2].metal = 0.0
-		scene.uniforms[3].color = float3(1, 1, 0)
-		scene.uniforms[3].rough = 1.0
-		scene.uniforms[3].metal = 0.0
-		
-		scene.uniforms[1].ctm = .mag(float3(dim, 10, dim))
-		
-		for i in 4..<4+nobs {
-			
-			let r = float3.random(in: -1..<1) * dim * 0.45
-			scene.uniforms[i].ctm = .pos(r * (1 - .y)) * .mag(float3(2.5, 0.4 * abs(r.y), 2.5))
-			
-			scene.uniforms[i].color = float3(1)
-			scene.uniforms[i].rough = 1.0
-			scene.uniforms[i].metal = 0.0
-			
+		for i in 4 ..< 4+Demo.nsph+Demo.nbox {
+			let r = float3.random(in: -1..<1) * Demo.dim * 0.45
+			var pos = float3(r.x, 0, r.z)
+			var mag = float3(6)
+			if i < 4+Demo.nsph {
+				mag.y = abs(r.y)
+				mag *= 0.4
+			} else {
+				pos.y += 5 + mag.y/2
+			}
+			scene.uniforms[i].ctm = .pos(pos) * .mag(mag)
 		}
 		
 		return scene
 	}()
 	
 	var t0 = DispatchTime.now().uptimeNanoseconds
-	var time: float = 0
-	func tick() {
-		if self.paused {return}
-		self.time += 0.0015
-		
+	var dt: float {
 		let t1 = DispatchTime.now().uptimeNanoseconds
-		let dt = 1e-7 * float(t1 - self.t0)
+		let dt = t1 - self.t0
 		self.t0 = t1
+		if self.paused {return 0}
+		return float(dt)
+	}
+	var t: float = 0
+	
+	func tick() {
+		let dt = self.dt
+		if (dt == 0) {return}
+		self.t += 0.0016
 		
-		self.cruiser.tick(dt: dt)
-		self.camera.tick(dt: dt)
+		self.cruiser.tick(dt: dt * 15e-8)
+		self.scene.uniforms[0].ctm = self.cruiser.ctm * .mag(1.5)
 		
+		self.camera.tick(dt: dt * 15e-8)
 		self.scene.cam.pos = self.camera.pos
 		self.scene.cam.rot = self.camera.rot
 		
-		self.scene.lgt.src = 300 * float3(
-			cosf(self.time),
-			sinf(self.time * 10) * 0.12 + 0.5,
-			sinf(self.time)
+		self.scene.sun.src = Demo.dim * float3(
+			cosf(self.t),
+			sinf(self.t * 10) * 0.2 + 0.5,
+			sinf(self.t)
 		)
 		
-		self.scene.uniforms[0].ctm = self.cruiser.ctm * .mag(1.5)
-		self.scene.uniforms[2].ctm = .mag(float3(2, 7.5, 2)) * .yrot(self.time * 5)
-		self.scene.uniforms[3].ctm = .pos(self.scene.lgt.src) * .mag(10) * .yrot(self.time * 8)
-		
-//		self.scene.lfrgs[0].dir = self.scene.lgt.src
-//		self.scene.lfrgs[0].rad = 300
+		self.scene.uniforms[2].ctm = .yrot(-self.t)
+		self.scene.uniforms[3].ctm = .pos(self.scene.sun.src) * .yrot(-self.t * 8)
 		
 	}
 	
 	
-	var cruiser = Cruiser(pos: float3(0, 8, 0))
+	var cruiser = Cruiser(pos: float3(0, 12, 0))
 	var camera = Camera(pos: float3(0, 20, 30))
 	
 	struct Camera {
@@ -118,7 +140,7 @@ class Demo: Ctrl {
 				self.vel += vel * 0.1
 			}
 			self.pos += self.vel * dt
-			self.vel *= 0.9
+			self.vel *= float3(0.87, 0.8, 0.87)
 		}
 	}
 	
@@ -130,7 +152,7 @@ class Demo: Ctrl {
 		mutating func tick(dt: float) {
 			self.rot.x -= 0.03 * self.mov.x
 			self.rot.z -= 0.08 * self.mov.z
-			self.rot.y -= 0.1 * self.rot.z * dt
+			self.rot.y -= 0.08 * self.rot.z * dt
 			self.vel.x += 0.2 * self.rot.x * sin(-self.rot.y)
 			self.vel.z += 0.2 * self.rot.x * cos(-self.rot.y)
 			self.pos -= 0.1 * self.vel * dt
