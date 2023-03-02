@@ -1,34 +1,29 @@
 import MetalKit
 
 
-extension MDLMesh {
-	
-	func hasAttributeNamed(_ name: String) -> Bool {
-		return self.vertexAttributeData(forAttributeNamed: name) != nil
+extension MTLBuffer {
+	func write(_ src: UnsafeRawPointer, length: Int) {
+		assert(length <= self.length)
+		memcpy(self.contents(), src, length)
+		if self.storageMode == .managed {self.didModifyRange(0..<length)}
 	}
-	func setVertexDescriptor(_ descr: MDLVertexDescriptor) {
-		let names = descr.attributes.map {attr in (attr as! MDLVertexAttribute).name}
-		let needs: (String)->(Bool) = {name in names.contains(name) && !self.hasAttributeNamed(name)}
-		if needs(MDLVertexAttributeNormal) {self.addNormals(
-			withAttributeNamed: MDLVertexAttributeNormal,
-			creaseThreshold: 1.0
-		)}
-		if needs(MDLVertexAttributeTextureCoordinate) {self.addUnwrappedTextureCoordinates(
-			forAttributeNamed: MDLVertexAttributeTextureCoordinate
-		)}
-		if needs(MDLVertexAttributeTangent) {self.addOrthTanBasis(
-			forTextureCoordinateAttributeNamed: MDLVertexAttributeTextureCoordinate,
-			normalAttributeNamed: MDLVertexAttributeNormal,
-			tangentAttributeNamed: MDLVertexAttributeTangent
-		)}
-		self.vertexDescriptor = descr
-	}
-	
 }
 
+extension MTLCommandQueue {
+	func commit(label: String, _ cmds: (MTLCommandBuffer)->()) {
+		guard let buf = self.makeCommandBuffer() else {
+			fatalError("Couldn't make command buffer for label: \(label)")
+		}
+		buf.label = label
+		cmds(buf)
+		buf.commit()
+	}
+}
 extension MTLCommandBuffer {
 	func pass(label: String, descr: MTLRenderPassDescriptor, _ cmds: (MTLRenderCommandEncoder)->()) {
-		let enc = self.makeRenderCommandEncoder(descriptor: descr)!
+		guard let enc = self.makeRenderCommandEncoder(descriptor: descr) else {
+			fatalError("Couldn't make render command encoder for label: \(label)")
+		}
 		enc.label = label
 		enc.pushDebugGroup(label)
 		cmds(enc)
@@ -60,7 +55,7 @@ extension MTLRenderCommandEncoder {
 		}
 	}
 	
-	func setState(
+	func setStates(
 		_ state: MTLRenderPipelineState,
 		_ depth: MTLDepthStencilState,
 		cull: MTLCullMode = .none

@@ -12,9 +12,11 @@ struct Model {
 		var nml: MTLTexture? = nil
 		var rgh: MTLTexture? = nil
 		var mtl: MTLTexture? = nil
+		var  ao: MTLTexture? = nil
+		var emm: MTLTexture? = nil
 	}
 	
-	struct Unif {
+	struct MDL {
 		var ctm: float4x4 = .idt {didSet {
 			let inv = self.ctm.inverse.transpose
 			self.inv[0] = inv[0].xyz
@@ -29,37 +31,38 @@ struct Model {
 
 
 class Scene {
-	var mdls: [Model]
-	var cam = Camera()
-	init(_ mdls: [Model] = []) {
-		self.mdls = mdls
+	var models: [Model]
+	init(_ models: [Model] = []) {
+		self.models = models
 	}
 	
-	let uniforms: lib.Buffer<Model.Unif> = {
-		let unifs = lib.Buffer<Model.Unif>.init(128)
-		for i in 0..<unifs.count {unifs[i] = .init()}
-		return unifs
-	}()
+	var cam = Camera()
+	var sun = Sun() {didSet {self.lgts[0] = self.sun.lgt}}
 	
-	let lights: lib.Buffer<Sun.Unif> = {
-		let lights = lib.Buffer<Sun.Unif>.init(32)
-		for i in 1..<lights.count {
-			lights[i].rad = 100
-			lights[i].hue = [
-				float3(1, 1, 1),
-				float3(1, 1, 0),
-				float3(1, 0, 1),
-				float3(0, 1, 1),
-			].randomElement()!
-			let x = float.random(in: -150..<150)
-			let y = float.random(in: -150..<150)
-			lights[i].pos = float3(x, 25, y)
-		}
-		return lights
-	}()
-	// (tmp.) TODO: unify w/ pt buf & org
-	var sun = Sun() {didSet {self.lights[0] = self.sun.unif}}
 	
+	// once ptlgts have shadows, can be refactored; CAM and LGT independent, no SCN
+	struct SCN {
+		var sun_ctm: float4x4
+		var cam_ctm: float4x4
+		var cam_inv: float4x4
+		var cam_pos: float3
+	}
+	struct LGT {
+		var hue: float3 = float3(1)
+		var pos: float3 = float3(0)
+		var dir: float3 = float3(0)
+		var rad: float = float(0)
+		var spr: float = float(0)
+	}
+	
+	var mdls: [Model.MDL] = []
+	var lgts: [Scene.LGT] = []
+	var scn: SCN {return .init(
+		sun_ctm: self.sun.ctm,
+		cam_ctm: self.cam.ctm,
+		cam_inv: self.cam.inv,
+		cam_pos: self.cam.pos
+	)}
 	
 	struct Camera {
 		
@@ -98,24 +101,17 @@ class Scene {
 		var dst = float3(0)
 		var dir: float3 {return normalize(self.dst - self.src)}
 		
-		var p0 = float3(-400, -400, 0.1)
-		var p1 = float3(+400, +400, 1e10)
+		var p0 = float3(-225, -225, 0.1)
+		var p1 = float3(+225, +225, 1e10)
 		var proj: float4x4 {return .ortho(p0: self.p0, p1: self.p1)}
 		var view: float4x4 {return .look(dst: self.dst, src: self.src)}
 		var ctm: float4x4 {return self.proj * self.view.inverse}
 		
-		var unif: Unif {
+		var lgt: Scene.LGT {
 			return .init(
 				hue:  self.hue,
-				pos: -self.dir,
-				rad: 0
+				dir: -self.dir
 			)
-		}
-		
-		struct Unif {
-			var hue: float3
-			var pos: float3
-			var rad: float
 		}
 		
 	}

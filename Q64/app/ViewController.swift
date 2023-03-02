@@ -14,6 +14,7 @@ class ViewController: NSViewController {
 		)
 		self.view = view
 		self.renderer = Renderer(view)
+		view.delegate = self.renderer
 	}
 	
 	override func viewWillAppear() {

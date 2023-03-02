@@ -5,81 +5,114 @@ import MetalKit
 //	subview to push hooks -> server doesn't need unifs
 //	subview to pull unifs <- server doesn't need hooks
 class Demo: Ctrl {
-	static let dim: float = 400
-	static let nsph = 20
-	static let nbox = 30
+	static let dim: float = 300
+	static let nsph = 18
+	static let nbox = 25
 	
-	static let mdls = [
+	static var models = [
 		Model( // CRUISER
-			meshes: lib.meshes(path: "cruiser.obj"),
+			meshes: lib.meshes("cruiser.obj", ctm: .mag(1.2)),
 			material: .init(
-//				alb: lib.texture(path: "steel_alb.jpg"),
-				alb: lib.texture(src: float4(0, 1, 1, 1), fmt: .rgba32Float),
-				rgh: lib.texture(src: float(0.1), fmt: .r32Float),
-				mtl: lib.texture(src: float(0.0), fmt: .r32Float)
+				alb: lib.texture("alum_alb.png", srgb: true),
+				rgh: lib.texture("alum_rgh.png"),
+				mtl: lib.texture("alum_mtl.png"),
+				ao: lib.texture("alum_ao.png")
 			)
-			 ),
+		),
 		Model( // GND
 			meshes: [meshlib.box(dim: float3(Demo.dim, 10, Demo.dim))],
 			material: .init(
-//				alb: lib.texture(path: "dirt_alb.png"),
-				nml: lib.texture(path: "dirt_nml.png"),
-				rgh: lib.texture(path: "dirt_rgh.png")
+				alb: lib.texture("snow_alb.jpg", srgb: true),
+				nml: lib.texture("snow_nml.jpg"),
+				rgh: lib.texture("snow_rgh.jpg"),
+				mtl: lib.texture("snow_mtl.jpg")
 			)
-			 ),
+		),
 		Model( // OGN
-			meshes: [meshlib.sph(dim: float3(4, 11, 4))],
+			meshes: [meshlib.sph(dim: float3(2, 6, 2)/1.5)],
 			material: .init(
-				alb: lib.texture(src: float4(1, 0, 1, 1), fmt: .rgba32Float),
-				rgh: lib.texture(src: float(0.1), fmt: .r32Float),
-				mtl: lib.texture(src: float(0.0), fmt: .r32Float)
+				alb: lib.texture("gold_alb.jpg", srgb: true),
+				nml: lib.texture("gold_nml.jpg"),
+				rgh: lib.texture("gold_rgh.jpg"),
+				mtl: lib.texture(src: uchar(255), fmt: .r8Unorm),
+				ao: lib.texture("gold_ao.jpg"),
+				emm: lib.texture(src: uchar(255), fmt: .r8Unorm)
 			)
-			 ),
+		),
 		Model( // SUN
 			meshes: [meshlib.sph(dim: float3(10), seg: uint2(20), inwd: true)],
 			material: .init(
-				alb: lib.texture(src: float4(1, 1, 0, 1), fmt: .rgba32Float)
+				alb: lib.texture(src: uchar4(255, 255, 0, 255), fmt: .rgba8Unorm_srgb)
 			),
 			prim: .line
-			 ),
+		),
 		Model( // SPH
-			meshes: [meshlib.sph(seg: uint2(100, 10))],
+			meshes: [meshlib.hem(dim: float3(0.4), seg: uint2(400, 100))],
 			material: .init(
-				rgh: lib.texture(src: float(0.2), fmt: .r32Float),
-				mtl: lib.texture(src: float(1.0), fmt: .r32Float)
+				alb: lib.texture("conc_alb.jpg", srgb: true),
+				nml: lib.texture("conc_nml.jpg"),
+				rgh: lib.texture("conc_rgh.jpg"),
+				ao: lib.texture("conc_ao.jpg")
 			),
 			nid: Demo.nsph
-			 ),
+		),
 		Model( // BOX
 			meshes: [meshlib.box()],
 			material: .init(
-				alb: lib.texture(path: "brick_alb.jpg"),
-				nml: lib.texture(path: "brick_nml.jpg"),
-				rgh: lib.texture(src: float(0.2), fmt: .r32Float),
-				mtl: lib.texture(src: float(1.0), fmt: .r32Float)
+				alb: lib.texture("brick_alb.jpg", srgb: true),
+				nml: lib.texture("brick_nml.jpg"),
+				rgh: lib.texture(src: uchar( 64), fmt: .r8Unorm),
+				mtl: lib.texture(src: uchar(255), fmt: .r8Unorm)
 			),
 			nid: Demo.nbox
-			 ),
+		),
 	]
 	
 	let scene: Scene = {
-		let scene = Scene(Demo.mdls)
+		let scene = Scene(Demo.models)
 		
-		scene.sun.hue = 5 * normalize(float3(0.95, 0.85, 0.65))
+		let nins = 4 + Demo.nsph + Demo.nbox
+		scene.mdls += [Model.MDL](repeating: .init(ctm: .idt), count: nins)
+		scene.lgts += [scene.sun.lgt]
+		scene.lgts += (0..<nins).map {_ in .init(
+			hue: normalize([
+				float3(1, 1, 0),
+				float3(1, 0, 1),
+				float3(0, 1, 1),
+			].randomElement()!)
+		)}
+		
+		scene.sun.hue = 4 * normalize(float3(0.95, 0.85, 0.65))
 		scene.sun.dst = float3(0)
 		scene.sun.src = float3(1, 0.5, 1) * Demo.dim
 		
-		for i in 4 ..< 4+Demo.nsph+Demo.nbox {
+		for i in 4..<nins {
 			let r = float3.random(in: -1..<1) * Demo.dim * 0.45
-			var pos = float3(r.x, 0, r.z)
+			var pos = float3(r.x, 5, r.z)
 			var mag = float3(6)
+			
 			if i < 4+Demo.nsph {
 				mag.y = abs(r.y)
-				mag *= 0.4
+				
+				scene.lgts[i - 3].pos.y = 0.7 * mag.y
+				scene.lgts[i - 3].hue *= 10.0
+				scene.lgts[i - 3].spr = 15 * .pi/180
+				scene.lgts[i - 3].rad = 2.0
+				
 			} else {
-				pos.y += 5 + mag.y/2
+				pos.y += mag.y * 0.5
+				
+				scene.lgts[i - 3].pos.y = mag.y + 12
+				scene.lgts[i - 3].hue *= 3.0
+				scene.lgts[i - 3].rad = 1.5
 			}
-			scene.uniforms[i].ctm = .pos(pos) * .mag(mag)
+			
+			scene.mdls[i].ctm = .pos(pos) * .mag(mag)
+			
+			scene.lgts[i - 3].pos.x = pos.x
+			scene.lgts[i - 3].pos.z = pos.z
+			scene.lgts[i - 3].rad *= scene.lgts[i - 3].pos.y
+			
 		}
 		
 		return scene
@@ -101,20 +134,26 @@ class Demo: Ctrl {
 		self.t += 0.0016
 		
 		self.cruiser.tick(dt: dt * 15e-8)
-		self.scene.uniforms[0].ctm = self.cruiser.ctm * .mag(1.5)
+		self.scene.mdls[0].ctm = .pos(.y * 2) * self.cruiser.ctm
 		
 		self.camera.tick(dt: dt * 15e-8)
 		self.scene.cam.pos = self.camera.pos
 		self.scene.cam.rot = self.camera.rot
 		
-		self.scene.sun.src = Demo.dim * float3(
-			cosf(self.t),
-			sinf(self.t * 10) * 0.2 + 0.5,
-			sinf(self.t)
+		self.scene.sun.src = 0.75 * Demo.dim * float3(
+			cosf(self.t / 2),
+			sinf(self.t * 5) * 0.15 + 0.5,
+			sinf(self.t / 2)
 		)
 		
-		self.scene.uniforms[2].ctm = .yrot(-self.t)
-		self.scene.uniforms[3].ctm = .pos(self.scene.sun.src) * .yrot(-self.t * 8)
+		self.scene.mdls[2].ctm = .yrot(-2 * self.t) * .pos(.y * 20)
+		self.scene.mdls[3].ctm = .pos(self.scene.sun.src) * .yrot(-self.t * 8)
+		
+		for (i, lgt) in self.scene.lgts.enumerated() {
+			if lgt.spr != 0 {
+				self.scene.lgts[i].dir = normalize(lgt.pos - self.cruiser.pos)
+			}
+		}
 		
 	}
 	
@@ -198,7 +237,7 @@ class Demo: Ctrl {
 		self.binds.key[.lt] 	= (dn: {self.cruiser.mov -= .z}, up: {self.cruiser.mov += .z})
 		self.binds.key[.rt] 	= (dn: {self.cruiser.mov += .z}, up: {self.cruiser.mov -= .z})
 		
-		self.timer = Timer(timeInterval: 1/cfg.tps, repeats: true) {_ in self.tick()}
+		self.timer = Timer(timeInterval: 1/Double(cfg.tps), repeats: true) {_ in self.tick()}
 		RunLoop.main.add(self.timer, forMode: .default)
 		
 	}

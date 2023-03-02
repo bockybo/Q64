@@ -1,9 +1,36 @@
 import MetalKit
 
 
+// TODO:
+// materials on submeshes
+// multiple shadowmaps
+// alpha in deferred???
+// gamma correction
+// ambient occlusion
+// particles
+// parallel encoder?
+// msaa maybe?
+// other post processing?
+// renderer proto (so forward, deferred, deferred tiled)
+// then org models, lighting; scene graph
+
+
 class Renderer: NSObject, MTKViewDelegate {
 	
-	private let gpulock = DispatchSemaphore(value: 1)
+	static let nflight = 1
+	
+	static let maxnmodel = 1024
+	static let maxnlight = 512
+	
+	static let fmt_gbuf_alb = MTLPixelFormat.rgba8Unorm_srgb
+	static let fmt_gbuf_nml = MTLPixelFormat.rgba16Snorm
+	static let fmt_gbuf_mat = MTLPixelFormat.rgba8Unorm
+	static let fmt_gbuf_dep = MTLPixelFormat.rg32Float
+	static let fmt_color = MTLPixelFormat.bgra8Unorm_srgb
+	static let fmt_depth = MTLPixelFormat.depth32Float_stencil8
+	static let fmt_shade = MTLPixelFormat.depth32Float
+	
+	private let semaphore = DispatchSemaphore(value: Renderer.nflight)
 	private let cmdque = lib.device.makeCommandQueue()!
 	private var scene: Scene
 	init(_ view: RenderView) {
@@ -11,90 +38,63 @@ class Renderer: NSObject, MTKViewDelegate {
 		super.init()
 		self.mtkView(view, drawableSizeWillChange: view.frame.size)
 		view.preferredFramesPerSecond = cfg.fps
-		view.delegate = self
-	}
-	
-	func draw(in view: MTKView) {
-		let buf = self.cmdque.makeCommandBuffer()!
-		buf.addCompletedHandler {_ in self.gpulock.signal()}
-		self.gpulock.wait()
-		self.draw(in: view, with: buf)
-		buf.present(view.currentDrawable!)
-		buf.commit()
-	}
-	
-	func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
-		self.res = uint2(
-			uint(2 * view.frame.size.width),
-			uint(2 * view.frame.size.height))
-		self.scene.cam.asp = float(size.width / size.height)
-		view.colorPixelFormat = Renderer.fmt_color
-		view.depthStencilPixelFormat = Renderer.fmt_depth
 	}
 	
 	
-	static let fmt_gbuf_alb = MTLPixelFormat.rgba8Unorm
-	static let fmt_gbuf_nml = MTLPixelFormat.rgba8Snorm
-	static let fmt_gbuf_dep = MTLPixelFormat.rg32Float
-	static let fmt_color = MTLPixelFormat.bgra8Unorm
-	static let fmt_depth = MTLPixelFormat.depth32Float_stencil8
-	static let fmt_shade = MTLPixelFormat.depth32Float
+	private struct Flight {
+		let scnbuf = lib.buffer(sizeof(Scene.SCN.self), label: "scn")
+		let mdlbuf = lib.buffer(sizeof(Model.MDL.self) * Renderer.maxnmodel, label: "mdl")
+		let lgtbuf = lib.buffer(sizeof(Scene.LGT.self) * Renderer.maxnlight, label: "lgt")
+		func copy(_ scene: Scene) {
+			var scn = scene.scn
+			self.scnbuf.write(&scn, length: sizeof(scn))
+			self.mdlbuf.write(scene.mdls, length: scene.mdls.count * sizeof(Model.MDL.self))
+			self.lgtbuf.write(scene.lgts, length: scene.lgts.count * sizeof(Scene.LGT.self))
+		}
+		func bind(enc: MTLRenderCommandEncoder) {
+			enc.setVertexBuffer(self.scnbuf, offset: 0, index: 3)
+			enc.setVertexBuffer(self.lgtbuf, offset: 0, index: 2)
+			enc.setVertexBuffer(self.mdlbuf, offset: 0, index: 1)
+			enc.setFragmentBuffer(self.scnbuf, offset: 0, index: 3)
+			enc.setFragmentBuffer(self.lgtbuf, offset: 0, index: 2)
+			enc.setFragmentBuffer(self.mdlbuf, offset: 0, index: 1)
+		}
+	}
+	private let flts = (0..<Renderer.nflight).map {_ in Flight()}
+	private var iflt = Renderer.nflight - 1
+	private var flt: Flight {return self.flts[self.iflt]}
 	
-	private let shadepass: MTLRenderPassDescriptor = {
-		let pass = MTLRenderPassDescriptor()
-		pass.depthAttachment.loadAction  = .clear
-		pass.depthAttachment.storeAction = .store
-		pass.depthAttachment.texture = lib.texture(
+	
+	private let shadepass = lib.passdescr {descr in
+		descr.depthAttachment.loadAction  = .clear
+		descr.depthAttachment.storeAction = .store
+		descr.depthAttachment.texture = lib.texture(
 			fmt: Renderer.fmt_shade,
 			res: uint2(cfg.shdqlt),
-			storage: .private,
-			usage: [.shaderRead, .renderTarget])
-		return pass
-	}()
-	
-	private let lightpass: MTLRenderPassDescriptor = {
-		let pass = MTLRenderPassDescriptor()
-		pass.stencilAttachment.loadAction  		= .clear
-		pass.stencilAttachment.storeAction 		= .dontCare
-		pass.depthAttachment.loadAction  		= .clear
-		pass.depthAttachment.storeAction 		= .dontCare
-		pass.colorAttachments[0].loadAction		= .clear
-		pass.colorAttachments[0].storeAction 	= .store
-		pass.colorAttachments[1].storeAction 	= .dontCare
-		pass.colorAttachments[2].storeAction 	= .dontCare
-		pass.colorAttachments[3].storeAction 	= .dontCare
-		return pass
-	}()
-	var res = uint2(0, 0) {didSet {
-		self.lightpass.colorAttachments[1].texture = lib.texture(
-			fmt: Renderer.fmt_gbuf_alb,
-			res: self.res,
-			storage: .memoryless,
+			label: "shadowmap",
 			usage: [.shaderRead, .renderTarget],
-			label: "alb+shd"
+			storage: .private
 		)
-		self.lightpass.colorAttachments[2].texture = lib.texture(
-			fmt: Renderer.fmt_gbuf_nml,
-			res: self.res,
-			storage: .memoryless,
-			usage: [.shaderRead, .renderTarget],
-			label: "nml+shn"
-		)
-		self.lightpass.colorAttachments[3].texture = lib.texture(
-			fmt: Renderer.fmt_gbuf_dep,
-			res: self.res,
-			storage: .memoryless,
-			usage: [.shaderRead, .renderTarget],
-			label: "dep"
-		)
-	}}
+	}
+	private let lightpass = lib.passdescr {descr in
+		descr.stencilAttachment.loadAction  	= .clear
+		descr.stencilAttachment.storeAction 	= .dontCare
+		descr.depthAttachment.loadAction  		= .clear
+		descr.depthAttachment.storeAction 		= .dontCare
+		descr.colorAttachments[0].loadAction	= .clear
+		descr.colorAttachments[0].storeAction 	= .store
+		descr.colorAttachments[1].storeAction 	= .dontCare
+		descr.colorAttachments[2].storeAction 	= .dontCare
+		descr.colorAttachments[3].storeAction 	= .dontCare
+		descr.colorAttachments[4].storeAction 	= .dontCare
+	}
 	
 	private let shadepipe = lib.pipestate {descr in
 		descr.vertexFunction	= lib.vtxshaders["shade"]!
 		descr.depthAttachmentPixelFormat = Renderer.fmt_shade
 	}
 	private let gbufpipe = lib.pipestate {descr in
-		descr.vertexFunction	= lib.vtxshaders["gbuf"]!
+		descr.vertexFunction	= lib.vtxshaders["main"]!
 		descr.fragmentFunction	= lib.frgshaders["gbuf"]!
 		Renderer.attachgbuf(descr)
 	}
@@ -118,7 +118,8 @@ class Renderer: NSObject, MTKViewDelegate {
 		descr.colorAttachments[0].pixelFormat 	= Renderer.fmt_color
 		descr.colorAttachments[1].pixelFormat 	= Renderer.fmt_gbuf_alb
 		descr.colorAttachments[2].pixelFormat 	= Renderer.fmt_gbuf_nml
-		descr.colorAttachments[3].pixelFormat 	= Renderer.fmt_gbuf_dep
+		descr.colorAttachments[3].pixelFormat 	= Renderer.fmt_gbuf_mat
+		descr.colorAttachments[4].pixelFormat 	= Renderer.fmt_gbuf_dep
 	}
 	
 	private let shadedepth = lib.depthstate {descr in
@@ -146,93 +147,121 @@ class Renderer: NSObject, MTKViewDelegate {
 		descr.backFaceStencil.stencilCompareFunction		= .notEqual
 	}
 	
-	private let quadmesh = meshlib.quad(dim: float3(2, 2, 0), descr: lib.vtxdescrs["base"]!)
-	private let icosmesh = meshlib.icos(dim: 12/(sqrtf(3) * (3+sqrtf(5))), descr: lib.vtxdescrs["base"]!)
+	var resolution = uint2(0) {didSet {
+		self.lightpass.colorAttachments[1].texture = lib.texture(
+			fmt: Renderer.fmt_gbuf_alb,
+			res: self.resolution,
+			label: "alb",
+			usage: [.shaderRead, .renderTarget],
+			storage: .memoryless
+		)
+		self.lightpass.colorAttachments[2].texture = lib.texture(
+			fmt: Renderer.fmt_gbuf_nml,
+			res: self.resolution,
+			label: "nml",
+			usage: [.shaderRead, .renderTarget],
+			storage: .memoryless
+		)
+		self.lightpass.colorAttachments[3].texture = lib.texture(
+			fmt: Renderer.fmt_gbuf_mat,
+			res: self.resolution,
+			label: "mat",
+			usage: [.shaderRead, .renderTarget],
+			storage: .memoryless
+		)
+		self.lightpass.colorAttachments[4].texture = lib.texture(
+			fmt: Renderer.fmt_gbuf_dep,
+			res: self.resolution,
+			label: "dep",
+			usage: [.shaderRead, .renderTarget],
+			storage: .memoryless
+		)
+	}}
 	
 	
-	private func draw(in view: MTKView, with buf: MTLCommandBuffer) {
+	private let quadmesh = meshlib.quad(
+		descr: lib.vtxdescrs["base"]!,
+		dim: float3(2, 2, 0)
+	)
+	private let icosmesh = meshlib.icos(
+		descr: lib.vtxdescrs["base"]!,
+		dim: float3(12 / (sqrtf(3) * (3+sqrtf(5))))
+	)
+	
+	
+	func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
+		self.scene.cam.asp = float(size.width / size.height)
+		self.resolution = uint2(
+			uint(2 * view.frame.size.width),
+			uint(2 * view.frame.size.height))
+		view.colorPixelFormat = Renderer.fmt_color
+		view.depthStencilPixelFormat = Renderer.fmt_depth
+		if view.isPaused {view.draw()}
+	}
+	
+	
+	func draw(in view: MTKView) {
+		
+		self.semaphore.wait()
+		
+		self.iflt = (self.iflt + 1) % Renderer.nflight
+		self.flt.copy(self.scene)
+		
 		self.lightpass.colorAttachments[0].texture	= view.currentDrawable!.texture
 		self.lightpass.depthAttachment.texture		= view.depthStencilTexture!
 		self.lightpass.stencilAttachment.texture	= view.depthStencilTexture!
 		
-		buf.pass(label: "shade", descr: self.shadepass) {enc in
-			enc.setState(self.shadepipe, self.shadedepth, cull: .front)
-			enc.setDepthBias(0.001, slopeScale: 5, clamp: 0.02)
-			
-			var ctm = self.scene.sun.ctm
-			enc.setVertexBytes(&ctm, length: sizeof(ctm), index: 2)
-			
-			enc.setVertexBuffer(self.scene.uniforms.buf, offset: 0, index: 1)
-			var iid = 0
-			for mdl in self.scene.mdls {
-				for mesh in mdl.meshes {
-					enc.draw(mesh: mesh, prim: mdl.prim, iid: iid, nid: mdl.nid)
-				}
-				iid += mdl.nid
+		self.cmdque.commit(label: "shade") {buf in
+			buf.pass(label: "shade", descr: self.shadepass) {enc in
+				self.flt.bind(enc: enc)
+				enc.setStates(self.shadepipe, self.shadedepth, cull: .front)
+				enc.setDepthBias(0.1, slopeScale: 7, clamp: 0.02)
+				self.drawScene(enc: enc, useMaterials: false)
 			}
-			
 		}
 		
-		buf.pass(label: "light", descr: self.lightpass) {enc in
-			enc.setStencilReferenceValue(128)
-			enc.setFrontFacing(.counterClockwise)
-			
-			var lgt = self.scene.sun.ctm
-			var cam = self.scene.cam.ctm
-			enc.setVertexBytes(&cam, length: sizeof(cam), index: 3)
-			enc.setVertexBytes(&lgt, length: sizeof(lgt), index: 2)
-			
-			enc.setState(self.gbufpipe, self.gbufdepth, cull: .back)
-			enc.setFragmentTexture(self.shadepass.depthAttachment.texture!, index: 0)
-			
-			enc.setVertexBuffer(self.scene.uniforms.buf, offset: 0, index: 1)
-			enc.setFragmentBuffer(self.scene.uniforms.buf, offset: 0, index: 1)
-			
-			var iid = 0
-			for mdl in self.scene.mdls {
-				enc.setFragmentTexture(mdl.material.alb, index: 1)
-				enc.setFragmentTexture(mdl.material.nml, index: 2)
-				enc.setFragmentTexture(mdl.material.rgh, index: 3)
-				enc.setFragmentTexture(mdl.material.mtl, index: 4)
-				for mesh in mdl.meshes {
-					enc.draw(mesh: mesh, prim: mdl.prim, iid: iid, nid: mdl.nid)
-				}
-				iid += mdl.nid
+		self.cmdque.commit(label: "light & drawable") {buf in
+			buf.addCompletedHandler {_ in self.semaphore.signal()}
+			buf.pass(label: "light", descr: self.lightpass) {enc in
+				self.flt.bind(enc: enc)
+				enc.setFragmentBytes(&self.resolution, length: sizeof(uint2.self), index: 4)
+				enc.setStencilReferenceValue(128)
+				enc.setFrontFacing(.counterClockwise)
+				
+				enc.setFragmentTexture(self.shadepass.depthAttachment.texture!, index: 0)
+				enc.setStates(self.gbufpipe, self.gbufdepth, cull: .back)
+				self.drawScene(enc: enc, useMaterials: true)
+				
+				enc.setStates( self.quadpipe, self.quaddepth, cull: .front)
+				enc.draw(mesh: self.quadmesh, iid: 0, nid: 1)
+				if self.scene.lgts.count <= 1 {return}
+				enc.setStates( self.maskpipe, self.maskdepth, cull: .none)
+				enc.draw(mesh: self.icosmesh, iid: 1, nid: self.scene.lgts.count-1)
+				enc.setStates( self.icospipe, self.icosdepth, cull: .front)
+				enc.draw(mesh: self.icosmesh, iid: 1, nid: self.scene.lgts.count-1)
 			}
-			
-			var inv = cam.inverse
-			var eye = self.scene.cam.pos
-			enc.setFragmentBytes(&inv, length: sizeof(inv), index: 3)
-			enc.setFragmentBytes(&eye, length: sizeof(eye), index: 4)
-			
-			enc.setFragmentBytes(&self.res, length: sizeof(self.res), index: 5)
-			enc.setFragmentBuffer(self.scene.lights.buf, offset: 0, index: 2)
-			enc.setVertexBuffer(self.scene.lights.buf, offset: 0, index: 2)
-			
-			enc.setState(self.quadpipe, self.quaddepth, cull: .front)
-			enc.draw(mesh: self.quadmesh, iid: 0, nid: 1)
-			enc.setState(self.maskpipe, self.maskdepth, cull: .none)
-			enc.draw(mesh: self.icosmesh, iid: 1, nid: self.scene.lights.count-1)
-			enc.setState(self.icospipe, self.icosdepth, cull: .front)
-			enc.draw(mesh: self.icosmesh, iid: 1, nid: self.scene.lights.count-1)
-		
+			buf.present(view.currentDrawable!)
 		}
 		
-		// TODO:
-		// materials on submeshes
-		// spot lights
-		// multiple shadowmaps
-		// unify lighting
-		// alpha in deferred???
-		// gamma correction
-		// ambient occlusion
-		// particles
-		// sync & multithread
-		// msaa maybe?
-		// other post processing?
-		// renderer proto (so forward, deferred, deferred tiled)
-		// then org models, lighting; scene graph
-		
+	}
+	
+	
+	private func setMaterial(enc: MTLRenderCommandEncoder, _ material: Model.Material) {
+		enc.setFragmentTexture(material.alb, index: 1)
+		enc.setFragmentTexture(material.nml, index: 2)
+		enc.setFragmentTexture(material.rgh, index: 3)
+		enc.setFragmentTexture(material.mtl, index: 4)
+		enc.setFragmentTexture(material.ao, index: 5)
+	}
+	private func drawScene(enc: MTLRenderCommandEncoder, useMaterials: Bool) {
+		var iid = 0
+		for model in self.scene.models {
+			if useMaterials {self.setMaterial(enc: enc, model.material)}
+			for mesh in model.meshes {
+				enc.draw(mesh: mesh, prim: model.prim, iid: iid, nid: model.nid)
+			}
+			iid += model.nid
+		}
 	}
 	
 }

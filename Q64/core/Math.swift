@@ -2,15 +2,20 @@ import MetalKit
 
 
 typealias float = Float32
-typealias float2 = simd_float2
-typealias float3 = simd_float3
-typealias float4 = simd_float4
-typealias float3x3 = simd_float3x3
-typealias float4x4 = simd_float4x4
+typealias float2 = SIMD2<float>
+typealias float3 = SIMD3<float>
+typealias float4 = SIMD4<float>
 
 typealias uint = UInt32
-typealias uint2 = simd_uint2
-typealias uint3 = simd_uint3
+typealias uint2 = SIMD2<uint>
+typealias uint3 = SIMD3<uint>
+
+typealias uchar = CUnsignedChar
+typealias uchar2 = SIMD2<uchar>
+typealias uchar4 = SIMD4<uchar>
+
+typealias float3x3 = simd_float3x3
+typealias float4x4 = simd_float4x4
 
 
 extension SIMD2 {

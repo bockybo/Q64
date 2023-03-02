@@ -7,14 +7,14 @@ func sizeof<T>(_: T) -> Int {return sizeof(T.self)}
 class lib {
 	static let device = MTLCreateSystemDefaultDevice()!
 	static let deflib = lib.device.makeDefaultLibrary()!
+	static let texldr = MTKTextureLoader(device: lib.device)
 	static let meshalloc = MTKMeshBufferAllocator(device: lib.device)
-	static let textureloader = MTKTextureLoader(device: lib.device)
 	
 	
 	static func shader(_ name: String) -> MTLFunction {return lib.deflib.makeFunction(name: name)!}
 	static let vtxshaders = [
 		"shade": 	lib.shader("vtx_shade"),
-		"gbuf": 	lib.shader("vtx_gbuf"),
+		"main": 	lib.shader("vtx_main"),
 		"quad": 	lib.shader("vtx_quad"),
 		"icos": 	lib.shader("vtx_icos"),
 		"mask":		lib.shader("vtx_mask"),
@@ -41,8 +41,8 @@ class lib {
 		"main": lib.vtxdescr([
 			(fmt: .float3, name: MDLVertexAttributePosition),
 			(fmt: .float3, name: MDLVertexAttributeNormal),
-			(fmt: .float2, name: MDLVertexAttributeTextureCoordinate),
-			(fmt: .float4, name: MDLVertexAttributeTangent)
+			(fmt: .float4, name: MDLVertexAttributeTangent),
+			(fmt: .float2, name: MDLVertexAttributeTextureCoordinate)
 		]),
 	]
 	
@@ -57,28 +57,59 @@ class lib {
 		setup(descr)
 		return lib.device.makeDepthStencilState(descriptor: descr)!
 	}
+	static func passdescr(_ setup: (MTLRenderPassDescriptor)->()) -> MTLRenderPassDescriptor {
+		let descr = MTLRenderPassDescriptor()
+		setup(descr)
+		return descr
+	}
+	
+	
+	static func buffer(_ len: Int, label: String? = nil) -> MTLBuffer {
+		let buf = lib.device.makeBuffer(length: len, options: .storageModeShared)!
+		buf.label = label
+		return buf
+	}
 	
 	
 	static func texture(
-		path: String,
+		_ path: String,
 		srgb: Bool = false,
-		storage: MTLStorageMode = .private,
-		usage: MTLTextureUsage = .shaderRead
+		label: String? = nil,
+		usage: MTLTextureUsage = .shaderRead,
+		storage: MTLStorageMode = .private
 	) -> MTLTexture {
 		let url = Bundle.main.url(forResource: path, withExtension: nil)!
-		return try! lib.textureloader.newTexture(URL: url, options: [
-			.SRGB : false,
+		let tex = try! lib.texldr.newTexture(URL: url, options: [
+			.SRGB : srgb,
 			.textureStorageMode : storage.rawValue,
 			.textureUsage : usage.rawValue
 		])
+		tex.label = label
+		return tex
+	}
+	
+	static func texture(
+		_ mdltex: MDLTexture,
+		srgb: Bool = false,
+		label: String? = nil,
+		usage: MTLTextureUsage = .shaderRead,
+		storage: MTLStorageMode = .private
+	) -> MTLTexture {
+		let tex = try! lib.texldr.newTexture(texture: mdltex, options: [
+			.SRGB : srgb,
+			.textureStorageMode : storage.rawValue,
+			.textureUsage : usage.rawValue
+		])
+		tex.label = label
+		return tex
 	}
 	
 	static func texture(
 		fmt: MTLPixelFormat,
 		res: uint2,
-		storage: MTLStorageMode = .private,
+		label: String? = nil,
 		usage: MTLTextureUsage = .shaderRead,
-		label: String? = nil
+		storage: MTLStorageMode = .private
 	) -> MTLTexture {
 		let descr = MTLTextureDescriptor.texture2DDescriptor(
 			pixelFormat: fmt,
@@ -96,10 +127,10 @@ class lib {
 	static func texture<T>(
 		src: T,
 		fmt: MTLPixelFormat,
-		usage: MTLTextureUsage = .shaderRead,
-		label: String? = nil
+		label: String? = nil,
+		usage: MTLTextureUsage = .shaderRead
 	) -> MTLTexture {
-		let tex = lib.texture(fmt: fmt, res: uint2(1), storage: .shared, usage: usage, label: label)
+		let tex = lib.texture(fmt: fmt, res: uint2(1), label: label, usage: usage, storage: .shared)
 		var src = src
 		tex.replace(
 			region: .init(
@@ -112,45 +143,50 @@ class lib {
 		return tex
 	}
 	
-	
 	static func mesh(_ mesh: MDLMesh, descr: MDLVertexDescriptor = lib.vtxdescrs["main"]!) -> MTKMesh {
-		mesh.setVertexDescriptor(descr)
+		let names = descr.attributes.map {attr in (attr as! MDLVertexAttribute).name}
+		let needs: (String) -> Bool = {name in
+			return names.contains(name) && mesh.vertexAttributeData(forAttributeNamed: name) == nil
+		}
+		if needs(MDLVertexAttributeNormal) {mesh.addNormals(
+			withAttributeNamed: MDLVertexAttributeNormal,
+			creaseThreshold: 0.5
+		)}
+		if needs(MDLVertexAttributeTextureCoordinate) {mesh.addUnwrappedTextureCoordinates(
+			forAttributeNamed: MDLVertexAttributeTextureCoordinate
+		)}
+		if needs(MDLVertexAttributeTangent) {mesh.addOrthTanBasis(
+			forTextureCoordinateAttributeNamed: MDLVertexAttributeTextureCoordinate,
+			normalAttributeNamed: MDLVertexAttributeNormal,
+			tangentAttributeNamed: MDLVertexAttributeTangent
+		)}
+		mesh.vertexDescriptor = descr
 		return try! MTKMesh(mesh: mesh, device: lib.device)
 	}
 	
-	static func meshes(path: String, descr: MDLVertexDescriptor = lib.vtxdescrs["main"]!) -> [MTKMesh] {
+	static func meshes(
+		_ path: String,
+		descr: MDLVertexDescriptor = lib.vtxdescrs["main"]!,
+		ctm: float4x4? = nil
+	) -> [MTKMesh] {
 		let url = Bundle.main.url(forResource: path, withExtension: nil)!
 		let asset = MDLAsset(
 			url: url,
 			vertexDescriptor: nil,
 			bufferAllocator: lib.meshalloc
 		)
-		let mdls = try! MTKMesh.newMeshes(asset: asset, device: lib.device).modelIOMeshes
-		let mtks = mdls.map {mesh in lib.mesh(mesh, descr: descr)}
-		return mtks
-	}
-	
-	
-	class Buffer<T> {
-		let buf: MTLBuffer
-		let ptr: UnsafeMutableBufferPointer<T>
-		init(_ count: Int) {
-			self.buf = lib.device.makeBuffer(
-				length: count * sizeof(T.self),
-				options: .storageModeManaged)!
-			let raw = self.buf.contents()
-			let ptr = raw.assumingMemoryBound(to: T.self)
-			self.ptr = .init(start: ptr, count: count)
-		}
-		var count: Int {return self.ptr.count}
-		subscript(i: Int) -> T {
-			get {return self.ptr[i]}
-			set(value) {
-				self.ptr[i] = value
-				let lower = sizeof(T.self) * i
-				let upper = sizeof(T.self) * (i + 1)
-				self.buf.didModifyRange(lower..<upper)
+		let meshes = try! MTKMesh.newMeshes(asset: asset, device: lib.device).modelIOMeshes
+		return meshes.map {mesh in
+			if let ctm = ctm {
+				let attr = mesh.vertexAttributeData(forAttributeNamed: MDLVertexAttributePosition)!
+				assert(attr.format == .float3)
+				for i in 0..<mesh.vertexCount {
+					let raw = attr.dataStart + i*attr.stride
+					let ptr = raw.assumingMemoryBound(to: float3.self)
+					ptr.pointee = (ctm * float4(ptr.pointee, 1)).xyz
+				}
 			}
+			return lib.mesh(mesh, descr: descr)
 		}
 	}
 	
@@ -160,101 +196,103 @@ class lib {
 class meshlib {
 	
 	class func quad(
-		dim: float3					= float3(1),
-		seg: uint2	 				= uint2(1),
 		descr: MDLVertexDescriptor	= lib.vtxdescrs["main"]!,
+		dim: float3					= float3(1),
 		prim: MDLGeometryType		= .triangles
 	) -> MTKMesh {return lib.mesh(MDLMesh(
-		planeWithExtent: 	dim,
-		segments: 			seg,
-		geometryType: 		prim,
-		allocator: lib.meshalloc), descr: descr)
-	}
-	class func box(
-		dim: float3					= float3(1),
-		seg: uint3					= uint3(1),
-		descr: MDLVertexDescriptor	= lib.vtxdescrs["main"]!,
-		prim: MDLGeometryType		= .triangles,
-		inwd: Bool = false
-	) -> MTKMesh {return lib.mesh(MDLMesh.newBox(
-		withDimensions: 	dim,
-		segments: 			seg,
-		geometryType: 		prim,
-		inwardNormals: 		inwd,
-		allocator: lib.meshalloc), descr: descr)
-	}
-	class func sph(
-		dim: float3					= float3(1),
-		seg: uint2					= uint2(1),
-		descr: MDLVertexDescriptor 	= lib.vtxdescrs["main"]!,
-		prim: MDLGeometryType		= .triangles,
-		inwd: Bool = false,
-		hemi: Bool = false
-	) -> MTKMesh {return lib.mesh(MDLMesh.newEllipsoid(
-		withRadii:		 	dim,
-		radialSegments:		Int(seg.x),
-		verticalSegments: 	Int(seg.y),
-		geometryType: 		prim,
-		inwardNormals: 		inwd,
-		hemisphere: 		hemi,
-		allocator: lib.meshalloc), descr: descr)
-	}
+		planeWithExtent: 		dim,
+		segments: 				uint2(1),
+		geometryType: 			prim,
+		allocator: lib.meshalloc), descr: descr)}
 	class func icos(
-		dim: float					= float(1),
 		descr: MDLVertexDescriptor 	= lib.vtxdescrs["main"]!,
-		prim: MDLGeometryType		= .triangles,
-		inwd: Bool = false
-	) -> MTKMesh {return lib.mesh(MDLMesh.newIcosahedron(
-		withRadius: 		dim,
-		inwardNormals: 		inwd,
-		geometryType: 		prim,
-		allocator: lib.meshalloc), descr: descr)
-	}
+		dim: float3					= float3(1),
+		inwd: Bool 					= false,
+		prim: MDLGeometryType		= .triangles
+	) -> MTKMesh {return lib.mesh(MDLMesh(
+		icosahedronWithExtent: 	dim,
+		inwardNormals: 			inwd,
+		geometryType: 			prim,
+		allocator: lib.meshalloc), descr: descr)}
+	class func box(
+		descr: MDLVertexDescriptor	= lib.vtxdescrs["main"]!,
+		dim: float3					= float3(1),
+		inwd: Bool 					= false,
+		prim: MDLGeometryType		= .triangles
+	) -> MTKMesh {return lib.mesh(MDLMesh(
+		boxWithExtent:	 		dim,
+		segments: 				uint3(1),
+		inwardNormals: 			inwd,
+		geometryType: 			prim,
+		allocator: lib.meshalloc), descr: descr)}
+	class func sph(
+		descr: MDLVertexDescriptor 	= lib.vtxdescrs["main"]!,
+		dim: float3					= float3(1),
+		seg: uint2					= uint2(1),
+		inwd: Bool 					= false,
+		prim: MDLGeometryType		= .triangles
+	) -> MTKMesh {return lib.mesh(MDLMesh(
+		sphereWithExtent:		dim,
+		segments:				seg,
+		inwardNormals:			inwd,
+		geometryType:			prim,
+		allocator: lib.meshalloc), descr: descr)}
+	class func hem(
+		descr: MDLVertexDescriptor 	= lib.vtxdescrs["main"]!,
+		dim: float3					= float3(1),
+		seg: uint2					= uint2(1),
+		cap: Bool					= true,
+		inwd: Bool 					= false,
+		prim: MDLGeometryType		= .triangles
+	) -> MTKMesh {return lib.mesh(MDLMesh(
+		hemisphereWithExtent:	dim,
+		segments:				seg,
+		inwardNormals:			inwd,
+		cap:					cap,
+		geometryType:			prim,
+		allocator: lib.meshalloc), descr: descr)}
 	class func cyl(
+		descr: MDLVertexDescriptor 	= lib.vtxdescrs["main"]!,
 		dim: float3					= float3(1),
 		seg: uint2					= uint2(1),
-		descr: MDLVertexDescriptor 	= lib.vtxdescrs["main"]!,
-		prim: MDLGeometryType		= .triangles,
-		inwd: Bool = false
-	) -> MTKMesh {return lib.mesh(MDLMesh.newCylinder(
-		withHeight: 		dim.y,
-		radii:				float2(dim.x, dim.z),
-		radialSegments:		Int(seg.x),
-		verticalSegments: 	Int(seg.y),
-		geometryType: 		prim,
-		inwardNormals: 		inwd,
-		allocator: lib.meshalloc), descr: descr)
-	}
+		top: Bool					= true,
+		bot: Bool					= true,
+		inwd: Bool 					= false,
+		prim: MDLGeometryType		= .triangles
+	) -> MTKMesh {return lib.mesh(MDLMesh(
+		cylinderWithExtent:		dim,
+		segments:				seg,
+		inwardNormals: 			inwd,
+		topCap: 				top,
+		bottomCap:				bot,
+		geometryType:			prim,
+		allocator: lib.meshalloc), descr: descr)}
 	class func cone(
+		descr: MDLVertexDescriptor 	= lib.vtxdescrs["main"]!,
 		dim: float3					= float3(1),
 		seg: uint2					= uint2(1),
-		descr: MDLVertexDescriptor 	= lib.vtxdescrs["main"]!,
-		prim: MDLGeometryType		= .triangles,
-		inwd: Bool = false
-	) -> MTKMesh {return lib.mesh(MDLMesh.newEllipticalCone(
-		withHeight: 		dim.y,
-		radii:				float2(dim.x, dim.z),
-		radialSegments:		Int(seg.x),
-		verticalSegments: 	Int(seg.y),
-		geometryType: 		prim,
-		inwardNormals: 		inwd,
-		allocator: lib.meshalloc), descr: descr)
-	}
+		cap: Bool					= true,
+		inwd: Bool 					= false,
+		prim: MDLGeometryType		= .triangles
+	) -> MTKMesh {return lib.mesh(MDLMesh(
+		coneWithExtent: 		dim,
+		segments:				seg,
+		inwardNormals: 			inwd,
+		cap:					cap,
+		geometryType: 			prim,
+		allocator: lib.meshalloc), descr: descr)}
 	class func caps(
+		descr: MDLVertexDescriptor 	= lib.vtxdescrs["main"]!,
 		dim: float3					= float3(1),
 		seg: uint3					= uint3(1),
-		descr: MDLVertexDescriptor 	= lib.vtxdescrs["main"]!,
-		prim: MDLGeometryType		= .triangles,
-		inwd: Bool = false
-	) -> MTKMesh {return lib.mesh(MDLMesh.newCapsule(
-		withHeight: 		dim.y,
-		radii:				float2(dim.x, dim.z),
-		radialSegments:		Int(seg.x),
-		verticalSegments: 	Int(seg.y),
-		hemisphereSegments:	Int(seg.z),
-		geometryType: 		prim,
-		inwardNormals: 		inwd,
-		allocator: lib.meshalloc), descr: descr)
-	}
-	
+		cap: Bool					= true,
+		inwd: Bool 					= false,
+		prim: MDLGeometryType		= .triangles
+	) -> MTKMesh {return lib.mesh(MDLMesh(
+		capsuleWithExtent: dim,
+		cylinderSegments: seg.xy,
+		hemisphereSegments: Int32(seg.z),
+		inwardNormals: inwd,
+		geometryType: prim,
+		allocator: lib.meshalloc), descr: descr)}
 }
