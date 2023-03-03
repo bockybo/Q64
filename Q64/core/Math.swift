@@ -10,12 +10,16 @@ typealias uint = UInt32
 typealias uint2 = SIMD2<uint>
 typealias uint3 = SIMD3<uint>
 
+typealias char = CChar
+typealias char2 = SIMD2<char>
+typealias char4 = SIMD4<char>
 typealias uchar = CUnsignedChar
 typealias uchar2 = SIMD2<uchar>
 typealias uchar4 = SIMD4<uchar>
 
 typealias float3x3 = simd_float3x3
 typealias float4x4 = simd_float4x4
+
 
 
 extension SIMD2 {
@@ -32,9 +36,6 @@ extension SIMD4 {
 }
 
 
-extension float2 {
-	static func rot(_ rot: float) -> float2 {return .init(cos(rot), sin(rot))}
-}
 
 extension float3 {
 	static let x = float3(1, 0, 0)
@@ -104,9 +105,9 @@ extension float4x4 {
 		)
 	}
 	
-	static func xrot(_ r: float) -> float4x4 {return .xrot(float2.rot(r))}
-	static func yrot(_ r: float) -> float4x4 {return .yrot(float2.rot(r))}
-	static func zrot(_ r: float) -> float4x4 {return .zrot(float2.rot(r))}
+	static func xrot(_ r: float) -> float4x4 {return .xrot(float2(cos(r), sin(r)))}
+	static func yrot(_ r: float) -> float4x4 {return .yrot(float2(cos(r), sin(r)))}
+	static func zrot(_ r: float) -> float4x4 {return .zrot(float2(cos(r), sin(r)))}
 	static func xpos(_ p: float) -> float4x4 {return .pos(float3(p, 0, 0))}
 	static func ypos(_ p: float) -> float4x4 {return .pos(float3(0, p, 0))}
 	static func zpos(_ p: float) -> float4x4 {return .pos(float3(0, 0, p))}

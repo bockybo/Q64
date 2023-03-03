@@ -15,6 +15,7 @@ class ViewController: NSViewController {
 		self.view = view
 		self.renderer = Renderer(view)
 		view.delegate = self.renderer
+		view.preferredFramesPerSecond = cfg.fps
 	}
 	
 	override func viewWillAppear() {

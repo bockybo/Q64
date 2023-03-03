@@ -5,114 +5,108 @@ import MetalKit
 //	subview to push hooks -> server doesn't need unifs
 //	subview to pull unifs <- server doesn't need hooks
 class Demo: Ctrl {
-	static let dim: float = 300
-	static let nsph = 18
-	static let nbox = 25
+	static let dim: float = 150
+	static let nsph = Renderer.nshd
+	static let nbox = 2 * Demo.nsph
 	
-	static var models = [
-		Model( // CRUISER
-			meshes: lib.meshes("cruiser.obj", ctm: .mag(1.2)),
-			material: .init(
-				alb: lib.texture("alum_alb.png", srgb: true),
-				rgh: lib.texture("alum_rgh.png"),
-				mtl: lib.texture("alum_mtl.png"),
-				ao: lib.texture("alum_ao.png")
-			)
-		),
-		Model( // GND
-			meshes: [meshlib.box(dim: float3(Demo.dim, 10, Demo.dim))],
-			material: .init(
-				alb: lib.texture("snow_alb.jpg", srgb: true),
-				nml: lib.texture("snow_nml.jpg"),
-				rgh: lib.texture("snow_rgh.jpg"),
-				mtl: lib.texture("snow_mtl.jpg")
-			)
-		),
-		Model( // OGN
-			meshes: [meshlib.sph(dim: float3(2, 6, 2)/1.5)],
-			material: .init(
-				alb: lib.texture("gold_alb.jpg", srgb: true),
-				nml: lib.texture("gold_nml.jpg"),
-				rgh: lib.texture("gold_rgh.jpg"),
-				mtl: lib.texture(src: uchar(255), fmt: .r8Unorm),
-				ao: lib.texture("gold_ao.jpg"),
-				emm: lib.texture(src: uchar(255), fmt: .r8Unorm)
-			)
-		),
-		Model( // SUN
-			meshes: [meshlib.sph(dim: float3(10), seg: uint2(20), inwd: true)],
-			material: .init(
-				alb: lib.texture(src: uchar4(255, 255, 0, 255), fmt: .rgba8Unorm_srgb)
-			),
-			prim: .line
-		),
-		Model( // SPH
-			meshes: [meshlib.hem(dim: float3(0.4), seg: uint2(400, 100))],
-			material: .init(
-				alb: lib.texture("conc_alb.jpg", srgb: true),
-				nml: lib.texture("conc_nml.jpg"),
-				rgh: lib.texture("conc_rgh.jpg"),
-				ao: lib.texture("conc_ao.jpg")
-			),
-			nid: Demo.nsph
-		),
-		Model( // BOX
-			meshes: [meshlib.box()],
-			material: .init(
-				alb: lib.texture("brick_alb.jpg", srgb: true),
-				nml: lib.texture("brick_nml.jpg"),
-				rgh: lib.texture(src: uchar( 64), fmt: .r8Unorm),
-				mtl: lib.texture(src: uchar(255), fmt: .r8Unorm)
-			),
-			nid: Demo.nbox
-		),
+	let models = [
+		"crs": Model(
+			iid: 0,
+			meshes: lib.mesh.load("cruiser.obj", ctm: .mag(0.6)),
+			props: .init(
+				rgh: lib.tex.load("alum_rgh.png"),
+				mtl: lib.tex.load("alum_mtl.png"),
+				ao: lib.tex.load("alum_ao.png")
+			)),
+		"gnd": Model(
+			iid: 1,
+			mesh: lib.mesh.box(dim: float3(Demo.dim, 5, Demo.dim)),
+			props: .init(
+				alb: lib.tex.load("snow_alb.jpg", srgb: true),
+				nml: lib.tex.load("snow_nml.jpg"),
+				rgh: lib.tex.load("snow_rgh.jpg"),
+				mtl: lib.tex.load("snow_mtl.jpg")
+			)),
+		"ogn": Model(
+			iid: 2,
+			mesh: lib.mesh.sph(dim: float3(0.5, 2.0, 0.5)),
+			props: .init(
+				alb: lib.tex.load("gold_alb.jpg", srgb: true),
+				nml: lib.tex.load("gold_nml.jpg"),
+				rgh: lib.tex.load("gold_rgh.jpg"),
+				mtl: lib.tex.oxo(uchar(255), fmt: .r8Unorm),
+				ao: lib.tex.load("gold_ao.jpg")
+			)),
+		"sun": Model(
+			iid: 3,
+			mesh: lib.mesh.sph(dim: float3(5), seg: uint2(10), inwd: true),
+			props: .init(
+				alb: lib.tex.oxo(uchar4(255, 255, 0, 255), fmt: .rgba8Unorm_srgb)
+			)),
+		"sph": Model(
+			iid: 4,
+			nid: Demo.nsph,
+			mesh: lib.mesh.hem(dim: float3(1.0), seg: uint2(200, 40)),
+			props: .init(
+				alb: lib.tex.load("marble_alb.png", srgb: true),
+				rgh: lib.tex.load("marble_rgh.png"),
+				ao: lib.tex.load("marble_ao.png")
+			)),
+		"box": Model(
+			iid: Demo.nsph + 4,
+			nid: Demo.nbox,
+			mesh: lib.mesh.box(dim: float3(3.0)),
+			props: .init(
+				alb: lib.tex.load("brick_alb.jpg", srgb: true),
+				nml: lib.tex.load("brick_nml.jpg"),
+				rgh: lib.tex.oxo(uchar( 32), fmt: .r8Unorm),
+				mtl: lib.tex.oxo(uchar(255), fmt: .r8Unorm)
+			)),
 	]
 	
-	let scene: Scene = {
-		let scene = Scene(Demo.models)
+	lazy var scene: Scene = {
+		let scene = Scene(self.models)
 		
-		let nins = 4 + Demo.nsph + Demo.nbox
-		scene.mdls += [Model.MDL](repeating: .init(ctm: .idt), count: nins)
-		scene.lgts += [scene.sun.lgt]
-		scene.lgts += (0..<nins).map {_ in .init(
-			hue: normalize([
-				float3(1, 1, 0),
-				float3(1, 0, 1),
-				float3(0, 1, 1),
-			].randomElement()!)
-		)}
+		scene.mdls += [Scene.MDL](repeating: .init(), count: 4)
 		
-		scene.sun.hue = 4 * normalize(float3(0.95, 0.85, 0.65))
+		scene.sun.hue = 2.5 * normalize(float3(0.95, 0.85, 0.65))
 		scene.sun.dst = float3(0)
 		scene.sun.src = float3(1, 0.5, 1) * Demo.dim
+		scene.sun.p0 = float3(-Demo.dim/1.5, -Demo.dim/1.5, 0.0)
+		scene.sun.p1 = float3(+Demo.dim/1.5, +Demo.dim/1.5, 1e4)
 		
-		for i in 4..<nins {
-			let r = float3.random(in: -1..<1) * Demo.dim * 0.45
-			var pos = float3(r.x, 5, r.z)
-			var mag = float3(6)
-			
-			if i < 4+Demo.nsph {
-				mag.y = abs(r.y)
-				
-				scene.lgts[i - 3].pos.y = 0.7 * mag.y
-				scene.lgts[i - 3].hue *= 10.0
-				scene.lgts[i - 3].spr = 15 * .pi/180
-				scene.lgts[i - 3].rad = 2.0
-				
-			} else {
-				pos.y += mag.y * 0.5
-				
-				scene.lgts[i - 3].pos.y = mag.y + 12
-				scene.lgts[i - 3].hue *= 3.0
-				scene.lgts[i - 3].rad = 1.5
-			}
-			
-			scene.mdls[i].ctm = .pos(pos) * .mag(mag)
-			
-			scene.lgts[i - 3].pos.x = pos.x
-			scene.lgts[i - 3].pos.z = pos.z
-			scene.lgts[i - 3].rad *= scene.lgts[i - 3].pos.y
-			
+		var hues = [
+			float3(1, 1, 0),
+			float3(1, 0, 1),
+			float3(0, 1, 1),
+		].map(normalize)
+		
+		for i in scene["sph"]!.ids {
+			let x = 0.45 * Demo.dim * float.random(in: -1..<1)
+			let z = 0.45 * Demo.dim * float.random(in: -1..<1)
+			let h = float.random(in: 1..<24)
+			let ymdl: float = 2.5
+			let ylgt: float = ymdl + h + 10
+			scene.mdls.append(Scene.MDL(.pos(float3(x, ymdl, z)) * .mag(float3(1, h, 1))))
+			scene.lights.append(Light(
+				hue: 8.0 * hues.randomElement()!,
+				src: float3(x, ylgt, z),
+				rad: 2.5 * ylgt,
+				fov: 20 * .pi/180
+			))
+		}
+		
+		for i in scene["box"]!.ids {
+			let x = 0.45 * Demo.dim * float.random(in: -1..<1)
+			let z = 0.45 * Demo.dim * float.random(in: -1..<1)
+			let ymdl: float = 2.5 + 3/2
+			let ylgt: float = 1.6 * (2.5 + 3)
+			scene.mdls.append(Scene.MDL(.pos(float3(x, ymdl, z))))
+			scene.lights.append(Light(
+				hue: 2.0 * hues.randomElement()!,
+				src: float3(x, ylgt, z),
+				rad: 2.0 * ylgt
+			))
 		}
 		
 		return scene
@@ -134,31 +128,29 @@ class Demo: Ctrl {
 		self.t += 0.0016
 		
 		self.cruiser.tick(dt: dt * 15e-8)
-		self.scene.mdls[0].ctm = .pos(.y * 2) * self.cruiser.ctm
 		
 		self.camera.tick(dt: dt * 15e-8)
 		self.scene.cam.pos = self.camera.pos
 		self.scene.cam.rot = self.camera.rot
 		
-		self.scene.sun.src = 0.75 * Demo.dim * float3(
+		self.scene.sun.src = Demo.dim * float3(
 			cosf(self.t / 2),
-			sinf(self.t * 5) * 0.15 + 0.5,
+			sinf(self.t * 5) * 0.2 + 0.6,
 			sinf(self.t / 2)
 		)
 		
-		self.scene.mdls[2].ctm = .yrot(-2 * self.t) * .pos(.y * 20)
-		self.scene.mdls[3].ctm = .pos(self.scene.sun.src) * .yrot(-self.t * 8)
+		self.scene.mdls[self.scene["crs"]!.iid].ctm = self.cruiser.ctm
+		self.scene.mdls[self.scene["ogn"]!.iid].ctm = .yrot(-2 * self.t) * .pos(.y * 10)
+		self.scene.mdls[self.scene["sun"]!.iid].ctm = .pos(self.scene.sun.src) * .yrot(-self.t * 8)
 		
-		for (i, lgt) in self.scene.lgts.enumerated() {
-			if lgt.spr != 0 {
-				self.scene.lgts[i].dir = normalize(lgt.pos - self.cruiser.pos)
-			}
+		for (i, light) in self.scene.lights.enumerated() where light.is_spot {
+			self.scene.lights[i].dst = self.cruiser.pos
 		}
 		
 	}
 	
 	
-	var cruiser = Cruiser(pos: float3(0, 12, 0))
+	var cruiser = Cruiser(pos: float3(0, 7, 0))
 	var camera = Camera(pos: float3(0, 20, 30))
 	
 	struct Camera {
@@ -178,8 +170,8 @@ class Demo: Ctrl {
 				let vel = (rot * mov)[3].xyz
 				self.vel += vel * 0.1
 			}
-			self.pos += self.vel * dt
-			self.vel *= float3(0.87, 0.8, 0.87)
+			self.pos += 0.6 * self.vel * dt
+			self.vel *= float3(0.85, 0.75, 0.85)
 		}
 	}
 	
@@ -194,7 +186,7 @@ class Demo: Ctrl {
 			self.rot.y -= 0.08 * self.rot.z * dt
 			self.vel.x += 0.2 * self.rot.x * sin(-self.rot.y)
 			self.vel.z += 0.2 * self.rot.x * cos(-self.rot.y)
-			self.pos -= 0.1 * self.vel * dt
+			self.pos -= 0.05 * self.vel * dt
 			self.vel *= 0.997
 			self.rot.x *= 0.9
 			self.rot.z *= 0.9
@@ -209,21 +201,19 @@ class Demo: Ctrl {
 	}
 	
 	
+	var paused: Bool {
+		get {return Cursor.visible}
+		set(paused) {Cursor.visible = paused}
+	}
+	
 	var timer: Timer!
 	var binds = Binds()
-	var paused = false
 	init() {
 		
-		Cursor.visible = false
-		self.binds.key[.esc] = (dn: {
-			self.paused = !self.paused
-			Cursor.visible = self.paused
-		}, up: {})
+		self.paused = false
+		self.binds.key[.esc] = (dn: {self.paused = !self.paused}, up: {})
 		
-		self.binds.ptr[-1] = {
-			sns in
-			if !self.paused {self.camera.rot(sns: sns)}
-		}
+		self.binds.ptr[-1] = {if !self.paused {self.camera.rot(sns: $0)}}
 		
 		self.binds.key[.spc]	= (dn: {self.camera.mov += .y}, up: {self.camera.mov -= .y})
 		self.binds.key[.f]		= (dn: {self.camera.mov -= .y}, up: {self.camera.mov += .y})
