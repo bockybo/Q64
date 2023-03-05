@@ -35,6 +35,8 @@ extension MTLCommandBuffer {
 extension MTLRenderCommandEncoder {
 	
 	func draw(submesh: MTKSubmesh, prim: MTLPrimitiveType = .triangle, iid: Int = 0, nid: Int = 1) {
+		assert(nid >= 0)
+		if (nid == 0) {return}
 		self.drawIndexedPrimitives(
 			type:				prim,
 			indexCount:			submesh.indexCount,
@@ -63,6 +65,13 @@ extension MTLRenderCommandEncoder {
 		self.setRenderPipelineState(state)
 		self.setDepthStencilState(depth)
 		self.setCullMode(cull)
+	}
+	
+	func setVertexBuffer(_ buf: MTLBuffer?, index: Int) {self.setVertexBuffer(buf, offset: 0, index: index)}
+	func setFragmentBuffer(_ buf: MTLBuffer?, index: Int) {self.setFragmentBuffer(buf, offset: 0, index: index)}
+	func setVFBuffers(_ buf: MTLBuffer?, index: Int, offset: Int = 0) {
+		self.setVertexBuffer(buf, offset: offset, index: index)
+		self.setFragmentBuffer(buf, offset: offset, index: index)
 	}
 	
 }

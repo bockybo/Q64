@@ -14,15 +14,14 @@ class lib {
 		"shade": 	lib.shader("vtx_shade"),
 		"main": 	lib.shader("vtx_main"),
 		"quad": 	lib.shader("vtx_quad"),
-		"icos": 	lib.shader("vtx_icos"),
 		"mask":		lib.shader("vtx_mask"),
+		"light":	lib.shader("vtx_light"),
 	]
 	static let frgshaders = [
 		"gbuf": 	lib.shader("frg_gbuf"),
-		"light": 	lib.shader("frg_light"),
 		"quad":		lib.shader("frg_quad"),
 		"icos":		lib.shader("frg_icos"),
-		"spot":		lib.shader("frg_spot"),
+		"cone":		lib.shader("frg_cone"),
 	]
 	
 	
@@ -117,32 +116,13 @@ class lib {
 			return tex
 		}
 		
-		static func oxo<T>(
-			_ pix: T,
-			fmt: MTLPixelFormat,
-			label: String? = nil,
-			usage: MTLTextureUsage = .shaderRead
-		) -> MTLTexture {
-			let tex = lib.tex.base(fmt: fmt, res: uint2(1), label: label, usage: usage, storage: .shared)
-			var pix = pix
-			tex.replace(
-				region: .init(
-					origin: .init(x: 0, y: 0, z: 0),
-					size: .init(width: 1, height: 1, depth: 1)),
-				mipmapLevel: 0,
-				withBytes: &pix,
-				bytesPerRow: sizeof(T.self)
-			)
-			return tex
-		}
-		
 	}
 	
 	
 	class mesh {
-		private static let alloc = MTKMeshBufferAllocator(device: lib.device)
+		static let alloc = MTKMeshBufferAllocator(device: lib.device)
 		
-		private static func mtk(
+		static func base(
 			_ mesh: MDLMesh,
 			descr: MDLVertexDescriptor = lib.vtxdescrs["main"]!,
 			ctm: float4x4? = nil
@@ -192,7 +172,7 @@ class lib {
 				bufferAllocator: lib.mesh.alloc
 			)
 			let meshes = try! MTKMesh.newMeshes(asset: asset, device: lib.device).modelIOMeshes
-			return meshes.map {lib.mesh.mtk($0, descr: descr, ctm: ctm)}
+			return meshes.map {lib.mesh.base($0, descr: descr, ctm: ctm)}
 		}
 		
 		
@@ -201,7 +181,7 @@ class lib {
 			prim: MDLGeometryType		= .triangles,
 			ctm: float4x4?				= nil,
 			descr: MDLVertexDescriptor	= lib.vtxdescrs["main"]!
-		) -> MTKMesh {return lib.mesh.mtk(MDLMesh(
+		) -> MTKMesh {return lib.mesh.base(MDLMesh(
 			planeWithExtent: 			dim,
 			segments: 					uint2(1),
 			geometryType: 				prim,
@@ -213,7 +193,7 @@ class lib {
 			prim: MDLGeometryType		= .triangles,
 			ctm: float4x4?				= nil,
 			descr: MDLVertexDescriptor	= lib.vtxdescrs["main"]!
-		) -> MTKMesh {return lib.mesh.mtk(MDLMesh(
+		) -> MTKMesh {return lib.mesh.base(MDLMesh(
 			icosahedronWithExtent: 		dim,
 			inwardNormals: 				inwd,
 			geometryType: 				prim,
@@ -225,7 +205,7 @@ class lib {
 			prim: MDLGeometryType		= .triangles,
 			ctm: float4x4?				= nil,
 			descr: MDLVertexDescriptor	= lib.vtxdescrs["main"]!
-		) -> MTKMesh {return lib.mesh.mtk(MDLMesh(
+		) -> MTKMesh {return lib.mesh.base(MDLMesh(
 			boxWithExtent:	 			dim,
 			segments: 					uint3(1),
 			inwardNormals: 				inwd,
@@ -239,7 +219,7 @@ class lib {
 			prim: MDLGeometryType		= .triangles,
 			ctm: float4x4?				= nil,
 			descr: MDLVertexDescriptor	= lib.vtxdescrs["main"]!
-		) -> MTKMesh {return lib.mesh.mtk(MDLMesh(
+		) -> MTKMesh {return lib.mesh.base(MDLMesh(
 			sphereWithExtent:			dim,
 			segments:					seg,
 			inwardNormals:				inwd,
@@ -254,7 +234,7 @@ class lib {
 			prim: MDLGeometryType		= .triangles,
 			ctm: float4x4?				= nil,
 			descr: MDLVertexDescriptor	= lib.vtxdescrs["main"]!
-		) -> MTKMesh {return lib.mesh.mtk(MDLMesh(
+		) -> MTKMesh {return lib.mesh.base(MDLMesh(
 			hemisphereWithExtent:		dim,
 			segments:					seg,
 			inwardNormals:				inwd,
@@ -271,7 +251,7 @@ class lib {
 			prim: MDLGeometryType		= .triangles,
 			ctm: float4x4?				= nil,
 			descr: MDLVertexDescriptor	= lib.vtxdescrs["main"]!
-		) -> MTKMesh {return lib.mesh.mtk(MDLMesh(
+		) -> MTKMesh {return lib.mesh.base(MDLMesh(
 			cylinderWithExtent:			dim,
 			segments:					seg,
 			inwardNormals: 				inwd,
@@ -288,7 +268,7 @@ class lib {
 			prim: MDLGeometryType		= .triangles,
 			ctm: float4x4?				= nil,
 			descr: MDLVertexDescriptor	= lib.vtxdescrs["main"]!
-		) -> MTKMesh {return lib.mesh.mtk(MDLMesh(
+		) -> MTKMesh {return lib.mesh.base(MDLMesh(
 			coneWithExtent: 			dim,
 			segments:					seg,
 			inwardNormals: 				inwd,
@@ -304,9 +284,9 @@ class lib {
 			prim: MDLGeometryType		= .triangles,
 			ctm: float4x4?				= nil,
 			descr: MDLVertexDescriptor	= lib.vtxdescrs["main"]!
-		) -> MTKMesh {return lib.mesh.mtk(MDLMesh(
+		) -> MTKMesh {return lib.mesh.base(MDLMesh(
 			capsuleWithExtent:			dim,
-			cylinderSegments:			seg.xy,
+			cylinderSegments:			uint2(seg.x, seg.y),
 			hemisphereSegments:			Int32(seg.z),
 			inwardNormals:				inwd,
 			geometryType:				prim,
