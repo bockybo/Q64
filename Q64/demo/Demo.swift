@@ -9,55 +9,55 @@ class Demo: Ctrl {
 	static let nsph = 12
 	static let nbox = 36
 	
-	let scene: Scene = {
-		let scene = Scene([
-			Model( // crs: 0
-				meshes: lib.mesh.load("cruiser.obj", ctm: .mag(0.5))
-			),
-			Model( // gnd: 1
-				meshes: [lib.mesh.box(dim: float3(Demo.dim, 2, Demo.dim), ctm: .ypos(-1))],
-				material: Material(
-					alb: lib.tex.load("snow_alb.jpg", srgb: true),
-					nml: lib.tex.load("snow_nml.jpg"),
-					rgh: lib.tex.load("snow_rgh.jpg")
-			)),
-			Model( // ogn: 2
-				meshes: [lib.mesh.sph(dim: 0.6 * (.xz + .y * 2), ctm: .ypos(5))],
-				material: Material(
-					alb: lib.tex.load("gold_alb.jpg", srgb: true),
-					nml: lib.tex.load("gold_nml.jpg"),
-					rgh: lib.tex.load("gold_rgh.jpg"),
-					 ao: lib.tex.load("gold_ao.jpg"),
-					mtl_default: 1.0
-			)),
-			Model( // sun: 3
-				meshes: [lib.mesh.sph(dim: float3(2.5), seg: uint2(10), inwd: true)],
-				material: Material(
-					alb_default: float3(255, 255, 0)
-			)),
-			Model( // sph: 4
-				meshes: [lib.mesh.hem(dim: float3(1, 12, 1), seg: uint2(100, 20))],
-				material: Material(
-					alb: lib.tex.load("ice_alb.png", srgb: true),
-					nml: lib.tex.load("ice_nml.png"),
-					mtl: lib.tex.load("ice_ao.png"),
-					 ao: lib.tex.load("ice_mtl.png"),
-					rgh_default: 0.1
-			)),
-			Model( // box: 5
-				meshes: [lib.mesh.caps(dim: float3(2, 5, 2), seg: uint3(20, 20, 10))],
-				material: Material(
-					alb: lib.tex.load("brick_alb.jpg", srgb: true),
-					nml: lib.tex.load("brick_nml.jpg"),
-					rgh_default: 0.1,
-					mtl_default: 1.0
-			)),
-		])
+	init(scene: Scene) {
+		self.hidecursor()
 		
-		scene[0].add(MDL())
-		scene[1].add(MDL())
-		scene[2].add(MDL())
-		scene[3].add(MDL())
+		var crs = Model(
+			meshes: util.mesh.load("cruiser.obj", ctm: .mag(0.5))
+		)
+		var gnd = Model(
+			meshes: [util.mesh.box(dim: float3(Demo.dim, 2, Demo.dim), ctm: .ypos(-1))],
+			material: Material(
+				alb: util.tex.load("snow_alb.jpg", srgb: true),
+				nml: util.tex.load("snow_nml.jpg"),
+				rgh: util.tex.load("snow_rgh.jpg")
+		))
+		var ogn = Model(
+			meshes: [util.mesh.sph(dim: 0.6 * (.xz + .y * 2), ctm: .ypos(5))],
+			material: Material(
+				alb: util.tex.load("gold_alb.jpg", srgb: true),
+				nml: util.tex.load("gold_nml.jpg"),
+				rgh: util.tex.load("gold_rgh.jpg"),
+				ao: util.tex.load("gold_ao.jpg"),
+				mtl_default: 1.0
+		))
+		var sun = Model(
+			meshes: [util.mesh.sph(dim: float3(2.5), seg: uint2(100), inwd: true)],
+			material: Material(
+				alb_default: float3(255, 255, 0)
+		))
+		var sph = Model(
+			meshes: [util.mesh.hem(dim: float3(1, 12, 1), seg: uint2(100, 20))],
+			material: Material(
+				alb: util.tex.load("ice_alb.png", srgb: true),
+				nml: util.tex.load("ice_nml.png"),
+				mtl: util.tex.load("ice_ao.png"),
+				ao: util.tex.load("ice_mtl.png"),
+				rgh_default: 0.1
+		))
+		var box = Model(
+			meshes: [util.mesh.cap(dim: float3(2, 5, 2), seg: uint3(20, 20, 10))],
+			material: Material(
+				alb: util.tex.load("brick_alb.jpg", srgb: true),
+				nml: util.tex.load("brick_nml.jpg"),
+				rgh_default: 0.1,
+				mtl_default: 1.0
+		))
+		
+		crs.add(MDL())
+		gnd.add(MDL())
+		ogn.add(MDL())
+		sun.add(MDL())
 		
 		scene.lighting.sun.hue = 0.8 * normalize(float3(0.95, 0.85, 0.65))
 		scene.lighting.sun.src = float3(1, 0.5, 1) * Demo.dim
@@ -65,7 +65,7 @@ class Demo: Ctrl {
 		scene.lighting.sun.p0.xy = Demo.dim/1.5 * float2(-1)
 		scene.lighting.sun.p1.xy = Demo.dim/1.5 * float2(+1)
 		
-		var hues = [.xy, .xz, .yz].map(normalize)
+		let hues = [.xy, .xz, .yz].map(normalize)
 		
 		for _ in 0..<Demo.nsph {
 			let x = 0.45 * Demo.dim * float.random(in: -1..<1)
@@ -73,7 +73,7 @@ class Demo: Ctrl {
 			let h = float.random(in: 0.4..<1.2)
 			let y = 12*h
 			let pos = float3(x, 0, z)
-			scene[4].add(MDL(ctm: .pos(pos) * .ymag(h)))
+			sph.add(MDL(ctm: .pos(pos) * .ymag(h)))
 			scene.lighting.add_cone(
 				hue: 3.2 * hues.randomElement()!,
 				src: pos + .y * (y + 6),
@@ -90,7 +90,7 @@ class Demo: Ctrl {
 		for _ in 0..<Demo.nbox {
 			let x = 0.45 * Demo.dim * float.random(in: -1..<1)
 			let z = 0.45 * Demo.dim * float.random(in: -1..<1)
-			scene[5].add(MDL(ctm: .pos(float3(x, 0, z))))
+			box.add(MDL(ctm: .pos(float3(x, 0, z))))
 			scene.lighting.add_icos(
 				hue: 1.2 * hues.randomElement()!,
 				src: float3(x, 4.0, z),
@@ -98,43 +98,35 @@ class Demo: Ctrl {
 			)
 		}
 		
-		return scene
-	}()
-	
-	var t0 = DispatchTime.now().uptimeNanoseconds
-	var dt: float? {
-		let t1 = DispatchTime.now().uptimeNanoseconds
-		let dt = t1 - self.t0
-		self.t0 = t1
-		if self.paused {return nil}
-		return float(dt)
+		scene.add([crs, gnd, ogn, sun, sph, box])
+		
 	}
-	var t: float = 0
 	
-	func tick() {
-		guard let dt = self.dt else {return}
+	var t: float = 0
+	func tick(scene: Scene, dt: float) {
+		guard !self.paused else {return}
 		self.t += 0.0016
 		
 		self.cruiser.tick(dt: dt * 15e-8)
 		
 		self.camera.tick(dt: dt * 15e-8)
-		self.scene.camera.pos = self.camera.pos
-		self.scene.camera.rot = self.camera.rot
+		scene.camera.pos = self.camera.pos
+		scene.camera.rot = self.camera.rot
 		
-		self.scene.lighting.sun.src = Demo.dim * float3(
+		scene.lighting.sun.src = Demo.dim * float3(
 			cosf(self.t / 2),
-			sinf(self.t * 5) * 0.3 + 0.5,
+			sinf(self.t * 4) * 0.3 + 0.6,
 			sinf(self.t / 2)
 		)
-		for i in self.scene.lighting.cone.indices {
-//			self.scene.lighting.cone[i].dst = 3 * .y
-			self.scene.lighting.cone[i].dst = self.cruiser.pos
-//			self.scene.lighting.cone[i].dst = self.camera.pos * .xz
+		for i in scene.lighting.cone.indices {
+//			scene.lighting.cone[i].dst = 3 * .y
+			scene.lighting.cone[i].dst = self.cruiser.pos
+//			scene.lighting.cone[i].dst = self.camera.pos * .xz
 		}
 		
-		self.scene[0][0].ctm = self.cruiser.ctm
-		self.scene[2][0].ctm = .yrot(-2 * self.t)
-		self.scene[3][0].ctm = .pos(self.scene.lighting.sun.src) * .yrot(-self.t * 8)
+		scene[0][0].ctm = self.cruiser.ctm
+		scene[2][0].ctm = .yrot(-2 * self.t)
+		scene[3][0].ctm = .pos(scene.lighting.sun.src) * .yrot(-self.t * 8)
 		
 	}
 	
@@ -194,44 +186,48 @@ class Demo: Ctrl {
 		}
 	}
 	
-	
-	var paused: Bool {
-		get {return Cursor.visible}
-		set(paused) {Cursor.visible = paused}
+	var paused = false {didSet {
+		self.paused ? self.showcursor() : self.hidecursor()
+	}}
+	func showcursor() {
+		CGDisplayShowCursor(CGMainDisplayID())
+		CGAssociateMouseAndMouseCursorPosition(1)
 	}
-	
-	var timer: Timer!
-	var binds = Binds()
-	init() {
-		
-		self.paused = false
-		self.binds.key[.esc] = (dn: {self.paused = !self.paused}, up: {})
-		
-		self.binds.ptr[-1] = {if !self.paused {self.camera.rot(sns: $0)}}
-		
-		self.binds.key[.tab]	= (dn: {self.camera.coast = !self.camera.coast}, up: {})
-		
-		self.binds.key[.spc]	= (dn: {self.camera.mov += .y}, up: {self.camera.mov -= .y})
-		self.binds.key[.f]		= (dn: {self.camera.mov -= .y}, up: {self.camera.mov += .y})
-		self.binds.key[.w] 		= (dn: {self.camera.mov -= .z}, up: {self.camera.mov += .z})
-		self.binds.key[.s] 		= (dn: {self.camera.mov += .z}, up: {self.camera.mov -= .z})
-		self.binds.key[.a] 		= (dn: {self.camera.mov -= .x}, up: {self.camera.mov += .x})
-		self.binds.key[.d] 		= (dn: {self.camera.mov += .x}, up: {self.camera.mov -= .x})
-		
-		self.binds.key[.up] 	= (dn: {self.cruiser.mov += .x}, up: {self.cruiser.mov -= .x})
-		self.binds.key[.dn] 	= (dn: {self.cruiser.mov -= .x}, up: {self.cruiser.mov += .x})
-		self.binds.key[.lt] 	= (dn: {self.cruiser.mov -= .z}, up: {self.cruiser.mov += .z})
-		self.binds.key[.rt] 	= (dn: {self.cruiser.mov += .z}, up: {self.cruiser.mov -= .z})
-		
-		self.timer = Timer(timeInterval: 1/Double(cfg.tps), repeats: true) {_ in self.tick()}
-		RunLoop.main.add(self.timer, forMode: .default)
-		
+	func hidecursor() {
+		CGDisplayHideCursor(CGMainDisplayID())
+		CGAssociateMouseAndMouseCursorPosition(0)
 	}
-	
-	deinit {
-		self.timer.invalidate()
-		self.timer = nil
-	}
+	lazy var binds = Binds(
+		keydn: [
+			.esc: {self.paused = !self.paused},
+			.tab: {self.camera.coast = !self.camera.coast},
+			.spc:	{self.camera.mov += .y},
+			.f:		{self.camera.mov -= .y},
+			.w:		{self.camera.mov -= .z},
+			.s:		{self.camera.mov += .z},
+			.a:		{self.camera.mov -= .x},
+			.d:		{self.camera.mov += .x},
+			.up:	{self.cruiser.mov += .x},
+			.dn:	{self.cruiser.mov -= .x},
+			.lt:	{self.cruiser.mov -= .z},
+			.rt:	{self.cruiser.mov += .z},
+		],
+		keyup: [
+			.spc:	{self.camera.mov -= .y},
+			.f:		{self.camera.mov += .y},
+			.w:		{self.camera.mov += .z},
+			.s:		{self.camera.mov -= .z},
+			.a:		{self.camera.mov += .x},
+			.d:		{self.camera.mov -= .x},
+			.up:	{self.cruiser.mov -= .x},
+			.dn:	{self.cruiser.mov += .x},
+			.lt:	{self.cruiser.mov += .z},
+			.rt:	{self.cruiser.mov -= .z},
+		],
+		mov: [
+			-1: {if !self.paused {self.camera.rot(sns: $0)}}
+		]
+	)
 	
 }
 

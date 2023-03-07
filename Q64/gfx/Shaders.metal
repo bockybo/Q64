@@ -4,7 +4,7 @@ using namespace metal;
 #define DEBUGMASK 	0
 #define MPCF		3
 #define NSHADOW		128
-#define ZSHADOW		5e-6f
+#define ZSHADOW		1e-6f
 #define BASE_F0		0.04f
 
 
@@ -148,7 +148,7 @@ static inline float3 L(float3 alb, float mtl, float ao) {
 }
 static inline float D(float asq, float ndh) {
 	float c = max(1e-3f, 1.f + (asq - 1.f) * (ndh*ndh));
-	return step(0.f, ndh) * asq / (M_PI_F*c*c);
+	return asq / (M_PI_F*c*c);
 }
 //static inline float G1(float ad2, float ndx) {
 //	return 1.f / (ndx * (1.f - ad2) + ad2);
@@ -166,6 +166,8 @@ static inline float3 F(float vdh, float3 f0) {
 }
 static float3 BDRF(material mat, float3 n, float3 l, float3 v) {
 	float ndl = dot(n, l);
+	if (ndl <= 0.f)
+		return 0.f;
 	float ndv = dot(n, v = normalize(v));
 	float3 h = normalize(l + v);
 	float ndh = dot(n, h);
@@ -177,39 +179,47 @@ static float3 BDRF(material mat, float3 n, float3 l, float3 v) {
 //	fs *= G(mat.rgh * 0.5f, ndl, ndv);
 	fs *= G(asq, ndl, ndv);
 	fs *= F(vdh, mix(BASE_F0, mat.alb, mat.mtl));
-	return max(0.0f, ndl) * (fd + fs);
+	return ndl * (fd + fs);
 }
 
 // TODO: actually use the damn half4s
-static lpix com_lighting(const gbuf buf,
-						 float2 uv,
-						 constant camera &cam,
-						 constant light &lgt,
-						 depth2d<float> shdmap,
-						 attenuator attenuate) {
-#if DEBUGMASK
-	return {buf.dst + half4((half3)normalize(lgts[pix.id].hue) * 0.5h, 0.h)};
-#endif
-	
-	float3 n = (float3)buf.nml.xyz;
-	material mat = {
-		.alb = (float3)buf.alb.rgb,
-		.rgh = buf.mat.r,
-		.mtl = buf.mat.g,
-		. ao = buf.mat.b};
-	
-	float3 ndc = float3(uv / (float2)cam.res, buf.dep);
-	float3 pos = loc2wld(cam.view * cam.invproj, ndc);
-	
+static inline half3 com_lighting(material mat,
+								 float3 pos,
+								 float3 nml,
+								 constant camera &cam,
+								 constant light &lgt,
+								 depth2d<float> shdmap,
+								 attenuator attenuate) {
 	float4 att = attenuate(lgt, pos, shdmap);
 	if (att.a <= 0.f)
-		return {buf.dst};
+		return 0.h;
+#if DEBUGMASK
+	if (attenuate != attenuate_quad)
+		return (half3)normalize(lgt.hue) * 0.2h;
+#endif
 	float3 l = att.xyz;
 	float3 v = normalize(mpos(cam.view) - pos);
-	
-	float3 rgb = att.a * lgt.hue * BDRF(mat, n, l, v);
-	return {buf.dst + half4((half3)rgb, 0.h)};
-	
+	return (half3)saturate(att.a * lgt.hue * BDRF(mat, nml, l, v));
+}
+
+static inline lpix buf_lighting(const gbuf buf,
+								float2 uv,
+								constant camera &cam,
+								constant light &lgt,
+								depth2d<float> shdmap,
+								attenuator attenuate) {
+	float3 alb = (float3)buf.alb.rgb;
+	float3 nml = (float3)buf.nml.xyz;
+	material mat = {
+		.alb = alb,
+		.rgh = buf.mat.r,
+		.mtl = buf.mat.g,
+		. ao = buf.mat.b
+	};
+	float3 ndc = float3(uv / (float2)cam.res, buf.dep);
+	float3 pos = loc2wld(cam.view * cam.invproj, ndc);
+	half3 rgb = com_lighting(mat, pos, nml, cam, lgt, shdmap, attenuate);
+	return {buf.dst + half4(rgb, 0)};
 }
 
 
@@ -246,7 +256,7 @@ vertex frg vtx_main(const device vtx *vtcs		[[buffer(0)]],
 }
 
 fragment gbuf frg_gbuf(const frg f				[[stage_in]],
-					   constant material &mat	[[buffer(0)]],
+					   constant material &mat	[[buffer(4)]],
 					   texture2d<half> albmap	[[texture(0)]],
 					   texture2d<half> nmlmap	[[texture(1)]],
 					   texture2d<half> rghmap	[[texture(2)]],
@@ -274,9 +284,11 @@ fragment gbuf frg_gbuf(const frg f				[[stage_in]],
 }
 
 vertex lfrg vtx_quad(const device packed_float3 *vtcs	[[buffer(0)]],
-					 uint vid							[[vertex_id]]) {
-	return {.loc = float4(vtcs[vid], 1.f), .iid = 0};
+					 uint vid							[[vertex_id]],
+					 uint iid							[[instance_id]]) {
+	return {.loc = float4(vtcs[vid], 1.f), .iid = iid};
 }
+
 
 vertex float4 vtx_mask(const device packed_float3 *vtcs	[[buffer(0)]],
 					   constant light *lgts				[[buffer(2)]],
@@ -288,11 +300,11 @@ vertex float4 vtx_mask(const device packed_float3 *vtcs	[[buffer(0)]],
 	float4 loc = cam.proj * cam.invview * float4(pos.xyz, 1.f);
 	return loc;
 }
-vertex lfrg vtx_light(const device packed_float3 *vtcs	[[buffer(0)]],
-					  constant light *lgts				[[buffer(2)]],
-					  constant camera &cam				[[buffer(3)]],
-					  uint vid							[[vertex_id]],
-					  uint iid							[[instance_id]]) {
+vertex lfrg vtx_volume(const device packed_float3 *vtcs	[[buffer(0)]],
+					   constant light *lgts				[[buffer(2)]],
+					   constant camera &cam				[[buffer(3)]],
+					   uint vid							[[vertex_id]],
+					   uint iid							[[instance_id]]) {
 	constant light &lgt = lgts[iid];
 	float4 pos = lgt.inv * float4(vtcs[vid], 1.f);
 	float4 loc = cam.proj * cam.invview * float4(pos.xyz, 1.f);
@@ -304,19 +316,19 @@ fragment lpix frg_quad(const gbuf buf,
 					   constant light *lgts						[[buffer(2)]],
 					   constant camera &cam						[[buffer(3)]],
 					   array<depth2d<float>, NSHADOW> shdmaps 	[[texture(0)]]) {
-	return com_lighting(buf, pix.loc.xy, cam, lgts[pix.iid], shdmaps[pix.iid], attenuate_quad);
+	return buf_lighting(buf, pix.loc.xy, cam, lgts[pix.iid], shdmaps[pix.iid], attenuate_quad);
 }
 fragment lpix frg_icos(const gbuf buf,
 					   const lfrg pix							[[stage_in]],
 					   constant light *lgts						[[buffer(2)]],
 					   constant camera &cam						[[buffer(3)]],
 					   array<depth2d<float>, NSHADOW> shdmaps 	[[texture(0)]]) {
-	return com_lighting(buf, pix.loc.xy, cam, lgts[pix.iid], shdmaps[pix.iid], attenuate_icos);
+	return buf_lighting(buf, pix.loc.xy, cam, lgts[pix.iid], shdmaps[pix.iid], attenuate_icos);
 }
 fragment lpix frg_cone(const gbuf buf,
 					   const lfrg pix							[[stage_in]],
 					   constant light *lgts						[[buffer(2)]],
 					   constant camera &cam						[[buffer(3)]],
 					   array<depth2d<float>, NSHADOW> shdmaps 	[[texture(0)]]) {
-	return com_lighting(buf, pix.loc.xy, cam, lgts[pix.iid], shdmaps[pix.iid], attenuate_cone);
+	return buf_lighting(buf, pix.loc.xy, cam, lgts[pix.iid], shdmaps[pix.iid], attenuate_cone);
 }

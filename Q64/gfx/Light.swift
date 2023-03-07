@@ -36,8 +36,8 @@ struct Quadlight: Light {
 	var p1: float3
 	var dir: float3 {return normalize(self.dst - self.src)}
 	var proj: float4x4 {return .ortho(p0: self.p0, p1: self.p1)}
-	let shadowmap: MTLTexture? = lib.tex.base(
-		fmt: Renderer.fmt_shade,
+	let shadowmap: MTLTexture? = util.tex.base(
+		fmt: .depth32Float,
 		res: uint2(uint(Renderer.qshd_quad)),
 		label: "shadowmaps",
 		usage: [.shaderRead, .renderTarget],
@@ -53,9 +53,9 @@ struct Conelight: Light {
 	var z0: float
 	var dir: float3 {return normalize(self.dst - self.src)}
 	var mag: float3 {return self.rad * (tan(self.phi) * .xy + .z)}
-	var proj: float4x4 {return .persp(fov: 2.5 * self.phi, z0: self.z0, z1: 2 * self.rad)}
-	let shadowmap: MTLTexture? = lib.tex.base(
-		fmt: Renderer.fmt_shade,
+	var proj: float4x4 {return .persp(fov: 2.1 * self.phi, z0: self.z0, z1: 2 * self.rad)}
+	let shadowmap: MTLTexture? = util.tex.base(
+		fmt: .depth32Float,
 		res: uint2(uint(Renderer.qshd_cone)),
 		label: "shadowmaps",
 		usage: [.shaderRead, .renderTarget],
@@ -85,6 +85,9 @@ struct Lighting {
 	var lights: [Light] {return self.quad + self.cone + self.icos}
 	var count: Int {return self.lights.count}
 	
+	mutating func add_quad(_ quad: Quadlight) {self.quad.append(quad)}
+	mutating func add_cone(_ cone: Conelight) {self.cone.append(cone)}
+	mutating func add_icos(_ icos: Icoslight) {self.icos.append(icos)}
 	
 	mutating func add_quad(
 		hue: float3 = normalize(float3(1)),
@@ -93,7 +96,7 @@ struct Lighting {
 		p0: float3 = float3(-100, -100, 0.0),
 		p1: float3 = float3(+100, +100, 1e3)
 	) {
-		self.quad.append(.init(hue: hue, src: src, dst: dst, p0: p0, p1: p1))
+		self.add_quad(.init(hue: hue, src: src, dst: dst, p0: p0, p1: p1))
 	}
 	mutating func add_cone(
 		hue: float3 = normalize(float3(1)),
@@ -103,14 +106,14 @@ struct Lighting {
 		phi: float = .pi/4,
 		z0: float = 0.01
 	) {
-		self.cone.append(.init(hue: hue, src: src, dst: dst, rad: rad, phi: phi, z0: z0))
+		self.add_cone(.init(hue: hue, src: src, dst: dst, rad: rad, phi: phi, z0: z0))
 	}
 	mutating func add_icos(
 		hue: float3 = normalize(float3(1)),
 		src: float3 = float3(0, 0, 0),
 		rad: float = 1
 	) {
-		self.icos.append(.init(hue: hue, src: src, rad: rad))
+		self.add_icos(.init(hue: hue, src: src, rad: rad))
 	}
 	
 }

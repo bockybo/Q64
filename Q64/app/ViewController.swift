@@ -1,26 +1,49 @@
 import MetalKit
 
-class ViewController: NSViewController {
-	var renderer: Renderer!
 
+class ViewController: NSViewController {
+	var drawview: MTKView!
+	var ctrlview: CtrlView!
+	var renderer: Renderer!
+	var scene: Scene!
+	
 	override func viewDidLoad() {
 		super.viewDidLoad()
-		let view = RenderView(
-			frame: CGRect(origin: .zero, size: CGSize(
-				width:  cfg.win_w,
-				height: cfg.win_h
-			)),
-			device: lib.device
-		)
-		self.view = view
-		self.renderer = Renderer(view)
-		view.delegate = self.renderer
-		view.preferredFramesPerSecond = cfg.fps
+		
+		self.scene = Scene()
+		self.ctrlview = CtrlView()
+		self.ctrlview.ctrl = Demo(scene: self.scene)
+		
+		self.drawview = MTKView(frame: self.view.frame, device: lib.device)
+		self.renderer = Renderer(self.drawview, scene: self.scene)
+		self.drawview.delegate = self.renderer
+		self.drawview.preferredFramesPerSecond = cfg.fps
+		self.drawview.colorPixelFormat = Renderer.fmt_color
+		self.drawview.depthStencilPixelFormat = Renderer.fmt_depth
+		
+		self.view.addSubview(self.ctrlview)
+		self.view.addSubview(self.drawview)
+		self.view.frame.size = CGSize(width: cfg.win_w, height: cfg.win_h)
+		
+		self.drawview.translatesAutoresizingMaskIntoConstraints = false
+		NSLayoutConstraint.activate([
+			self.drawview.topAnchor.constraint(equalTo: self.view.topAnchor),
+			self.drawview.leadingAnchor.constraint(equalTo: self.view.leadingAnchor),
+			self.drawview.trailingAnchor.constraint(equalTo: self.view.trailingAnchor),
+			self.drawview.bottomAnchor.constraint(equalTo: self.view.bottomAnchor),
+		])
+		
 	}
 	
-	override func viewWillAppear() {
-		let win = self.view.window!
+	override func viewDidAppear() {
+		super.viewDidAppear()
+		let win = self.ctrlview.window!
 		win.acceptsMouseMovedEvents = true
+		self.ctrlview.start(tps: cfg.tps, scene: self.scene)
 	}
-
+	override func viewWillDisappear() {
+		super.viewWillDisappear()
+		self.ctrlview.stop()
+	}
+	
 }
