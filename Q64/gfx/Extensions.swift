@@ -35,8 +35,8 @@ extension MTLCommandBuffer {
 extension MTLRenderCommandEncoder {
 	
 	func draw(submesh: MTKSubmesh, prim: MTLPrimitiveType = .triangle, iid: Int = 0, nid: Int = 1) {
-		assert(nid >= 0)
 		if (nid == 0) {return}
+		assert(nid > 0) // shouldn't metal assert this??
 		self.drawIndexedPrimitives(
 			type:				prim,
 			indexCount:			submesh.indexCount,
@@ -57,21 +57,25 @@ extension MTLRenderCommandEncoder {
 		}
 	}
 	
-	func setStates(
-		_ state: MTLRenderPipelineState,
-		_ depth: MTLDepthStencilState,
-		cull: MTLCullMode = .none
-	) {
-		self.setRenderPipelineState(state)
-		self.setDepthStencilState(depth)
-		self.setCullMode(cull)
+	func setVBuffer(_ buf: MTLBuffer?, index: Int) {self.setVertexBuffer(buf, offset: 0, index: index)}
+	func setFBuffer(_ buf: MTLBuffer?, index: Int) {self.setFragmentBuffer(buf, offset: 0, index: index)}
+	
+//	obvi tmp, just makes draw() more readable for dev
+	func setStates(ps: MTLRenderPipelineState, ds: MTLDepthStencilState) {
+		self.setRenderPipelineState(ps)
+		self.setDepthStencilState(ds)
+	}
+	func setCull(mode: MTLCullMode, wind: MTLWinding) {
+		self.setCullMode(mode)
+		self.setFrontFacing(wind)
 	}
 	
-	func setVertexBuffer(_ buf: MTLBuffer?, index: Int) {self.setVertexBuffer(buf, offset: 0, index: index)}
-	func setFragmentBuffer(_ buf: MTLBuffer?, index: Int) {self.setFragmentBuffer(buf, offset: 0, index: index)}
-	func setVFBuffers(_ buf: MTLBuffer?, index: Int, offset: Int = 0) {
-		self.setVertexBuffer(buf, offset: offset, index: index)
-		self.setFragmentBuffer(buf, offset: offset, index: index)
+}
+
+extension MTLArgumentEncoder {
+	
+	func setBytes(_ bytes: UnsafeRawPointer, length: Int, index: Int) {
+		self.constantData(at: index).copyMemory(from: bytes, byteCount: length)
 	}
 	
 }

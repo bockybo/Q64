@@ -10,9 +10,9 @@ class ViewController: NSViewController {
 	override func viewDidLoad() {
 		super.viewDidLoad()
 		
-		self.scene = Scene()
+		self.scene = Scene(materials: cfg.meta.materials)
 		self.ctrlview = CtrlView()
-		self.ctrlview.ctrl = Demo(scene: self.scene)
+		self.ctrlview.ctrl = cfg.meta.init(scene: self.scene)
 		
 		self.drawview = MTKView(frame: self.view.frame, device: lib.device)
 		self.renderer = Renderer(self.drawview, scene: self.scene)
@@ -20,6 +20,9 @@ class ViewController: NSViewController {
 		self.drawview.preferredFramesPerSecond = cfg.fps
 		self.drawview.colorPixelFormat = Renderer.fmt_color
 		self.drawview.depthStencilPixelFormat = Renderer.fmt_depth
+		if #available(macOS 13.0, *) {
+			self.drawview.depthStencilStorageMode = .memoryless
+		}
 		
 		self.view.addSubview(self.ctrlview)
 		self.view.addSubview(self.drawview)

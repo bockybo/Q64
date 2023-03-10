@@ -5,59 +5,84 @@ import MetalKit
 //	subview to push hooks -> server doesn't need unifs
 //	subview to pull unifs <- server doesn't need hooks
 class Demo: Ctrl {
-	static let dim: float = 100
-	static let nsph = 12
-	static let nbox = 36
+	static let dim: float = 50
+	static let nsph = 16
+	static let nbox = 24
 	
-	init(scene: Scene) {
-		self.hidecursor()
+	static let materials = [
+		Material(),
+		Material(
+			alb: util.texture(path: "snow_alb.jpg", srgb: true),
+			nml: util.texture(path: "snow_nml.jpg"),
+			rgh: util.texture(path: "snow_rgh.jpg")
+		),
+		Material(
+			alb: util.texture(path: "gold_alb.jpg", srgb: true),
+			nml: util.texture(path: "gold_nml.jpg"),
+			rgh: util.texture(path: "gold_rgh.jpg"),
+			ao: util.texture(path: "gold_ao.jpg"),
+			mtl_default: 1.0
+		),
+		Material(
+			alb_default: float3(255, 255, 0)
+		),
+		Material(
+			alb: util.texture(path: "ice_alb.png", srgb: true),
+			nml: util.texture(path: "ice_nml.png"),
+			mtl: util.texture(path: "ice_ao.png"),
+			ao: util.texture(path: "ice_mtl.png"),
+			rgh_default: 0.15
+		),
+		Material(
+			alb: util.texture(path: "brick_alb.jpg", srgb: true),
+			nml: util.texture(path: "brick_nml.jpg"),
+			rgh_default: 0.1,
+			mtl_default: 1.0
+		),
+		Material(alb_default: normalize(.xy)),
+		Material(alb_default: normalize(.xz)),
+		Material(alb_default: normalize(.yz)),
+	]
+	
+	required init(scene: Scene) {
+		defer {self.paused = false}
 		
-		var crs = Model(
-			meshes: util.mesh.load("cruiser.obj", ctm: .mag(0.5))
+		let crs = Model(
+			meshes: util.mesh.load("cruiser.obj", ctm: .mag(0.25)),
+			instances: [MDL(matID: 0)]
 		)
-		var gnd = Model(
-			meshes: [util.mesh.box(dim: float3(Demo.dim, 2, Demo.dim), ctm: .ypos(-1))],
-			material: Material(
-				alb: util.tex.load("snow_alb.jpg", srgb: true),
-				nml: util.tex.load("snow_nml.jpg"),
-				rgh: util.tex.load("snow_rgh.jpg")
-		))
-		var ogn = Model(
-			meshes: [util.mesh.sph(dim: 0.6 * (.xz + .y * 2), ctm: .ypos(5))],
-			material: Material(
-				alb: util.tex.load("gold_alb.jpg", srgb: true),
-				nml: util.tex.load("gold_nml.jpg"),
-				rgh: util.tex.load("gold_rgh.jpg"),
-				ao: util.tex.load("gold_ao.jpg"),
-				mtl_default: 1.0
-		))
-		var sun = Model(
-			meshes: [util.mesh.sph(dim: float3(2.5), seg: uint2(100), inwd: true)],
-			material: Material(
-				alb_default: float3(255, 255, 0)
-		))
+		let gnd = Model(
+			meshes: [util.mesh.box(dim: Demo.dim * .xz + .y)],
+			instances: [MDL(matID: 1, ctm: .ypos(-0.5))]
+		)
+		let ogn = Model(
+			meshes: [util.mesh.sph(dim: 0.4 * (.xz + .y * 2))],
+			instances: [MDL(matID: 2)]
+		)
+		let sun = Model(
+			meshes: [util.mesh.sph(dim: float3(1.2),
+								   seg: uint2(100),
+								   inwd: true)],
+			instances: [MDL(matID: 3)]
+		)
 		var sph = Model(
-			meshes: [util.mesh.hem(dim: float3(1, 12, 1), seg: uint2(100, 20))],
-			material: Material(
-				alb: util.tex.load("ice_alb.png", srgb: true),
-				nml: util.tex.load("ice_nml.png"),
-				mtl: util.tex.load("ice_ao.png"),
-				ao: util.tex.load("ice_mtl.png"),
-				rgh_default: 0.1
-		))
+			meshes: [util.mesh.hem(dim: float3(0.5, 6.0, 0.5),
+								   seg: uint2(100, 20))],
+			instances: .init(repeating: MDL(matID: 4), count: Demo.nsph)
+		)
 		var box = Model(
-			meshes: [util.mesh.cap(dim: float3(2, 5, 2), seg: uint3(20, 20, 10))],
-			material: Material(
-				alb: util.tex.load("brick_alb.jpg", srgb: true),
-				nml: util.tex.load("brick_nml.jpg"),
-				rgh_default: 0.1,
-				mtl_default: 1.0
-		))
+			meshes: [util.mesh.cap(dim: float3(1.0, 2.5, 1.0),
+								   seg: uint3(20, 20, 10))],
+			instances: .init(repeating: MDL(matID: 5), count: Demo.nbox)
+		)
+		let pil = Model(
+			meshes: [util.mesh.cap(dim: float3(0.3, 0.8, 0.3),
+								   seg: uint3(20, 20, 20),
+								   ctm: .xrot(.pi/2))],
+			instances: (0..<Demo.nsph).map {i in MDL(matID: 6 + uint(i)%3)}
+		)
 		
-		crs.add(MDL())
-		gnd.add(MDL())
-		ogn.add(MDL())
-		sun.add(MDL())
+		scene.camera.fov = 60 * .pi/180
 		
 		scene.lighting.sun.hue = 0.8 * normalize(float3(0.95, 0.85, 0.65))
 		scene.lighting.sun.src = float3(1, 0.5, 1) * Demo.dim
@@ -65,74 +90,71 @@ class Demo: Ctrl {
 		scene.lighting.sun.p0.xy = Demo.dim/1.5 * float2(-1)
 		scene.lighting.sun.p1.xy = Demo.dim/1.5 * float2(+1)
 		
-		let hues = [.xy, .xz, .yz].map(normalize)
-		
-		for _ in 0..<Demo.nsph {
+		for i in 0..<sph.nid {
 			let x = 0.45 * Demo.dim * float.random(in: -1..<1)
 			let z = 0.45 * Demo.dim * float.random(in: -1..<1)
 			let h = float.random(in: 0.4..<1.2)
-			let y = 12*h
+			let y = 6*h
 			let pos = float3(x, 0, z)
-			sph.add(MDL(ctm: .pos(pos) * .ymag(h)))
-			scene.lighting.add_cone(
-				hue: 3.2 * hues.randomElement()!,
-				src: pos + .y * (y + 6),
-				rad: 3 * y,
+			let hue = Demo.materials[Int(pil[i].matID)].alb_default
+			let cone = Conelight(
+				hue: 2.0 * hue,
+				src: pos + .y * (y + 3),
+				rad: 4.5 * y,
 				phi: 15 * .pi/180
 			)
-			scene.lighting.add_icos(
-				hue: 1.5 * normalize(float3(1)),
-				src: pos + .y * (y + 1),
-				rad: 0.8 * y + 1
+			let icos = Icoslight(
+				hue: float3(3.0),
+				rad: 0.5 * y + 1
 			)
+			sph[i].ctm = .ymag(h) * .pos(pos)
+			scene.lighting.cone.append(cone)
+			scene.lighting.icos.append(icos)
 		}
 		
-		for _ in 0..<Demo.nbox {
+		for i in 0..<box.nid {
 			let x = 0.45 * Demo.dim * float.random(in: -1..<1)
 			let z = 0.45 * Demo.dim * float.random(in: -1..<1)
-			box.add(MDL(ctm: .pos(float3(x, 0, z))))
-			scene.lighting.add_icos(
-				hue: 1.2 * hues.randomElement()!,
-				src: float3(x, 4.0, z),
-				rad: 9.0
-			)
+			box[i].ctm = .pos(float3(x, 0, z))
+			scene.lighting.icos.append(.init(src: float3(x, 2.0, z), rad: 6.0))
 		}
 		
-		scene.add([crs, gnd, ogn, sun, sph, box])
+		scene.add([crs, gnd, ogn, sun, sph, box, pil])
 		
 	}
 	
 	var t: float = 0
-	func tick(scene: Scene, dt: float) {
+	func tick(scene: Scene, ms: float) {
 		guard !self.paused else {return}
-		self.t += 0.0016
+		self.t += 3e-4 * ms
 		
-		self.cruiser.tick(dt: dt * 15e-8)
+		self.cruiser.tick(dt: ms * 0.2)
+		self.camera.tick(dt: ms * 0.2)
 		
-		self.camera.tick(dt: dt * 15e-8)
 		scene.camera.pos = self.camera.pos
 		scene.camera.rot = self.camera.rot
 		
 		scene.lighting.sun.src = Demo.dim * float3(
 			cosf(self.t / 2),
-			sinf(self.t * 4) * 0.3 + 0.6,
+			sinf(self.t * 3) * 0.2 + 0.5,
 			sinf(self.t / 2)
 		)
-		for i in scene.lighting.cone.indices {
-//			scene.lighting.cone[i].dst = 3 * .y
+		
+		for (i, light) in scene.lighting.cone.enumerated() {
 			scene.lighting.cone[i].dst = self.cruiser.pos
-//			scene.lighting.cone[i].dst = self.camera.pos * .xz
+			scene.lighting.icos[i].src = light.src
+			scene[6][i].ctm = .look(src: light.src, dst: self.cruiser.pos) * .zpos(3)
 		}
 		
 		scene[0][0].ctm = self.cruiser.ctm
-		scene[2][0].ctm = .yrot(-2 * self.t)
-		scene[3][0].ctm = .pos(scene.lighting.sun.src) * .yrot(-self.t * 8)
+		scene[2][0].ctm = .yrot(3 * self.t) * .ypos(3)
+		scene[3][0].ctm = .pos(scene.lighting.sun.src)
 		
 	}
 	
 	
-	var cruiser = Cruiser(pos: float3(0, 3, 0))
-	var camera = Camera(pos: float3(0, 20, 30))
+	var cruiser = Cruiser(pos: float3(0, 1.5, 0))
+	var camera = Camera(pos: float3(0, 10, 15))
 	
 	struct Camera {
 		var mov = float3(0)
@@ -145,19 +167,18 @@ class Demo: Ctrl {
 			self.rot.y += sns.x * 8e-3
 			self.rot.x = max(min(self.rot.x, +0.5 * .pi), -0.5 * .pi)
 		}
-		mutating func tick(dt: float)  {
+		mutating func tick(dt: float) {
 			if self.coast {
-				self.vel += 0.1 * dt * self.dlt
-				self.pos += 0.2 * dt * self.vel
-				self.vel *= float3(0.9, 0.8, 0.9)
+				self.vel += 0.05 * self.dlt
+				self.pos += 0.20 * self.vel * dt
+				self.vel *= float3(0.95, 0.9, 0.95)
 			} else {
-				self.pos += 0.1 * dt * self.dlt
+				self.pos += 0.10 * self.dlt * dt
 				self.vel = float3(0)
 			}
 		}
 		private var dlt: float3 {
-			if self.mov == float3(0) {return float3(0)}
-			return .yrot(self.rot.y) * normalize(self.mov)
+			return (self.mov == float3(0)) ? float3(0) : .yrot(self.rot.y) * normalize(self.mov)
 		}
 	}
 	
@@ -168,12 +189,12 @@ class Demo: Ctrl {
 		var vel = float3(0)
 		mutating func tick(dt: float) {
 			self.rot.x -= 0.03 * self.mov.x
-			self.rot.z -= 0.08 * self.mov.z
+			self.rot.z -= 0.06 * self.mov.z
 			self.rot.y -= 0.08 * self.rot.z * dt
-			self.vel.x += 0.3 * self.rot.x * sin(-self.rot.y)
-			self.vel.z += 0.3 * self.rot.x * cos(-self.rot.y)
-			self.pos -= 0.03 * self.vel * dt
-			self.vel *= 0.997
+			self.vel.x += 0.2 * self.rot.x * sin(-self.rot.y)
+			self.vel.z += 0.2 * self.rot.x * cos(-self.rot.y)
+			self.pos -= 0.018 * self.vel * dt
+			self.vel *= 0.995
 			self.rot.x *= 0.9
 			self.rot.z *= 0.9
 		}
@@ -187,16 +208,14 @@ class Demo: Ctrl {
 	}
 	
 	var paused = false {didSet {
-		self.paused ? self.showcursor() : self.hidecursor()
+		if self.paused {
+			CGDisplayShowCursor(CGMainDisplayID())
+			CGAssociateMouseAndMouseCursorPosition(1)
+		} else {
+			CGDisplayHideCursor(CGMainDisplayID())
+			CGAssociateMouseAndMouseCursorPosition(0)
+		}
 	}}
-	func showcursor() {
-		CGDisplayShowCursor(CGMainDisplayID())
-		CGAssociateMouseAndMouseCursorPosition(1)
-	}
-	func hidecursor() {
-		CGDisplayHideCursor(CGMainDisplayID())
-		CGAssociateMouseAndMouseCursorPosition(0)
-	}
 	lazy var binds = Binds(
 		keydn: [
 			.esc: {self.paused = !self.paused},

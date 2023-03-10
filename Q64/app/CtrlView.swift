@@ -6,12 +6,13 @@ class CtrlView: NSView {
 	
 	var timer: Timer? = nil
 	func start(tps: Int, scene: Scene) {
+//	func start(tps: Int) {
 		var t0 = DispatchTime.now().uptimeNanoseconds
 		self.timer = Timer(timeInterval: 1/Double(tps), repeats: true) {_ in
 			let t1 = DispatchTime.now().uptimeNanoseconds
-			let dt = t1 - t0
+			let ns = t1 - t0
 			t0 = t1
-			self.ctrl.tick(scene: scene, dt: float(dt))
+			self.ctrl.tick(scene: scene, ms: 1e-6 * float(ns))
 		}
 		RunLoop.main.add(self.timer!, forMode: .default)
 	}

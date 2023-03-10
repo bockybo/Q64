@@ -27,6 +27,7 @@
 		7E2FDF432978A93800DE8F1F /* CtrlView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2FDF422978A93800DE8F1F /* CtrlView.swift */; };
 		7E2FDF492978AC3400DE8F1F /* Control.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2FDF482978AC3400DE8F1F /* Control.swift */; };
 		7E42DF4E29B6AD4200B48123 /* Utility.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E42DF4D29B6AD4200B48123 /* Utility.swift */; };
+		7E6927E629B9835700FB8F4E /* Camera.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E6927E529B9835700FB8F4E /* Camera.swift */; };
 		7E6AA5CB29B48D4700D2282F /* Light.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E6AA5CA29B48D4700D2282F /* Light.swift */; };
 		7E6AA5CF29B4D30700D2282F /* Uniforms.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E6AA5CE29B4D30700D2282F /* Uniforms.swift */; };
 		7E6AA5D129B4DB9400D2282F /* Model.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E6AA5D029B4DB9400D2282F /* Model.swift */; };
@@ -49,6 +50,7 @@
 		7E81DA5C29B21DB700272E0B /* ice_dep.png in Resources */ = {isa = PBXBuildFile; fileRef = 7E81DA5729B21DB600272E0B /* ice_dep.png */; };
 		7E81DA5D29B21DB700272E0B /* ice_ao.png in Resources */ = {isa = PBXBuildFile; fileRef = 7E81DA5829B21DB700272E0B /* ice_ao.png */; };
 		7E81DA5F29B21E7200272E0B /* ice_mtl.png in Resources */ = {isa = PBXBuildFile; fileRef = 7E81DA5E29B21E7200272E0B /* ice_mtl.png */; };
+		7EB30BE129B8198A0041CEAF /* Material.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EB30BE029B8198A0041CEAF /* Material.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -74,6 +76,7 @@
 		7E2FDF422978A93800DE8F1F /* CtrlView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CtrlView.swift; sourceTree = "<group>"; };
 		7E2FDF482978AC3400DE8F1F /* Control.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Control.swift; sourceTree = "<group>"; };
 		7E42DF4D29B6AD4200B48123 /* Utility.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Utility.swift; sourceTree = "<group>"; };
+		7E6927E529B9835700FB8F4E /* Camera.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Camera.swift; sourceTree = "<group>"; };
 		7E6AA5CA29B48D4700D2282F /* Light.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Light.swift; sourceTree = "<group>"; };
 		7E6AA5CE29B4D30700D2282F /* Uniforms.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Uniforms.swift; sourceTree = "<group>"; };
 		7E6AA5D029B4DB9400D2282F /* Model.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Model.swift; sourceTree = "<group>"; };
@@ -96,6 +99,7 @@
 		7E81DA5729B21DB600272E0B /* ice_dep.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = ice_dep.png; sourceTree = "<group>"; };
 		7E81DA5829B21DB700272E0B /* ice_ao.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = ice_ao.png; sourceTree = "<group>"; };
 		7E81DA5E29B21E7200272E0B /* ice_mtl.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = ice_mtl.png; sourceTree = "<group>"; };
+		7EB30BE029B8198A0041CEAF /* Material.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Material.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -191,8 +195,10 @@
 				7E2FDF2A29789A9C00DE8F1F /* Renderer.swift */,
 				7E6AA5CE29B4D30700D2282F /* Uniforms.swift */,
 				7E2FDF3229789EA800DE8F1F /* Scene.swift */,
+				7E6927E529B9835700FB8F4E /* Camera.swift */,
 				7E6AA5D029B4DB9400D2282F /* Model.swift */,
 				7E6AA5CA29B48D4700D2282F /* Light.swift */,
+				7EB30BE029B8198A0041CEAF /* Material.swift */,
 				7E2FDF3029789CE200DE8F1F /* Shaders.metal */,
 			);
 			path = gfx;
@@ -300,6 +306,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				7E2FDF2B29789A9C00DE8F1F /* Renderer.swift in Sources */,
+				7EB30BE129B8198A0041CEAF /* Material.swift in Sources */,
 				7E2FDF3129789CE200DE8F1F /* Shaders.metal in Sources */,
 				7E6AA5CB29B48D4700D2282F /* Light.swift in Sources */,
 				7E04792A297DD6D100A51674 /* Demo.swift in Sources */,
@@ -314,6 +321,7 @@
 				7E6AA5D129B4DB9400D2282F /* Model.swift in Sources */,
 				7E2FDF2D29789AD900DE8F1F /* Math.swift in Sources */,
 				7E2FDF2F29789B7800DE8F1F /* Config.swift in Sources */,
+				7E6927E629B9835700FB8F4E /* Camera.swift in Sources */,
 				7E04792C297DDC9600A51674 /* Library.swift in Sources */,
 				7E2FDF3D2978A4D000DE8F1F /* Keystroke.swift in Sources */,
 				7E42DF4E29B6AD4200B48123 /* Utility.swift in Sources */,

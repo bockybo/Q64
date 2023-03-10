@@ -63,11 +63,10 @@ extension float4x4 {
 			self[2].xyz = mat3[2]
 		}
 	}
-	static func *(lhs: float4x4, rhs: float3) -> float3 {
-		return (lhs * float4(rhs, 1)).xyz
-	}
+	static func *(lhs: float4x4, rhs: float3) -> float3 {return (lhs * float4(rhs, 1)).xyz}
+	static func *(lhs: float3, rhs: float4x4) -> float3 {return rhs * lhs}
+	static func *=(lhs: inout float3, rhs: float4x4) {lhs = lhs * rhs}
 }
-
 
 extension float3x3 {
 	static let I: float3x3 = matrix_identity_float3x3
