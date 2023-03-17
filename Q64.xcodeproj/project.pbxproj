@@ -10,6 +10,7 @@
 		7E047924297CE1BB00A51674 /* cruiser.obj in Resources */ = {isa = PBXBuildFile; fileRef = 7E047921297CE1BB00A51674 /* cruiser.obj */; };
 		7E04792A297DD6D100A51674 /* Demo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E047929297DD6D100A51674 /* Demo.swift */; };
 		7E04792C297DDC9600A51674 /* Library.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E04792B297DDC9600A51674 /* Library.swift */; };
+		7E1FB24029C11297006DCD3A /* Temple.obj in Resources */ = {isa = PBXBuildFile; fileRef = 7E1FB23F29C11297006DCD3A /* Temple.obj */; };
 		7E2E35DA29AB3FDC006E80E3 /* Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2E35D929AB3FDC006E80E3 /* Extensions.swift */; };
 		7E2E35E129AB4AA5006E80E3 /* brick_nml.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 7E2E35DB29AB4AA3006E80E3 /* brick_nml.jpg */; };
 		7E2E35E429AB4AA5006E80E3 /* brick_alb.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 7E2E35DE29AB4AA4006E80E3 /* brick_alb.jpg */; };
@@ -23,7 +24,6 @@
 		7E2FDF2F29789B7800DE8F1F /* Config.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2FDF2E29789B7800DE8F1F /* Config.swift */; };
 		7E2FDF3129789CE200DE8F1F /* Shaders.metal in Sources */ = {isa = PBXBuildFile; fileRef = 7E2FDF3029789CE200DE8F1F /* Shaders.metal */; };
 		7E2FDF3329789EA800DE8F1F /* Scene.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2FDF3229789EA800DE8F1F /* Scene.swift */; };
-		7E2FDF3D2978A4D000DE8F1F /* Keystroke.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2FDF3C2978A4D000DE8F1F /* Keystroke.swift */; };
 		7E2FDF432978A93800DE8F1F /* CtrlView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2FDF422978A93800DE8F1F /* CtrlView.swift */; };
 		7E2FDF492978AC3400DE8F1F /* Control.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2FDF482978AC3400DE8F1F /* Control.swift */; };
 		7E42DF4E29B6AD4200B48123 /* Utility.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E42DF4D29B6AD4200B48123 /* Utility.swift */; };
@@ -57,6 +57,7 @@
 		7E047921297CE1BB00A51674 /* cruiser.obj */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = cruiser.obj; sourceTree = "<group>"; };
 		7E047929297DD6D100A51674 /* Demo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Demo.swift; sourceTree = "<group>"; };
 		7E04792B297DDC9600A51674 /* Library.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Library.swift; sourceTree = "<group>"; };
+		7E1FB23F29C11297006DCD3A /* Temple.obj */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = Temple.obj; sourceTree = "<group>"; };
 		7E2E35D929AB3FDC006E80E3 /* Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Extensions.swift; sourceTree = "<group>"; };
 		7E2E35DB29AB4AA3006E80E3 /* brick_nml.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = brick_nml.jpg; sourceTree = "<group>"; };
 		7E2E35DE29AB4AA4006E80E3 /* brick_alb.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = brick_alb.jpg; sourceTree = "<group>"; };
@@ -72,7 +73,6 @@
 		7E2FDF2E29789B7800DE8F1F /* Config.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Config.swift; sourceTree = "<group>"; };
 		7E2FDF3029789CE200DE8F1F /* Shaders.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = Shaders.metal; sourceTree = "<group>"; };
 		7E2FDF3229789EA800DE8F1F /* Scene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Scene.swift; sourceTree = "<group>"; };
-		7E2FDF3C2978A4D000DE8F1F /* Keystroke.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Keystroke.swift; sourceTree = "<group>"; };
 		7E2FDF422978A93800DE8F1F /* CtrlView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CtrlView.swift; sourceTree = "<group>"; };
 		7E2FDF482978AC3400DE8F1F /* Control.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Control.swift; sourceTree = "<group>"; };
 		7E42DF4D29B6AD4200B48123 /* Utility.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Utility.swift; sourceTree = "<group>"; };
@@ -118,6 +118,7 @@
 			children = (
 				7E047929297DD6D100A51674 /* Demo.swift */,
 				7E047921297CE1BB00A51674 /* cruiser.obj */,
+				7E1FB23F29C11297006DCD3A /* Temple.obj */,
 				7E2E35DE29AB4AA4006E80E3 /* brick_alb.jpg */,
 				7E2E35DB29AB4AA3006E80E3 /* brick_nml.jpg */,
 				7E81D9F629B087DD00272E0B /* steel_alb.jpg */,
@@ -177,7 +178,6 @@
 				7E2FDF132978991200DE8F1F /* AppDelegate.swift */,
 				7E2FDF152978991200DE8F1F /* ViewController.swift */,
 				7E2FDF422978A93800DE8F1F /* CtrlView.swift */,
-				7E2FDF3C2978A4D000DE8F1F /* Keystroke.swift */,
 				7E2FDF1A2978991300DE8F1F /* Assets.xcassets */,
 				7E2FDF1C2978991300DE8F1F /* Main.storyboard */,
 				7E2FDF1F2978991300DE8F1F /* Q64.entitlements */,
@@ -241,7 +241,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1340;
-				LastUpgradeCheck = 1340;
+				LastUpgradeCheck = 1420;
 				TargetAttributes = {
 					7E2FDF0F2978991200DE8F1F = {
 						CreatedOnToolsVersion = 13.4.1;
@@ -293,6 +293,7 @@
 				7E2FDF1E2978991300DE8F1F /* Main.storyboard in Resources */,
 				7E81DA5B29B21DB700272E0B /* ice_alb.png in Resources */,
 				7E81DA5D29B21DB700272E0B /* ice_ao.png in Resources */,
+				7E1FB24029C11297006DCD3A /* Temple.obj in Resources */,
 				7E81DA5A29B21DB700272E0B /* ice_nml.png in Resources */,
 				7E81DA5929B21DB700272E0B /* ice_mtl.psd in Resources */,
 			);
@@ -323,7 +324,6 @@
 				7E2FDF2F29789B7800DE8F1F /* Config.swift in Sources */,
 				7E6927E629B9835700FB8F4E /* Camera.swift in Sources */,
 				7E04792C297DDC9600A51674 /* Library.swift in Sources */,
-				7E2FDF3D2978A4D000DE8F1F /* Keystroke.swift in Sources */,
 				7E42DF4E29B6AD4200B48123 /* Utility.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -375,6 +375,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -435,6 +436,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -461,9 +463,11 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Q64/app/Q64.entitlements;
+				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSMainStoryboardFile = Main;
@@ -486,9 +490,11 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Q64/app/Q64.entitlements;
+				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSMainStoryboardFile = Main;

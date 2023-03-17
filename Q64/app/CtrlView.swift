@@ -4,15 +4,14 @@ import Cocoa
 class CtrlView: NSView {
 	var ctrl: Ctrl!
 	
+	var running: Bool {return self.timer != nil}
+	var nanos: UInt64 {return DispatchTime.now().uptimeNanoseconds}
 	var timer: Timer? = nil
 	func start(tps: Int, scene: Scene) {
-//	func start(tps: Int) {
-		var t0 = DispatchTime.now().uptimeNanoseconds
+		if self.running {self.stop()}
+		var t0 = self.nanos
 		self.timer = Timer(timeInterval: 1/Double(tps), repeats: true) {_ in
-			let t1 = DispatchTime.now().uptimeNanoseconds
-			let ns = t1 - t0
-			t0 = t1
-			self.ctrl.tick(scene: scene, ms: 1e-6 * float(ns))
+			t0 = self.tick(t0, scene: scene)
 		}
 		RunLoop.main.add(self.timer!, forMode: .default)
 	}
@@ -20,53 +19,62 @@ class CtrlView: NSView {
 		self.timer?.invalidate()
 		self.timer = nil
 	}
+	func tick(_ t0: UInt64, scene: Scene) -> UInt64 {
+		let t1 = self.nanos
+		let ns = t1 - t0
+		self.ctrl.tick(scene: scene, ms: 1e-6 * float(ns))
+		return t1
+	}
+	
+}
+
+extension CtrlView {
 	
 	override var acceptsFirstResponder: Bool {return true}
+	override func acceptsFirstMouse(for evt: NSEvent?) -> Bool {return true}
 	
-	override func keyDown				(with evt: NSEvent) {self.ctrl.binds.onkeydn(evt)}
-	override func keyUp					(with evt: NSEvent) {self.ctrl.binds.onkeyup(evt)}
-
-	override func mouseDown				(with evt: NSEvent) {self.ctrl.binds.onbtndn(evt)}
-	override func mouseUp				(with evt: NSEvent) {self.ctrl.binds.onbtnup(evt)}
-	override func rightMouseDown		(with evt: NSEvent) {self.ctrl.binds.onbtndn(evt)}
-	override func rightMouseUp			(with evt: NSEvent) {self.ctrl.binds.onbtnup(evt)}
-	override func otherMouseDown		(with evt: NSEvent) {self.ctrl.binds.onbtndn(evt)}
-	override func otherMouseUp			(with evt: NSEvent) {self.ctrl.binds.onbtnup(evt)}
-
-	override func mouseMoved			(with evt: NSEvent) {self.ctrl.binds.onmov(evt)}
-	override func mouseDragged			(with evt: NSEvent) {self.ctrl.binds.onmov(evt)}
-	override func rightMouseDragged		(with evt: NSEvent) {self.ctrl.binds.onmov(evt)}
-	override func otherMouseDragged		(with evt: NSEvent) {self.ctrl.binds.onmov(evt)}
+	override func keyDown			(with evt: NSEvent) {Binds.onkey(evt, self.ctrl.binds.keydn)}
+	override func keyUp				(with evt: NSEvent) {Binds.onkey(evt, self.ctrl.binds.keyup)}
+	
+	override func mouseDown			(with evt: NSEvent) {Binds.onkey(evt, self.ctrl.binds.keydn)}
+	override func mouseUp			(with evt: NSEvent) {Binds.onbtn(evt, self.ctrl.binds.btnup)}
+	override func rightMouseDown	(with evt: NSEvent) {Binds.onbtn(evt, self.ctrl.binds.btndn)}
+	override func rightMouseUp		(with evt: NSEvent) {Binds.onbtn(evt, self.ctrl.binds.btnup)}
+	override func otherMouseDown	(with evt: NSEvent) {Binds.onbtn(evt, self.ctrl.binds.btndn)}
+	override func otherMouseUp		(with evt: NSEvent) {Binds.onbtn(evt, self.ctrl.binds.btnup)}
+	
+	override func mouseMoved		(with evt: NSEvent) {Binds.onmov(evt, self.ctrl.binds.mov)}
+	override func mouseDragged		(with evt: NSEvent) {Binds.onmov(evt, self.ctrl.binds.mov)}
+	override func rightMouseDragged	(with evt: NSEvent) {Binds.onmov(evt, self.ctrl.binds.mov)}
+	override func otherMouseDragged	(with evt: NSEvent) {Binds.onmov(evt, self.ctrl.binds.mov)}
 	
 }
 
 struct Binds {
-	typealias keybinds = [Keystroke : ()->()]
-	typealias ptrbinds = [Int : (float2)->()]
+	typealias Keybinds = [Keystroke : ()->()]
+	typealias Ptrbinds = [Int : (float2)->()]
 	
-	var keydn: keybinds = [:]
-	var keyup: keybinds = [:]
-	var btndn: ptrbinds = [:]
-	var btnup: ptrbinds = [:]
-	var mov: ptrbinds = [:]
+	var keydn: Keybinds = [:]
+	var keyup: Keybinds = [:]
+	var btndn: Ptrbinds = [:]
+	var btnup: Ptrbinds = [:]
+	var mov: Ptrbinds = [:]
 	
-	func onkeydn(_ evt: NSEvent) {Self.onkey(evt, binds: self.keydn)}
-	func onkeyup(_ evt: NSEvent) {Self.onkey(evt, binds: self.keyup)}
-	func onbtndn(_ evt: NSEvent) {Self.onbtn(evt, binds: self.btndn)}
-	func onbtnup(_ evt: NSEvent) {Self.onbtn(evt, binds: self.btnup)}
-	func onmov(_ evt: NSEvent) {Self.onmov(evt, binds: self.mov)}
-	
-	private static func onkey(_ evt: NSEvent, binds: keybinds) {
+	fileprivate static func onkey(_ evt: NSEvent, _ binds: Keybinds) {
 		guard !evt.isARepeat else {return}
 		guard let key = Keystroke(rawValue: evt.keyCode) else {return}
+		var mod = evt.modifierFlags.rawValue
+		mod &= NSEvent.ModifierFlags.deviceIndependentFlagsMask.rawValue
+		mod &= NSEvent.ModifierFlags.command.rawValue
+		guard 0 == mod else {return}
 		binds[key]?()
 	}
-	private static func onbtn(_ evt: NSEvent, binds: ptrbinds) {
+	fileprivate static func onbtn(_ evt: NSEvent, _ binds: Ptrbinds) {
 		let btn = evt.buttonNumber
 		let loc = float2(float(evt.locationInWindow.x), float(evt.locationInWindow.y))
 		binds[btn]?(loc)
 	}
-	private static func onmov(_ evt: NSEvent, binds: ptrbinds) {
+	fileprivate static func onmov(_ evt: NSEvent, _ binds: Ptrbinds) {
 		let btn = (NSEvent.pressedMouseButtons > 0) ? evt.buttonNumber : -1
 		let mov = float2(float(evt.deltaX), float(evt.deltaY))
 		binds[btn]?(mov)

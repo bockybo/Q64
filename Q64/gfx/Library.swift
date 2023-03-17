@@ -1,296 +1,178 @@
 import MetalKit
 
 
-func sizeof<T>(_: T.Type) -> Int {return MemoryLayout<T>.stride}
-func sizeof<T>(_: T) -> Int {return sizeof(T.self)}
-
 class lib {
 	static let device = MTLCreateSystemDefaultDevice()!
 	static let deflib = lib.device.makeDefaultLibrary()!
+	static let texldr = MTKTextureLoader(device: lib.device)
+	static let meshalloc = MTKMeshBufferAllocator(device: lib.device)
 	
-	
-	static func shader(_ name: String) -> MTLFunction {return lib.deflib.makeFunction(name: name)!}
-	static let vtxshaders = [
-		"shade": 	lib.shader("vtx_shade"),
-		"main": 	lib.shader("vtx_main"),
-		"quad": 	lib.shader("vtx_quad"),
-		"mask":		lib.shader("vtx_mask"),
-		"light":	lib.shader("vtx_light"),
-	]
-	static let frgshaders = [
-		"gbuf": 	lib.shader("frg_gbuf"),
-		"quad":		lib.shader("frg_quad"),
-		"icos":		lib.shader("frg_icos"),
-		"cone":		lib.shader("frg_cone"),
-	]
-	
-	
-	static func vtxdescr(_ attrs: [(fmt: MDLVertexFormat, name: String)]) -> MDLVertexDescriptor {
-		let descr = MDLVertexDescriptor()
-		for (i, (fmt, name)) in attrs.enumerated() {
-			descr.attributes[i] = MDLVertexAttribute(name: name, format: fmt, offset: 0, bufferIndex: 0)
-		}
-		descr.setPackedOffsets()
-		descr.setPackedStrides()
-		return descr
+	struct shaders {
+		
+		static let vtx_shade	= util.shader("vtx_shade")
+		static let vtx_depth	= util.shader("vtx_depth")
+		static let vtx_main		= util.shader("vtx_main")
+		static let vtx_quad		= util.shader("vtx_quad")
+//		static let vtx_cone		= util.shader("vtx_cone")
+//		static let vtx_icos		= util.shader("vtx_icos")
+		static let vtx_volume	= util.shader("vtx_volume")
+		
+		static let frg_gbuf		= util.shader("frg_gbuf")
+//		static let frg_quad		= util.shader("frg_quad")
+//		static let frg_cone		= util.shader("frg_cone")
+//		static let frg_icos		= util.shader("frg_icos")
+		static let frg_accum	= util.shader("frg_accum")
+		static let frg_fwd		= util.shader("frg_fwd")
+		static let frg_depth	= util.shader("frg_depth")
+		static let frg_light	= util.shader("frg_light")
+		
+		static let knl_cull		= util.shader("knl_cull")
+		
 	}
-	static let vtxdescrs = [
-		"base": lib.vtxdescr([
+	
+	struct vtxdescrs {
+		
+		static let base = util.vtxdescr([
 			(fmt: .float3, name: MDLVertexAttributePosition),
-		]),
-		"main": lib.vtxdescr([
+		])
+		
+		static let main = util.vtxdescr([
 			(fmt: .float3, name: MDLVertexAttributePosition),
 			(fmt: .float3, name: MDLVertexAttributeNormal),
 			(fmt: .float4, name: MDLVertexAttributeTangent),
 			(fmt: .float2, name: MDLVertexAttributeTextureCoordinate)
-		]),
-	]
-	
-	
-	static func pipestate(_ setup: (MTLRenderPipelineDescriptor)->()) -> MTLRenderPipelineState {
-		let descr = MTLRenderPipelineDescriptor()
-		setup(descr)
-		return try! lib.device.makeRenderPipelineState(descriptor: descr)
-	}
-	static func depthstate(_ setup: (MTLDepthStencilDescriptor)->()) -> MTLDepthStencilState {
-		let descr = MTLDepthStencilDescriptor()
-		setup(descr)
-		return lib.device.makeDepthStencilState(descriptor: descr)!
-	}
-	static func passdescr(_ setup: (MTLRenderPassDescriptor)->()) -> MTLRenderPassDescriptor {
-		let descr = MTLRenderPassDescriptor()
-		setup(descr)
-		return descr
-	}
-	
-	
-	static func buffer(_ len: Int, label: String? = nil) -> MTLBuffer {
-		let buf = lib.device.makeBuffer(length: len, options: .storageModeShared)!
-		buf.label = label
-		return buf
-	}
-	
-	
-	class tex {
-		private static let loader = MTKTextureLoader(device: lib.device)
-		
-		static func load(
-			_ path: String,
-			srgb: Bool = false,
-			label: String? = nil,
-			usage: MTLTextureUsage = .shaderRead,
-			storage: MTLStorageMode = .private
-		) -> MTLTexture {
-			let url = Bundle.main.url(forResource: path, withExtension: nil)!
-			let tex = try! lib.tex.loader.newTexture(URL: url, options: [
-				.SRGB : srgb,
-				.textureStorageMode : storage.rawValue,
-				.textureUsage : usage.rawValue
-			])
-			tex.label = label
-			return tex
-		}
-		
-		static func base(
-			fmt: MTLPixelFormat,
-			res: uint2,
-			label: String? = nil,
-			usage: MTLTextureUsage = .shaderRead,
-			storage: MTLStorageMode = .private,
-			nslices: Int? = nil
-		) -> MTLTexture {
-			let descr = MTLTextureDescriptor()
-			if let nslices = nslices {
-				descr.textureType = .type2DArray
-				descr.arrayLength = nslices
-			} else {
-				descr.textureType = .type2D
-			}
-			descr.pixelFormat = fmt
-			descr.width  = Int(res.x)
-			descr.height = Int(res.y)
-			descr.usage = usage
-			descr.storageMode = storage
-			let tex = lib.device.makeTexture(descriptor: descr)!
-			tex.label = label
-			return tex
-		}
+		])
 		
 	}
 	
+	struct lightmesh {
+		static let volumedim = float3(12 / (sqrtf(3) * (3+sqrtf(5))))
+		
+		static let quad = util.mesh.quad(
+			dim: 2 * .xy,
+			descr: lib.vtxdescrs.base
+		)
+		static let icos = util.mesh.icos(
+			dim: lib.lightmesh.volumedim,
+			descr: lib.vtxdescrs.base
+		)
+		static let cone = util.mesh.cone(
+			dim: lib.lightmesh.volumedim * (1 + .xz),
+			seg: uint2(20, 20),
+			ctm: .xrot(-.pi/2) * .ypos(-0.5),
+			descr: lib.vtxdescrs.base
+		) // origin at center not apex, docs lie
+		
+	}
 	
-	class mesh {
-		static let alloc = MTKMeshBufferAllocator(device: lib.device)
+	struct states {
 		
-		static func base(
-			_ mesh: MDLMesh,
-			descr: MDLVertexDescriptor = lib.vtxdescrs["main"]!,
-			ctm: float4x4? = nil
-		) -> MTKMesh {
-			
-			if let ctm = ctm {
-				let attr = mesh.vertexAttributeData(forAttributeNamed: MDLVertexAttributePosition)!
-				assert(attr.format == .float3)
-				for i in 0..<mesh.vertexCount {
-					let raw = attr.dataStart + i*attr.stride
-					let ptr = raw.assumingMemoryBound(to: float3.self)
-					ptr.pointee = (ctm * float4(ptr.pointee, 1)).xyz
-				}
-			}
-			
-			let names = descr.attributes.map {attr in (attr as! MDLVertexAttribute).name}
-			let needs: (String) -> Bool = {name in
-				return names.contains(name) && mesh.vertexAttributeData(forAttributeNamed: name) == nil
-			}
-			if needs(MDLVertexAttributeNormal) {mesh.addNormals(
-				withAttributeNamed: MDLVertexAttributeNormal,
-				creaseThreshold: 0.5
-			)}
-			if needs(MDLVertexAttributeTextureCoordinate) {mesh.addUnwrappedTextureCoordinates(
-				forAttributeNamed: MDLVertexAttributeTextureCoordinate
-			)}
-			if needs(MDLVertexAttributeTangent) {mesh.addOrthTanBasis(
-				forTextureCoordinateAttributeNamed: MDLVertexAttributeTextureCoordinate,
-				normalAttributeNamed: MDLVertexAttributeNormal,
-				tangentAttributeNamed: MDLVertexAttributeTangent
-			)}
-			
-			mesh.vertexDescriptor = descr
-			return try! MTKMesh(mesh: mesh, device: lib.device)
-			
+		static let psshade = util.pipestate(label: "ps shade") {
+			descr in
+			descr.vertexFunction					= lib.shaders.vtx_shade
+			descr.depthAttachmentPixelFormat 		= Renderer.fmt_shade
+			descr.inputPrimitiveTopology			= .triangle
+			descr.rasterSampleCount = 1
+		}
+		static let psgbuf = util.pipestate(label: "ps gbuffer") {
+			descr in
+			descr.vertexFunction					= lib.shaders.vtx_main
+			descr.fragmentFunction					= lib.shaders.frg_gbuf
+			descr.colorAttachments[0].pixelFormat	= Renderer.fmt_color
+			descr.depthAttachmentPixelFormat		= Renderer.fmt_depth
+			descr.stencilAttachmentPixelFormat		= Renderer.fmt_depth
 		}
 		
-		static func load(
-			_ path: String,
-			descr: MDLVertexDescriptor = lib.vtxdescrs["main"]!,
-			ctm: float4x4? = nil
-		) -> [MTKMesh] {
-			let url = Bundle.main.url(forResource: path, withExtension: nil)!
-			let asset = MDLAsset(
-				url: url,
-				vertexDescriptor: nil,
-				bufferAllocator: lib.mesh.alloc
-			)
-			let meshes = try! MTKMesh.newMeshes(asset: asset, device: lib.device).modelIOMeshes
-			return meshes.map {lib.mesh.base($0, descr: descr, ctm: ctm)}
+		static let psquad = util.pipestate(label: "ps lighting quad") {
+			descr in
+			descr.vertexFunction					= lib.shaders.vtx_quad
+			descr.fragmentFunction					= lib.shaders.frg_accum
+			descr.colorAttachments[0].pixelFormat	= Renderer.fmt_color
+			descr.depthAttachmentPixelFormat		= Renderer.fmt_depth
+			descr.stencilAttachmentPixelFormat		= Renderer.fmt_depth
+		}
+		static let psvolume = util.pipestate(label: "ps lighting volume") {
+			descr in
+			descr.vertexFunction					= lib.shaders.vtx_volume
+			descr.fragmentFunction					= lib.shaders.frg_accum
+			descr.colorAttachments[0].pixelFormat	= Renderer.fmt_color
+			descr.depthAttachmentPixelFormat		= Renderer.fmt_depth
+			descr.stencilAttachmentPixelFormat		= Renderer.fmt_depth
 		}
 		
+		static let psfwd = util.pipestate(label: "ps lighting forward") {
+			descr in
+			descr.vertexFunction					= lib.shaders.vtx_main
+			descr.fragmentFunction					= lib.shaders.frg_fwd
+			descr.colorAttachments[0].pixelFormat	= Renderer.fmt_color
+			descr.depthAttachmentPixelFormat		= Renderer.fmt_depth
+			descr.stencilAttachmentPixelFormat		= Renderer.fmt_depth
+		}
 		
-		static func quad(
-			dim: float3					= float3(1),
-			prim: MDLGeometryType		= .triangles,
-			ctm: float4x4?				= nil,
-			descr: MDLVertexDescriptor	= lib.vtxdescrs["main"]!
-		) -> MTKMesh {return lib.mesh.base(MDLMesh(
-			planeWithExtent: 			dim,
-			segments: 					uint2(1),
-			geometryType: 				prim,
-			allocator: lib.mesh.alloc), descr: descr, ctm: ctm)
+		static let dsshade = util.depthstate(label: "ds shade") {
+			descr in
+			descr.isDepthWriteEnabled 							= true
+			descr.depthCompareFunction 							= .lessEqual
 		}
-		static func icos(
-			dim: float3					= float3(1),
-			inwd: Bool 					= false,
-			prim: MDLGeometryType		= .triangles,
-			ctm: float4x4?				= nil,
-			descr: MDLVertexDescriptor	= lib.vtxdescrs["main"]!
-		) -> MTKMesh {return lib.mesh.base(MDLMesh(
-			icosahedronWithExtent: 		dim,
-			inwardNormals: 				inwd,
-			geometryType: 				prim,
-			allocator: lib.mesh.alloc), descr: descr, ctm: ctm)
+		static let dsgbuf = util.depthstate(label: "ds gbuffer") {
+			descr in
+			descr.isDepthWriteEnabled							= true
+			descr.depthCompareFunction 							= .lessEqual
+			descr.frontFaceStencil.depthStencilPassOperation	= .replace
+			descr.backFaceStencil.depthStencilPassOperation		= .replace
 		}
-		static func box(
-			dim: float3					= float3(1),
-			inwd: Bool 					= false,
-			prim: MDLGeometryType		= .triangles,
-			ctm: float4x4?				= nil,
-			descr: MDLVertexDescriptor	= lib.vtxdescrs["main"]!
-		) -> MTKMesh {return lib.mesh.base(MDLMesh(
-			boxWithExtent:	 			dim,
-			segments: 					uint3(1),
-			inwardNormals: 				inwd,
-			geometryType: 				prim,
-			allocator: lib.mesh.alloc), descr: descr, ctm: ctm)
+		static let dsquad = util.depthstate(label: "ds lighting quad") {
+			descr in
+			descr.frontFaceStencil.stencilCompareFunction		= .equal
+			descr.backFaceStencil.stencilCompareFunction		= .equal
 		}
-		static func sph(
-			dim: float3					= float3(1),
-			seg: uint2					= uint2(1),
-			inwd: Bool 					= false,
-			prim: MDLGeometryType		= .triangles,
-			ctm: float4x4?				= nil,
-			descr: MDLVertexDescriptor	= lib.vtxdescrs["main"]!
-		) -> MTKMesh {return lib.mesh.base(MDLMesh(
-			sphereWithExtent:			dim,
-			segments:					seg,
-			inwardNormals:				inwd,
-			geometryType:				prim,
-			allocator: lib.mesh.alloc), descr: descr, ctm: ctm)
+		static let dsvolume = util.depthstate(label: "ds lighting volume") {
+			descr in
+			descr.depthCompareFunction							= .greaterEqual
 		}
-		static func hem(
-			dim: float3					= float3(1),
-			seg: uint2					= uint2(1),
-			cap: Bool					= true,
-			inwd: Bool 					= false,
-			prim: MDLGeometryType		= .triangles,
-			ctm: float4x4?				= nil,
-			descr: MDLVertexDescriptor	= lib.vtxdescrs["main"]!
-		) -> MTKMesh {return lib.mesh.base(MDLMesh(
-			hemisphereWithExtent:		dim,
-			segments:					seg,
-			inwardNormals:				inwd,
-			cap:						cap,
-			geometryType:				prim,
-			allocator: lib.mesh.alloc), descr: descr, ctm: ctm)
+		
+		static let dsfwd = util.depthstate(label: "ds lighting forward") {
+			descr in
+			descr.isDepthWriteEnabled							= true
+			descr.depthCompareFunction							= .less
 		}
-		static func cyl(
-			dim: float3					= float3(1),
-			seg: uint2					= uint2(1),
-			top: Bool					= true,
-			bot: Bool					= true,
-			inwd: Bool 					= false,
-			prim: MDLGeometryType		= .triangles,
-			ctm: float4x4?				= nil,
-			descr: MDLVertexDescriptor	= lib.vtxdescrs["main"]!
-		) -> MTKMesh {return lib.mesh.base(MDLMesh(
-			cylinderWithExtent:			dim,
-			segments:					seg,
-			inwardNormals: 				inwd,
-			topCap: 					top,
-			bottomCap:					bot,
-			geometryType:				prim,
-			allocator: lib.mesh.alloc), descr: descr, ctm: ctm)
+		
+		static let psdepth = util.pipestate(label: "ps depth") {
+			descr in
+			descr.vertexFunction					= lib.shaders.vtx_depth
+			descr.fragmentFunction					= lib.shaders.frg_depth
+			descr.depthAttachmentPixelFormat		= Renderer.fmt_depth
+			descr.stencilAttachmentPixelFormat		= Renderer.fmt_depth
+			descr.colorAttachments[0].pixelFormat	= Renderer.fmt_color
+			descr.colorAttachments[1].pixelFormat	= .r32Float
 		}
-		static func cone(
-			dim: float3					= float3(1),
-			seg: uint2					= uint2(1),
-			cap: Bool					= true,
-			inwd: Bool 					= false,
-			prim: MDLGeometryType		= .triangles,
-			ctm: float4x4?				= nil,
-			descr: MDLVertexDescriptor	= lib.vtxdescrs["main"]!
-		) -> MTKMesh {return lib.mesh.base(MDLMesh(
-			coneWithExtent: 			dim,
-			segments:					seg,
-			inwardNormals: 				inwd,
-			cap:						cap,
-			geometryType: 				prim,
-			allocator: lib.mesh.alloc), descr: descr, ctm: ctm)
+		static let pscull = util.tilestate(label: "ps cull") {
+			descr in
+			descr.tileFunction						= lib.shaders.knl_cull
+			descr.rasterSampleCount					= 1
+			descr.threadgroupSizeMatchesTileSize	= true
+			descr.colorAttachments[0].pixelFormat	= Renderer.fmt_color
+			descr.colorAttachments[1].pixelFormat	= .r32Float
 		}
-		static func caps(
-			dim: float3					= float3(1),
-			seg: uint3					= uint3(1),
-			cap: Bool					= true,
-			inwd: Bool 					= false,
-			prim: MDLGeometryType		= .triangles,
-			ctm: float4x4?				= nil,
-			descr: MDLVertexDescriptor	= lib.vtxdescrs["main"]!
-		) -> MTKMesh {return lib.mesh.base(MDLMesh(
-			capsuleWithExtent:			dim,
-			cylinderSegments:			uint2(seg.x, seg.y),
-			hemisphereSegments:			Int32(seg.z),
-			inwardNormals:				inwd,
-			geometryType:				prim,
-			allocator: lib.mesh.alloc), descr: descr, ctm: ctm)
+		static let pslight = util.pipestate(label: "ps light") {
+			descr in
+			descr.vertexFunction					= lib.shaders.vtx_main
+			descr.fragmentFunction					= lib.shaders.frg_light
+			descr.depthAttachmentPixelFormat		= Renderer.fmt_depth
+			descr.stencilAttachmentPixelFormat		= Renderer.fmt_depth
+			descr.colorAttachments[0].pixelFormat	= Renderer.fmt_color
+			descr.colorAttachments[1].pixelFormat	= .r32Float
+		}
+		
+		static let dsdepth = util.depthstate(label: "ds depth") {
+			descr in
+			descr.isDepthWriteEnabled				= true
+			descr.depthCompareFunction				= .less
+		}
+		static let dslight = util.depthstate(label: "ds light") {
+			descr in
+			descr.isDepthWriteEnabled				= false
+			descr.depthCompareFunction				= .lessEqual
 		}
 		
 	}

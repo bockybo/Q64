@@ -19,13 +19,9 @@ struct LGT {
 }
 
 struct MDL {
-	var ctm:  float4x4 = .I {didSet {self.ctm3 = self.ctm.inv.T.xyz}}
-	var ctm3: float3x3 = .I
-	var matID: uint
-	init(matID: uint, ctm: float4x4 = .I) {
-		self.matID = matID
-		defer {self.ctm = ctm}
-	}
+	var ctm: float4x4 = .I
+	var inv: float4x4 = .I
+	var matID: uint = 0
 }
 
 struct MAT {

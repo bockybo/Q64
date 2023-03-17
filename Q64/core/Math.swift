@@ -121,8 +121,8 @@ extension float4x4 {
 		$0[2].xyz = float3(x * z * ci + y * st, y * z * ci - x * st, ct + z * z * ci)
 	}}
 	
-	static func look(src: float3, dst: float3, up: float3 = .y) -> float4x4 {return .tf {
-		let f = normalize(dst - src)
+	static func look(dir: float3, src: float3 = float3(0), up: float3 = .y) -> float4x4 {return .tf {
+		let f = dir
 		let s = normalize(cross(f, up))
 		let u = normalize(cross(s, f))
 		$0[0].xyz = s
@@ -130,6 +130,9 @@ extension float4x4 {
 		$0[2].xyz = -f
 		$0[3].xyz = src
 	}}
+	static func look(dst: float3, src: float3 = float3(0), up: float3 = .y) -> float4x4 {
+		return .look(dir: normalize(dst - src), src: src, up: up)
+	}
 	
 	static func persp(fov: float, asp: float = 1, z0: float, z1: float) -> float4x4 {return .tf {
 		let y = 1 / tan(0.5 * fov)

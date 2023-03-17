@@ -2,7 +2,6 @@ import MetalKit
 
 
 // TODO:
-// light culling w/ threadgroups; deferred+;
 // point light shadows w/ vertex amplification
 // gbuffer transparancy???
 // particles
@@ -15,23 +14,29 @@ import MetalKit
 
 
 class Renderer: NSObject, MTKViewDelegate {
-	var deferred = true
 	
-	static let nflight = 2
+	static let nflight = 3
 	
 	static let max_nmaterial = 32
 	static let max_nmodel = 1024
-	static let max_nlight = max_nquad + max_ncone + max_nicos
-	static let max_nquad = 2
-	static let max_ncone = 32
-	static let max_nicos = 64
 	
-	static let qshd_quad = 16384 / 2
-	static let qshd_cone = 16384 / 4
+	static let max_nlight = 256
+	static let max_nshade = 16
+	static let shadowquality = 16384 / 2
 	
 	static let fmt_color = MTLPixelFormat.bgra8Unorm_srgb
 	static let fmt_depth = MTLPixelFormat.depth32Float_stencil8
 	static let fmt_shade = MTLPixelFormat.depth32Float
+	
+	static let tile_w = 16
+	static let tile_h = 16
+	
+	var mode = Mode.tiled_forward
+	enum Mode {
+		case classic_forward
+		case classic_deferred
+		case tiled_forward
+	}
 	
 	private let semaphore = DispatchSemaphore(value: Renderer.nflight)
 	private let cmdque = lib.device.makeCommandQueue()!
@@ -40,6 +45,10 @@ class Renderer: NSObject, MTKViewDelegate {
 		self.scene = scene
 		super.init()
 		self.mtkView(view, drawableSizeWillChange: view.drawableSize)
+		
+		// TODO: make dynamically updateable
+		self.writematerials(self.scene.materials)
+		
 	}
 	
 	
@@ -52,225 +61,63 @@ class Renderer: NSObject, MTKViewDelegate {
 	}
 	private struct Flight {
 		
-		let cambuf = util.buffer(len: sizeof(CAM.self), label: "scene buffer")
+		let cambuf = util.buffer(len: sizeof(CAM.self), label: "camera buffer")
 		let mdlbuf = util.buffer(len: sizeof(MDL.self) * Renderer.max_nmodel, label: "model buffer")
-		let quadbuf = util.buffer(len: sizeof(LGT.self) * Renderer.max_nquad, label: "quad buffer")
-		let conebuf = util.buffer(len: sizeof(LGT.self) * Renderer.max_ncone, label: "cone buffer")
-		let icosbuf = util.buffer(len: sizeof(LGT.self) * Renderer.max_nicos, label: "icos buffer")
+		let lgtbuf = util.buffer(len: sizeof(LGT.self) * Renderer.max_nlight, label: "light buffer")
 		
 		var models: [Model] = []
-		var nquad: Int = 0
-		var ncone: Int = 0
-		var nicos: Int = 0
+		var nlight: Int = 0
 		
 		mutating func copy(_ scene: Scene) {
 			
 			var cam = scene.camera.cam
 			self.cambuf.write(&cam, length: sizeof(cam))
 			
-			let mdls = scene.models.reduce([], {$0 + $1.instances})
+			let mdls = scene.models.reduce([], {$0 + $1.mdls})
 			self.models = scene.models
 			self.mdlbuf.write(mdls, length: mdls.count * sizeof(MDL.self))
 			
-			let quad = scene.lighting.quad.map {$0.lgt}
-			let cone = scene.lighting.cone.map {$0.lgt}
-			let icos = scene.lighting.icos.map {$0.lgt}
-			self.nquad = quad.count
-			self.ncone = cone.count
-			self.nicos = icos.count
-			self.quadbuf.write(quad, length: self.nquad * sizeof(LGT.self))
-			self.conebuf.write(cone, length: self.ncone * sizeof(LGT.self))
-			self.icosbuf.write(icos, length: self.nicos * sizeof(LGT.self))
+			let lgts = scene.lights.map {$0.lgt}
+			self.nlight = lgts.count
+			self.lgtbuf.write(lgts, length: self.nlight * sizeof(LGT.self))
 			
 		}
 	}
 	
 	
-	private var gbuf: GBuf?
-	private struct GBuf {
-		static let fmt_alb = MTLPixelFormat.rgba8Unorm_srgb
-		static let fmt_nml = MTLPixelFormat.rgba16Snorm
-		static let fmt_mat = MTLPixelFormat.rgba8Unorm
-		static let fmt_dep = MTLPixelFormat.r32Float
-		static func attach(_ descr: MTLRenderPipelineDescriptor) {
-			descr.colorAttachments[0].pixelFormat	= Renderer.fmt_color
-			descr.depthAttachmentPixelFormat		= Renderer.fmt_depth
-			descr.stencilAttachmentPixelFormat		= Renderer.fmt_depth
-			descr.colorAttachments[1].pixelFormat 	= Renderer.GBuf.fmt_alb
-			descr.colorAttachments[2].pixelFormat 	= Renderer.GBuf.fmt_nml
-			descr.colorAttachments[3].pixelFormat 	= Renderer.GBuf.fmt_mat
-			descr.colorAttachments[4].pixelFormat 	= Renderer.GBuf.fmt_dep
-		}
-		func attach(_ descr: MTLRenderPassDescriptor) {
-			descr.colorAttachments[0].loadAction	= .clear
-			descr.colorAttachments[0].storeAction 	= .store
-			descr.stencilAttachment.loadAction  	= .dontCare
-			descr.stencilAttachment.storeAction 	= .dontCare
-			descr.depthAttachment.loadAction  		= .dontCare
-			descr.depthAttachment.storeAction 		= .dontCare
-			descr.colorAttachments[1].loadAction 	= .dontCare
-			descr.colorAttachments[2].loadAction 	= .dontCare
-			descr.colorAttachments[3].loadAction 	= .dontCare
-			descr.colorAttachments[4].loadAction 	= .dontCare
-			descr.colorAttachments[1].storeAction 	= .dontCare
-			descr.colorAttachments[2].storeAction 	= .dontCare
-			descr.colorAttachments[3].storeAction 	= .dontCare
-			descr.colorAttachments[4].storeAction 	= .dontCare
-			descr.colorAttachments[1].texture		= self.alb
-			descr.colorAttachments[2].texture		= self.nml
-			descr.colorAttachments[3].texture		= self.mat
-			descr.colorAttachments[4].texture		= self.dep
-		}
-		let alb: MTLTexture
-		let nml: MTLTexture
-		let mat: MTLTexture
-		let dep: MTLTexture
-		init(res: uint2) {
-			self.alb = util.texture(label: "gbuffer albedo") {descr in
-				descr.pixelFormat	= GBuf.fmt_alb
-				descr.width			= Int(res.x)
-				descr.height		= Int(res.y)
-				descr.usage			= [.shaderRead, .renderTarget]
-				descr.storageMode	= .memoryless
-			}
-			self.nml = util.texture(label: "gbuffer normal") {descr in
-				descr.pixelFormat	= GBuf.fmt_nml
-				descr.width			= Int(res.x)
-				descr.height		= Int(res.y)
-				descr.usage			= [.shaderRead, .renderTarget]
-				descr.storageMode	= .memoryless
-			}
-			self.mat = util.texture(label: "gbuffer material") {descr in
-				descr.pixelFormat	= GBuf.fmt_mat
-				descr.width			= Int(res.x)
-				descr.height		= Int(res.y)
-				descr.usage			= [.shaderRead, .renderTarget]
-				descr.storageMode	= .memoryless
-			}
-			self.dep = util.texture(label: "gbuffer depth") {descr in
-				descr.pixelFormat	= GBuf.fmt_dep
-				descr.width			= Int(res.x)
-				descr.height		= Int(res.y)
-				descr.usage			= [.shaderRead, .renderTarget]
-				descr.storageMode	= .memoryless
-			}
-		}
-	}
-	
-	
-	private class states {
-		
-		static let psshade = util.pipestate {descr in
-			descr.vertexFunction						= lib.shaders["vtx_shade"]!
-			descr.depthAttachmentPixelFormat 			= Renderer.fmt_shade
-			descr.inputPrimitiveTopology				= .triangle
-		}
-		static let psgbuf = util.pipestate {descr in
-			descr.vertexFunction						= lib.shaders["vtx_main"]!
-			descr.fragmentFunction						= lib.shaders["frg_gbuf"]!
-			Renderer.GBuf.attach(descr)
-		}
-		static let psquad = util.pipestate {descr in
-			descr.vertexFunction						= lib.shaders["vtx_quad"]!
-			descr.fragmentFunction						= lib.shaders["frg_quad"]!
-			Renderer.GBuf.attach(descr)
-		}
-		static let psicos = util.pipestate {descr in
-			descr.vertexFunction						= lib.shaders["vtx_volume"]!
-			descr.fragmentFunction						= lib.shaders["frg_icos"]!
-			Renderer.GBuf.attach(descr)
-		}
-		static let pscone = util.pipestate {descr in
-			descr.vertexFunction						= lib.shaders["vtx_volume"]!
-			descr.fragmentFunction						= lib.shaders["frg_cone"]!
-			Renderer.GBuf.attach(descr)
-		}
-		static let psfwd = util.pipestate {descr in
-			descr.vertexFunction						= lib.shaders["vtx_main"]!
-			descr.fragmentFunction						= lib.shaders["frg_fwd"]!
-			descr.colorAttachments[0].pixelFormat		= Renderer.fmt_color
-			descr.depthAttachmentPixelFormat			= Renderer.fmt_depth
-		}
-		
-		static let dsshade = util.depthstate {descr in
-			descr.isDepthWriteEnabled 							= true
-			descr.depthCompareFunction 							= .lessEqual
-		}
-		static let dsgbuf = util.depthstate {descr in
-			descr.isDepthWriteEnabled							= true
-			descr.depthCompareFunction 							= .lessEqual
-			descr.frontFaceStencil.depthStencilPassOperation	= .replace
-			descr.backFaceStencil.depthStencilPassOperation		= .replace
-		}
-		static let dsquad = util.depthstate {descr in
-			descr.frontFaceStencil.stencilCompareFunction		= .equal
-			descr.backFaceStencil.stencilCompareFunction		= .equal
-		}
-		static let dsvolume = util.depthstate {descr in
-			descr.depthCompareFunction							= .greaterEqual
-		}
-		static let dsfwd = util.depthstate {descr in
-			descr.isDepthWriteEnabled = true
-			descr.depthCompareFunction = .less
-		}
-		
-	}
-	
-	
-	private let quad_shadowmaps = util.texture(label: "quad shadowmaps") {descr in
-		descr.pixelFormat		= Renderer.fmt_shade
-		descr.width				= Renderer.qshd_quad
-		descr.height			= Renderer.qshd_quad
-		descr.arrayLength		= Renderer.max_nquad
-		descr.textureType		= .type2DArray
+	private let shadowmaps = util.texture(label: "shadowmaps") {descr in
 		descr.usage				= [.shaderRead, .renderTarget]
 		descr.storageMode		= .private
-	}
-	private let cone_shadowmaps = util.texture(label: "cone shadowmaps") {descr in
-		descr.pixelFormat		= Renderer.fmt_shade
-		descr.width				= Renderer.qshd_cone
-		descr.height			= Renderer.qshd_cone
-		descr.arrayLength		= Renderer.max_ncone
 		descr.textureType		= .type2DArray
-		descr.usage				= [.shaderRead, .renderTarget]
-		descr.storageMode		= .private
+		descr.pixelFormat		= Renderer.fmt_shade
+		descr.arrayLength		= Renderer.max_nshade
+		descr.width				= Renderer.shadowquality
+		descr.height			= Renderer.shadowquality
 	}
 	
 	
-	private lazy var mat_buf: MTLBuffer = {
-		let mats = self.scene.materials
-		assert(mats.count <= Renderer.max_nmaterial)
+	private let materials = lib.shaders.frg_gbuf.makeArgumentEncoder(
+		bufferIndex: 0,
+		bufferOptions: .storageModeManaged
+	)
+	
+	private func writematerials(_ materials: [Material]) {
+		assert(materials.count <= Renderer.max_nmaterial)
 		let n = Material.nproperty
-		let arg = lib.shaders["frg_gbuf"]!.makeArgumentEncoder(bufferIndex: 0)
-		let buf = util.buffer(len: arg.encodedLength, opt: .storageModeManaged)
-		arg.setArgumentBuffer(buf, offset: 0)
-		for (matID, mat) in mats.enumerated() {
-			let textures = mat.textures
-			var defaults = mat.defaults
+		for (matID, material) in materials.enumerated() {
+			let textures = material.textures
+			var defaults = material.defaults
 			let i = 2 * n * matID
-			arg.setTextures(textures, range: i..<i+n)
-			arg.setBytes(&defaults, length: sizeof(defaults), index: i+n)
+			self.materials.arg.setTextures(textures, range: i..<i+n)
+			self.materials.arg.setBytes(&defaults, length: sizeof(defaults), index: i+n)
 		}
-		buf.didModifyRange(0..<arg.encodedLength)
-		return buf
-	}()
-	
-	
-	private func render(enc: MTLRenderCommandEncoder, lid: Int = 0) {
-		var iid = 0
-		for model in self.flt.models {
-			enc.setVertexBufferOffset(iid * sizeof(MDL.self), index: 1)
-			iid += model.nid
-			for mesh in model.meshes {
-				enc.draw(mesh: mesh, iid: lid, nid: model.nid)
-			}
-		}
+		self.materials.buf.didModifyRange(0..<self.materials.arg.encodedLength)
 	}
+	
 	private func setmaterial(enc: MTLRenderCommandEncoder) {
-		enc.setFBuffer(self.mat_buf, index: 0)
 		for mat in self.scene.materials {
 			for case let texture? in mat.textures {
-				enc.useResource(texture, usage: .read)
+				enc.useResource(texture, usage: .read, stages: .fragment)
 			}
 		}
 	}
@@ -279,45 +126,59 @@ class Renderer: NSObject, MTKViewDelegate {
 	func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
 		let res = uint2(uint(size.width), uint(size.height))
 		self.scene.camera.res = res
-		if self.deferred {self.gbuf = .init(res: res)}
+		self.resize(res)
 		if view.isPaused {view.draw()}
+	}
+	
+	var depthtexture: MTLTexture!
+	private func resize(_ res: uint2) {
+		self.depthtexture = util.texture(label: "depth prepass texture") {
+			descr in
+			descr.usage = [.shaderRead, .renderTarget]
+			descr.storageMode = .memoryless
+			descr.pixelFormat = .r32Float
+			descr.width  = Int(res.x)
+			descr.height = Int(res.y)
+		}
+	}
+	
+	
+	private func render(enc: MTLRenderCommandEncoder) {
+		var iid = 0
+		for model in self.flt.models {
+			enc.draw(model.meshes, iid: iid, nid: model.nid)
+			iid += model.nid
+		}
 	}
 	
 	func draw(in view: MTKView) {
 		self.semaphore.wait()
 		self.rotate()
 		
+		// whole commit can be one for loop of passes per light
+		// technically wouldn't even need a scene ref or separate shadowmaps
+		// but icos have no shadowmaps rn so wait a sec
 		self.cmdque.commit(label: "commit: shade") {
 			buf in
-			
-			buf.pass(label: "pass: shade quad", descr: util.passdescr {
+
+			let descr = util.passdescr {
 				descr in
 				descr.depthAttachment.loadAction  = .dontCare
 				descr.depthAttachment.storeAction = .store
-				descr.depthAttachment.texture = self.quad_shadowmaps
-				descr.renderTargetArrayLength = self.flt.nquad
-			}) {enc in
-				enc.setCull(mode: .front, wind: .counterClockwise)
-				enc.setStates(ps: states.psshade, ds: states.dsshade)
-				enc.setVBuffer(self.flt.quadbuf, index: 2)
-				enc.setVBuffer(self.flt.mdlbuf,  index: 1)
-				for i in 0..<self.flt.nquad {self.render(enc: enc, lid: i)}
+				descr.depthAttachment.texture = self.shadowmaps
 			}
-			
-			buf.pass(label: "pass: shade cones", descr: util.passdescr {
-				descr in
-				descr.depthAttachment.loadAction  = .dontCare
-				descr.depthAttachment.storeAction = .store
-				descr.depthAttachment.texture = self.cone_shadowmaps
-				descr.renderTargetArrayLength = self.flt.ncone
-			}) {enc in
-				enc.setCull(mode: .front, wind: .counterClockwise)
-				enc.setStates(ps: states.psshade, ds: states.dsshade)
-				enc.setVBuffer(self.flt.conebuf, index: 2)
-				enc.setVBuffer(self.flt.mdlbuf,  index: 1)
-				for i in 0..<self.flt.ncone {self.render(enc: enc, lid: i)}
+			for lid in 0 ..< 1 + self.scene.clights.count {
+				descr.depthAttachment.slice = lid
+				buf.pass(label: "pass: shade \(lid)", descr: descr) {
+					enc in
+					enc.setCull(mode: .back, wind: .clockwise)
+					enc.setStates(ps: lib.states.psshade, ds: lib.states.dsshade)
+					enc.setVBuffer(self.flt.lgtbuf, offset: lid * sizeof(LGT.self), index: 2)
+					enc.setVBuffer(self.flt.mdlbuf, index: 1)
+					self.render(enc: enc)
+				}
 			}
-			
+
 		}
 		
 		self.cmdque.commit(label: "commit: light & drawable") {
@@ -325,80 +186,131 @@ class Renderer: NSObject, MTKViewDelegate {
 			buf.addCompletedHandler {_ in self.semaphore.signal()}
 			guard let drawable = view.currentDrawable else {return}
 			
-			if self.deferred {
-				buf.pass(label: "pass: light & drawable (deferred)", descr: util.passdescr {
-					descr in
-					self.gbuf!.attach(descr)
-					descr.depthAttachment.texture			= view.depthStencilTexture!
-					descr.stencilAttachment.texture			= view.depthStencilTexture!
-					descr.colorAttachments[0].texture		= drawable.texture
-				}) {enc in
-					enc.setStencilReferenceValue(1)
-
-					enc.setStates(ps: states.psgbuf, ds: states.dsgbuf)
-					enc.setCull(mode: .back, wind: .counterClockwise)
-					enc.setVBuffer(self.flt.cambuf, index: 3)
-					enc.setVBuffer(self.flt.mdlbuf, index: 1)
-					self.setmaterial(enc: enc)
-					self.render(enc: enc)
-					
-					enc.setFBuffer(self.flt.cambuf, index: 3)
-					enc.setCull(mode: .back, wind: .clockwise)
-
-					enc.setFragmentTexture(self.quad_shadowmaps, index: 0)
-					enc.setVBuffer(self.flt.quadbuf, index: 2)
-					enc.setFBuffer(self.flt.quadbuf, index: 2)
-					enc.setStates(ps: states.psquad, ds: states.dsquad)
-					enc.draw(mesh: lib.quadmesh, nid: self.flt.nquad)
-
-					enc.setFragmentTexture(self.cone_shadowmaps, index: 0)
-					enc.setVBuffer(self.flt.conebuf, index: 2)
-					enc.setFBuffer(self.flt.conebuf, index: 2)
-					enc.setStates(ps: states.pscone, ds: states.dsvolume)
-					enc.draw(mesh: lib.conemesh, nid: self.flt.ncone)
-
-					// TODO: icos shadows
-					enc.setVBuffer(self.flt.icosbuf, index: 2)
-					enc.setFBuffer(self.flt.icosbuf, index: 2)
-					enc.setStates(ps: states.psicos, ds: states.dsvolume)
-					enc.draw(mesh: lib.icosmesh, nid: self.flt.nicos)
-
-				}
+			let descr = util.passdescr {descr in
+				descr.colorAttachments[0].texture		= drawable.texture
+				descr.colorAttachments[0].loadAction	= .clear
+				descr.colorAttachments[1].storeAction	= .store
+				descr.depthAttachment.texture			= view.depthStencilTexture!
+				descr.depthAttachment.loadAction		= .dontCare
+				descr.depthAttachment.storeAction		= .dontCare
+				descr.stencilAttachment.texture			= view.depthStencilTexture!
+				descr.stencilAttachment.loadAction		= .dontCare
+				descr.stencilAttachment.storeAction		= .dontCare
 			}
 			
-			else {
-				buf.pass(label: "pass: light & drawable (forward)", descr: view.currentRenderPassDescriptor!) {
-					enc in
-					enc.setCull(mode: .back, wind: .counterClockwise)
-					enc.setStates(ps: states.psfwd, ds: states.dsfwd)
+			switch self.mode {
+					
+				case .classic_forward:
+					buf.pass(label: "pass: light & drawable", descr: descr) {
+						enc in
+						enc.setCull(mode: .back, wind: .counterClockwise)
+						enc.setStates(ps: lib.states.psfwd, ds: lib.states.dsfwd)
+						enc.setFBuffer(self.materials.buf, index: 0)
+						enc.setVBuffer(self.flt.cambuf, index: 2)
+						enc.setFBuffer(self.flt.cambuf, index: 2)
+						enc.setVBuffer(self.flt.mdlbuf, index: 1)
+						enc.setFBuffer(self.flt.lgtbuf, index: 3)
+						var nlight = uint(self.flt.nlight)
+						enc.setFBytes(&nlight, index: 4)
+						enc.setFragmentTexture(self.shadowmaps, index: 0)
+						self.setmaterial(enc: enc)
+						self.render(enc: enc)
+					}
+					break
+					
+				case .classic_deferred:
+					buf.pass(label: "pass: light & drawable", descr: util.passdescr(descr) {
+						descr in
+						descr.imageblockSampleLength	= lib.states.psgbuf.imageblockSampleLength
+						descr.tileWidth  				= Renderer.tile_w
+						descr.tileHeight 				= Renderer.tile_h
+					}) {enc in
+						enc.setStencilReferenceValue(1)
 
-					enc.setVBuffer(self.flt.cambuf, index: 3)
-					enc.setFBuffer(self.flt.cambuf, index: 3)
-					enc.setVBuffer(self.flt.mdlbuf, index: 1)
+						enc.setCull(mode: .back, wind: .counterClockwise)
+						enc.setStates(ps: lib.states.psgbuf, ds: lib.states.dsgbuf)
+						enc.setVBuffer(self.flt.cambuf, index: 2)
+						enc.setVBuffer(self.flt.mdlbuf, index: 1)
+						enc.setFBuffer(self.materials.buf, index: 0)
+						self.setmaterial(enc: enc)
+						self.render(enc: enc)
+						
+						enc.setFrontFacing(.clockwise)
+						enc.setFBuffer(self.flt.cambuf, index: 2)
+						enc.setFBuffer(self.flt.lgtbuf, index: 3)
+						enc.setVBuffer(self.flt.lgtbuf, index: 3)
+						enc.setFragmentTexture(self.shadowmaps, index: 0)
+						
+						var iid = 0, nid = 1
+						enc.setDepthStencilState(lib.states.dsquad)
+						enc.setRenderPipelineState(lib.states.psquad)
+						enc.draw(lib.lightmesh.quad, iid: iid, nid: nid)
+						iid += nid; nid = self.scene.clights.count
+						enc.setDepthStencilState(lib.states.dsvolume)
+						enc.setRenderPipelineState(lib.states.psvolume)
+						enc.draw(lib.lightmesh.cone, iid: iid, nid: nid)
+						iid += nid; nid = self.scene.ilights.count
+						enc.draw(lib.lightmesh.icos, iid: iid, nid: nid)
 
-					enc.setFBuffer(self.flt.quadbuf, index: 4)
-					enc.setFBuffer(self.flt.conebuf, index: 5)
-					enc.setFBuffer(self.flt.icosbuf, index: 6)
-					enc.setFragmentTexture(self.quad_shadowmaps, index: 4)
-					enc.setFragmentTexture(self.cone_shadowmaps, index: 5)
-					enc.setFragmentTexture(self.cone_shadowmaps, index: 6) // TODO: icos shadows
-					var nquad = self.flt.nquad
-					var ncone = self.flt.ncone
-					var nicos = self.flt.nicos
-					enc.setFragmentBytes(&nquad, length: sizeof(nquad), index: 7)
-					enc.setFragmentBytes(&ncone, length: sizeof(ncone), index: 8)
-					enc.setFragmentBytes(&nicos, length: sizeof(nicos), index: 9)
-
-					self.setmaterial(enc: enc)
-					self.render(enc: enc)
-
-				}
+					}
+					break
+					
+				case .tiled_forward:
+					
+					// TODO: formalize
+					let tile_w = Renderer.tile_w
+					let tile_h = Renderer.tile_h
+					let tilesize = 256
+					let buffsize = sizeof(uint.self) * tile_w*tile_h
+					
+					buf.pass(label: "pass: light & drawable", descr: util.passdescr(descr) {
+						descr in
+						
+						descr.colorAttachments[1].texture		= self.depthtexture
+						descr.colorAttachments[1].loadAction	= .dontCare
+						descr.colorAttachments[1].storeAction	= .dontCare
+						
+						descr.tileWidth  = tile_w
+						descr.tileHeight = tile_h
+						descr.threadgroupMemoryLength = buffsize + tilesize
+						
+					}) {enc in
+						
+						enc.setCull(mode: .back, wind: .counterClockwise)
+						
+						enc.setVBuffer(self.flt.mdlbuf, index: 1)
+						enc.setVBuffer(self.flt.cambuf, index: 2)
+						enc.setTBuffer(self.flt.cambuf, index: 2)
+						enc.setTBuffer(self.flt.lgtbuf, index: 3)
+						enc.setFBuffer(self.flt.cambuf, index: 2)
+						enc.setFBuffer(self.flt.lgtbuf, index: 3)
+						var nlight = uint(self.flt.nlight)
+						enc.setTBytes(&nlight, index: 4)
+						enc.setThreadgroupMemoryLength(buffsize, offset: 0, index: 0)
+						enc.setThreadgroupMemoryLength(tilesize, offset: buffsize, index: 1)
+						enc.setFBuffer(self.materials.buf, index: 0)
+						enc.setFragmentTexture(self.shadowmaps, index: 0)
+						
+						enc.setDepthStencilState(lib.states.dsdepth)
+						enc.setRenderPipelineState(lib.states.psdepth)
+						self.render(enc: enc)
+						enc.setRenderPipelineState(lib.states.pscull)
+						enc.dispatchThreadsPerTile(MTLSizeMake(tile_w, tile_h, 1))
+						enc.setDepthStencilState(lib.states.dslight)
+						enc.setRenderPipelineState(lib.states.pslight)
+						self.setmaterial(enc: enc)
+						self.render(enc: enc)
+						
+					}
+					break
+					
 			}
 			
 			buf.present(drawable)
-			
+
 		}
 		
 	}
+	
 	
 }

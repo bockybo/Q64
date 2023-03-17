@@ -38,6 +38,7 @@ class ViewController: NSViewController {
 		
 	}
 	
+	
 	override func viewDidAppear() {
 		super.viewDidAppear()
 		let win = self.ctrlview.window!

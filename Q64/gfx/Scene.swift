@@ -10,7 +10,15 @@ class Scene {
 	
 	var models: [Model] = []
 	var camera = Camera()
-	var lighting = Lighting()
+	
+	var sun = QLight()
+	var clights: [CLight] = []
+	var ilights: [ILight] = []
+	
+	var lights: [Light] {
+		return [self.sun] + self.clights + self.ilights
+	}
+	var count: Int {return self.lights.count}
 	
 	func add(_ model: Model) {
 		self.models.append(model)
