@@ -3,12 +3,13 @@ using namespace metal;
 
 
 #define DEBUGMASK 	0
+#define HEATMAP		0
 
 #define NMATERIAL	32
 #define BASE_F0		0.04h
 
-#define NPCF		4
-#define ZSHADOW		1e-5f
+#define NPCF		2
+#define ZSHADOW		5e-5f
 
 
 struct lpix {
@@ -98,7 +99,7 @@ struct frustum {
 };
 
 struct tile {
-	atomic_int nlight;
+	atomic_uint msk;
 	float mindepth;
 	float maxdepth;
 };
@@ -235,25 +236,23 @@ static float4 attenuate_cone(float3 pos, light lgt, shadowmaps shds, uint lid) {
 static inline bool is_qlight(light lgt) {return lgt.phi == -1.f;}
 static inline bool is_ilight(light lgt) {return lgt.phi ==  0.f;}
 static inline bool is_clight(light lgt) {return lgt.phi > 0.f;}
-static inline attenuator lgt_attenuator(light lgt) {
-	if (is_qlight(lgt)) return attenuate_quad;
-	if (is_ilight(lgt)) return attenuate_icos;
-	return attenuate_cone;
+static inline float4 dispatch_attenuate(float3 pos, light lgt, shadowmaps shds, uint lid) {
+	if (is_qlight(lgt)) return attenuate_quad(pos, lgt, shds, lid);
+	if (is_ilight(lgt)) return attenuate_icos(pos, lgt, shds, lid);
+	return attenuate_cone(pos, lgt, shds, lid);
 }
 
 static half3 com_lighting(material mat,
 						  float3 p,
 						  float3 v,
-						  uint lid,
 						  constant light *lgts,
 						  shadowmaps shds,
-						  attenuator attenuate) {
+						  uint lid) {
 #if DEBUGMASK
-	if (attenuate != attenuate_quad)
-		return (half3)normalize(lgts[lid].hue) * 0.2h;
+	return (half3)normalize(lgts[lid].hue) * 0.2h;
 #endif
 	light lgt = lgts[lid];
-	float4 att = attenuate(p, lgt, shds, lid);
+	float4 att = dispatch_attenuate(p, lgt, shds, lid);
 	if (att.a <= 0.f)
 		return 0.h;
 	lgt.hue *= att.a;
@@ -266,8 +265,7 @@ static lpix buf_lighting(const lfrg f,
 						 const gbuf buf,
 						 constant camera &cam,
 						 constant light *lgts,
-						 shadowmaps shds,
-						 attenuator attenuate) {
+						 shadowmaps shds) {
 	
 	float3 loc = float3(f.loc.xy / (float2)cam.res, buf.dep);
 	float3 pos = mmul3w(cam.view * cam.invproj, loc2ndc(loc));
@@ -281,7 +279,7 @@ static lpix buf_lighting(const lfrg f,
 		. ao = buf.mat.b,
 	};
 	
-	half3 rgb = com_lighting(mat, pos, v, f.lid, lgts, shds, attenuate);
+	half3 rgb = com_lighting(mat, pos, v, lgts, shds, f.lid);
 	return {half4(pix.color.rgb + rgb, 1.h)};
 	
 }
@@ -313,8 +311,8 @@ static frustum make_frustum(camera cam,
 	fst.planes[1] = float4(normalize(cross(fst.points[1], fst.points[3])), 0.f);
 	fst.planes[2] = float4(normalize(cross(fst.points[0], fst.points[1])), 0.f);
 	fst.planes[3] = float4(normalize(cross(fst.points[3], fst.points[2])), 0.f);
-	fst.planes[4] = float4(float3(0.f, 0.f, -1.f), -fst.points[4].z);
-	fst.planes[5] = float4(float3(0.f, 0.f, +1.f), +fst.points[5].z);
+	fst.planes[4] = float4(0.f, 0.f, -1.f, -fst.points[4].z);
+	fst.planes[5] = float4(0.f, 0.f, +1.f, +fst.points[5].z);
 	
 	return fst;
 	
@@ -425,9 +423,8 @@ fragment lpix frg_accum(const lfrg f						[[stage_in]],
 						constant camera &cam				[[buffer(2)]],
 						constant light *lgts				[[buffer(3)]],
 						shadowmaps shds						[[texture(0)]]) {
-	return buf_lighting(f, pix, buf, cam, lgts, shds, lgt_attenuator(lgts[f.lid]));
+	return buf_lighting(f, pix, buf, cam, lgts, shds);
 }
-
 
 fragment half4 frg_fwd(const frg f							[[stage_in]],
 					   constant materialbuf &materials		[[buffer(0)]],
@@ -439,20 +436,10 @@ fragment half4 frg_fwd(const frg f							[[stage_in]],
 	float3 p = f.pos;
 	float3 v = normalize(viewpos(cam.view) - p);
 	half3 rgb = 0.h;
-	for (uint i = 0; i < nlight; ++i) {
-		light lgt = lgts[i];
-		attenuator attenuate;
-		if (is_qlight(lgt))
-			attenuate = attenuate_quad;
-		else if (is_ilight(lgt))
-			attenuate = attenuate_icos;
-		else
-			attenuate = attenuate_cone;
-		rgb += com_lighting(mat, p, v, i, lgts, shds, attenuate);
-	}
+	for (uint i = 0; i < nlight; ++i)
+		rgb += com_lighting(mat, p, v, lgts, shds, i);
 	return half4(rgb, 0.h);
 }
-
 
 vertex float4 vtx_depth(const device vtx *vtcs		[[buffer(0)]],
 						const device model *mdls	[[buffer(1)]],
@@ -473,41 +460,36 @@ fragment pixel frg_depth(const float4 loc [[position]]) {
 	};
 }
 
-
 fragment half4 frg_light(const frg f						[[stage_in]],
 						 constant materialbuf &materials	[[buffer(0)]],
 						 constant camera &cam				[[buffer(2)]],
 						 constant light *lgts				[[buffer(3)]],
-						 threadgroup uint *lids				[[threadgroup(0)]],
-						 threadgroup tile &tile				[[threadgroup(1)]],
+						 threadgroup tile &tile				[[threadgroup(0)]],
 						 shadowmaps shds					[[texture(0)]]) {
-
+	half3 rgb = 0;
+	
 	material mat = materialsmp(f, materials);
 	float3 pos = f.pos;
 	float3 eye = normalize(viewpos(cam.view) - pos);
 	
-	half3 rgb = com_lighting(mat, pos, eye, 0, lgts, shds, attenuate_quad);
-	
-	int nlight = atomic_load_explicit(&tile.nlight, memory_order_relaxed);
-	for (int i = 0; i < nlight; ++i) {
-		uint  lid = lids[i];
-		light lgt = lgts[lid];
-		attenuator attenuate = lgt.phi? attenuate_cone : attenuate_icos;
-		rgb += com_lighting(mat, pos, eye, lid, lgts, shds, attenuate);
-	}
-	
-//	return heatmap(nlight, 32);
+	uint msk = atomic_load_explicit(&tile.msk, memory_order_relaxed);
+#if HEATMAP
+	int n = 0;
+	for (int i = 0; (i += 1 + ctz(msk >> i)) < 33; ++n);
+	return heatmap(n, 32);
+#else
+	for (int i = 0; (i += 1 + ctz(msk >> i)) < 33;)
+		rgb += com_lighting(mat, pos, eye, lgts, shds, i - 1);
 	return half4(rgb, 1.h);
-
+#endif
+	
 }
-
 
 kernel void knl_cull(imageblock<pixel, imageblock_layout_implicit> blk,
 					 constant camera &cam			[[buffer(2)]],
 					 constant light *lgts			[[buffer(3)]],
 					 constant uint &nlight			[[buffer(4)]],
-					 threadgroup uint *lids			[[threadgroup(0)]],
-					 threadgroup tile &tile			[[threadgroup(1)]],
+					 threadgroup tile &tile			[[threadgroup(0)]],
 					 ushort2 tloc					[[thread_position_in_threadgroup]],
 					 ushort2 gloc					[[thread_position_in_grid]],
 					 ushort2 tptg					[[threads_per_threadgroup]],
@@ -515,14 +497,14 @@ kernel void knl_cull(imageblock<pixel, imageblock_layout_implicit> blk,
 					 uint qid						[[thread_index_in_quadgroup]]) {
 	
 	pixel pix = blk.read(tloc);
-
+	
 	if (tid == 0) {
-		atomic_store_explicit(&tile.nlight, 0, memory_order_relaxed);
+		atomic_store_explicit(&tile.msk, 1, memory_order_relaxed);
 		tile.mindepth = INFINITY;
 		tile.maxdepth = 0.0;
 	}
 	threadgroup_barrier(mem_flags::mem_threadgroup);
-
+	
 	float mindepth = pix.depth;
 	mindepth = min(mindepth, quad_shuffle_xor(mindepth, 2));
 	mindepth = min(mindepth, quad_shuffle_xor(mindepth, 1));
@@ -538,19 +520,14 @@ kernel void knl_cull(imageblock<pixel, imageblock_layout_implicit> blk,
 	frustum fst = make_frustum(cam, gloc, tptg,
 							   tile.mindepth,
 							   tile.maxdepth);
-
-	uint tc = tptg.x * tptg.y;
-	for (uint i = 0; i < nlight; i += tc) {
+	
+	uint gid = tptg.x * tptg.y;
+	for (uint i = 0; i < nlight; i += gid) {
 		uint lid = i + tid;
-		if (lid == 0)
-			continue;
-		if (lid >= nlight)
+		if (lid >= nlight || lid >= 32)
 			return;
-		if (visible(lgts[lid], fst, cam)) {
-			int i = atomic_fetch_add_explicit(&tile.nlight, 1, memory_order_relaxed);
-			lids[i] = lid;
-		}
+		if (visible(lgts[lid], fst, cam))
+			atomic_fetch_or_explicit(&tile.msk, 1 << lid, memory_order_relaxed);
 	}
-
-
+	
 }

@@ -257,11 +257,9 @@ class Renderer: NSObject, MTKViewDelegate {
 					
 				case .tiled_forward:
 					
-					// TODO: formalize
 					let tile_w = Renderer.tile_w
 					let tile_h = Renderer.tile_h
-					let tilesize = 256
-					let buffsize = sizeof(uint.self) * tile_w*tile_h
+					let tgsize = sizeof(uint.self) + 2*sizeof(float.self) * tile_w*tile_h
 					
 					buf.pass(label: "pass: light & drawable", descr: util.passdescr(descr) {
 						descr in
@@ -272,7 +270,7 @@ class Renderer: NSObject, MTKViewDelegate {
 						
 						descr.tileWidth  = tile_w
 						descr.tileHeight = tile_h
-						descr.threadgroupMemoryLength = buffsize + tilesize
+						descr.threadgroupMemoryLength = tgsize
 						
 					}) {enc in
 						
@@ -282,14 +280,13 @@ class Renderer: NSObject, MTKViewDelegate {
 						enc.setVBuffer(self.flt.cambuf, index: 2)
 						enc.setTBuffer(self.flt.cambuf, index: 2)
 						enc.setTBuffer(self.flt.lgtbuf, index: 3)
+						enc.setFBuffer(self.materials.buf, index: 0)
 						enc.setFBuffer(self.flt.cambuf, index: 2)
 						enc.setFBuffer(self.flt.lgtbuf, index: 3)
+						enc.setFragmentTexture(self.shadowmaps, index: 0)
 						var nlight = uint(self.flt.nlight)
 						enc.setTBytes(&nlight, index: 4)
-						enc.setThreadgroupMemoryLength(buffsize, offset: 0, index: 0)
-						enc.setThreadgroupMemoryLength(tilesize, offset: buffsize, index: 1)
-						enc.setFBuffer(self.materials.buf, index: 0)
-						enc.setFragmentTexture(self.shadowmaps, index: 0)
+						enc.setThreadgroupMemoryLength(tgsize + 16 - tgsize % 16, offset: 0, index: 0)
 						
 						enc.setDepthStencilState(lib.states.dsdepth)
 						enc.setRenderPipelineState(lib.states.psdepth)

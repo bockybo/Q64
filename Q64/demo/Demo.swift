@@ -10,7 +10,10 @@ class Demo: Ctrl {
 	static let nbox = 16
 	
 	static let materials = [
-		Material(),
+		Material(
+			rgh_default: 0.6,
+			mtl_default: 1.0
+		),
 		Material(
 			alb: util.texture(path: "snow_alb.jpg", srgb: true),
 			nml: util.texture(path: "snow_nml.jpg"),
@@ -37,7 +40,7 @@ class Demo: Ctrl {
 			alb: util.texture(path: "brick_alb.jpg", srgb: true),
 			nml: util.texture(path: "brick_nml.jpg"),
 			rgh_default: 0.1,
-			mtl_default: 1.0
+			mtl_default: 0.0
 		),
 		Material(alb_default: normalize(.xy)),
 		Material(alb_default: normalize(.xz)),
@@ -61,7 +64,7 @@ class Demo: Ctrl {
 		)
 		let tmp = Model(
 			meshes: util.mesh.load("Temple.obj", ctm: .mag(0.008)),
-			[Instance(matID: 0, ctm: .pos(float3(0, 0.01, -5)))]
+			[Instance(matID: 2, ctm: .pos(float3(0, 0.01, -5)))]
 		)
 		let sun = Model(
 			meshes: [util.mesh.sph(dim: float3(1.2),
@@ -108,7 +111,7 @@ class Demo: Ctrl {
 				hue: 1.0 * hue,
 				src: pos + .y * (y + 3),
 				rad: 3.5 * y,
-				phi: 20 * .pi/180
+				phi: 30 * .pi/180
 			)
 			let ilight = ILight(
 				hue: float3(3.0),
@@ -126,8 +129,6 @@ class Demo: Ctrl {
 			scene.ilights.append(.init(src: float3(x, 3.0, z), rad: 5.0))
 		}
 		
-//		scene.clights = []
-//		scene.ilights = []
 		scene.ilights += .init(repeating: .init(rad: 1.5), count: 6)
 		
 		scene.add([crs, gnd, ogn, tmp, sun, sph, box, pil])
