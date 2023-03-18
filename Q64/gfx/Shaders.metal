@@ -8,22 +8,25 @@ using namespace metal;
 #define NMATERIAL	32
 #define BASE_F0		0.04h
 
-#define NPCF		2
+#define NPCF		4
 #define ZSHADOW		5e-5f
 
 
 struct lpix {
-	half4 color [[raster_order_group(0), color(0)]];
+	half4 color 	[[raster_order_group(0), color(0)]];
 };
+
+struct dpix {
+	half4 color 	[[raster_order_group(0), color(0)]];
+	float depth 	[[raster_order_group(1), color(1)]];
+};
+
 struct gbuf {
-	float dep [[raster_order_group(1)]];
-	packed_half3 alb [[raster_order_group(1)]];
-	packed_half3 nml [[raster_order_group(1)]];
-	packed_half3 mat [[raster_order_group(1)]];
-};
-struct gbuf_wrt {
-	gbuf buf [[imageblock_data]];
-	lpix pix = {0.h};
+	half4 color 	[[raster_order_group(0), color(0)]];
+	float depth 	[[raster_order_group(1), color(1)]];
+	half4 alb		[[raster_order_group(1), color(2)]];
+	half4 nml		[[raster_order_group(1), color(3)]];
+	half4 mat		[[raster_order_group(1), color(4)]];
 };
 
 struct vtx {
@@ -102,11 +105,6 @@ struct tile {
 	atomic_uint msk;
 	float mindepth;
 	float maxdepth;
-};
-
-struct pixel {
-	half4 color [[color(0), raster_order_group(0)]];
-	float depth [[color(1), raster_order_group(1)]];
 };
 
 
@@ -242,48 +240,6 @@ static inline float4 dispatch_attenuate(float3 pos, light lgt, shadowmaps shds, 
 	return attenuate_cone(pos, lgt, shds, lid);
 }
 
-static half3 com_lighting(material mat,
-						  float3 p,
-						  float3 v,
-						  constant light *lgts,
-						  shadowmaps shds,
-						  uint lid) {
-#if DEBUGMASK
-	return (half3)normalize(lgts[lid].hue) * 0.2h;
-#endif
-	light lgt = lgts[lid];
-	float4 att = dispatch_attenuate(p, lgt, shds, lid);
-	if (att.a <= 0.f)
-		return 0.h;
-	lgt.hue *= att.a;
-	float3 l = att.xyz;
-	return (half3)saturate(lgt.hue * BDRF(mat, l, v));
-}
-
-static lpix buf_lighting(const lfrg f,
-						 const lpix pix,
-						 const gbuf buf,
-						 constant camera &cam,
-						 constant light *lgts,
-						 shadowmaps shds) {
-	
-	float3 loc = float3(f.loc.xy / (float2)cam.res, buf.dep);
-	float3 pos = mmul3w(cam.view * cam.invproj, loc2ndc(loc));
-	
-	float3 v = normalize(viewpos(cam.view) - pos);
-	material mat = {
-		.alb = buf.alb,
-		.nml = buf.nml,
-		.rgh = buf.mat.r,
-		.mtl = buf.mat.g,
-		. ao = buf.mat.b,
-	};
-	
-	half3 rgb = com_lighting(mat, pos, v, lgts, shds, f.lid);
-	return {half4(pix.color.rgb + rgb, 1.h)};
-	
-}
-
 static frustum make_frustum(camera cam,
 							ushort2 gloc,
 							ushort2 tptg,
@@ -351,6 +307,25 @@ static inline bool visible(light lgt, frustum fst, camera cam) {
 		return visible_cone(fst, pos, -dir, rad, lgt.phi);
 }
 
+static half3 com_lighting(material mat,
+						  float3 pos,
+						  float3 eye,
+						  constant light *lgts,
+						  shadowmaps shds,
+						  uint lid) {
+#if DEBUGMASK
+	return (half3)normalize(lgts[lid].hue) * 0.2h;
+#endif
+	light lgt = lgts[lid];
+	float4 att = dispatch_attenuate(pos, lgt, shds, lid);
+	if (att.a <= 0.f)
+		return 0.h;
+	lgt.hue *= att.a;
+	float3 dir = att.xyz;
+	return (half3)saturate(lgt.hue * BDRF(mat, dir, eye));
+}
+
+
 
 vertex float4 vtx_shade(const device vtx *vtcs		[[buffer(0)]],
 						const device model *mdls	[[buffer(1)]],
@@ -363,11 +338,11 @@ vertex float4 vtx_shade(const device vtx *vtcs		[[buffer(0)]],
 	return loc;
 }
 
-vertex frg vtx_main(const device vtx *vtcs		[[buffer(0)]],
-					const device model *mdls	[[buffer(1)]],
-					constant camera &cam		[[buffer(2)]],
-					uint vid					[[vertex_id]],
-					uint iid					[[instance_id]]) {
+vertex frg vtx_main(const device vtx *vtcs			[[buffer(0)]],
+					const device model *mdls		[[buffer(1)]],
+					constant camera &cam			[[buffer(2)]],
+					uint vid						[[vertex_id]],
+					uint iid						[[instance_id]]) {
 	vtx v = vtcs[vid];
 	model mdl = mdls[iid];
 	float4 pos = mmul4(mdl.ctm, v.pos);
@@ -387,21 +362,22 @@ vertex frg vtx_main(const device vtx *vtcs		[[buffer(0)]],
 	};
 }
 
-fragment gbuf_wrt frg_gbuf(const frg f						[[stage_in]],
-						   constant materialbuf &materials	[[buffer(0)]]) {
+fragment gbuf frg_gbuf(const frg f							[[stage_in]],
+					   constant materialbuf &materials		[[buffer(0)]]) {
 	material mat = materialsmp(f, materials);
-	return {{
-		.dep = f.loc.z,
-		.alb = (packed_half3)mat.alb,
-		.nml = (packed_half3)mat.nml,
-		.mat = packed_half3(mat.rgh, mat.mtl, mat.ao),
-	}};
+	return {
+		.color = 0.h,
+		.depth = f.loc.z,
+		.alb = half4(mat.alb, 0.h),
+		.nml = half4(mat.nml, 0.h),
+		.mat = half4(mat.rgh, mat.mtl, mat.ao, 0.h),
+	};
 }
 
-vertex lfrg vtx_quad(const device packed_float3 *vtcs	[[buffer(0)]],
-					 constant camera &cam				[[buffer(2)]],
-					 uint vid							[[vertex_id]],
-					 uint lid							[[instance_id]]) {
+vertex lfrg vtx_quad(const device packed_float3 *vtcs		[[buffer(0)]],
+					 constant camera &cam					[[buffer(2)]],
+					 uint vid								[[vertex_id]],
+					 uint lid								[[instance_id]]) {
 	float4 loc = float4(vtcs[vid], 1.f);
 	return {.loc = loc, .lid = lid};
 }
@@ -418,27 +394,65 @@ vertex lfrg vtx_volume(const device packed_float3 *vtcs 	[[buffer(0)]],
 }
 
 fragment lpix frg_accum(const lfrg f						[[stage_in]],
-						const lpix pix,
-						const gbuf buf						[[imageblock_data]],
+						const gbuf buf,
 						constant camera &cam				[[buffer(2)]],
 						constant light *lgts				[[buffer(3)]],
 						shadowmaps shds						[[texture(0)]]) {
-	return buf_lighting(f, pix, buf, cam, lgts, shds);
+
+	float3 loc = float3(f.loc.xy / (float2)cam.res, buf.depth);
+	float3 pos = mmul3w(cam.view * cam.invproj, loc2ndc(loc));
+
+	float3 v = normalize(viewpos(cam.view) - pos);
+	material mat = {
+		.alb = (half3)buf.alb.rgb,
+		.nml = (half3)buf.nml.xyz,
+		.rgh =  (half)buf.mat.r,
+		.mtl =  (half)buf.mat.g,
+		. ao =  (half)buf.mat.b,
+	};
+
+	half3 rgb = com_lighting(mat, pos, v, lgts, shds, f.lid);
+	return {half4(buf.color.rgb + rgb, 1.h)};
+
 }
 
-fragment half4 frg_fwd(const frg f							[[stage_in]],
-					   constant materialbuf &materials		[[buffer(0)]],
-					   constant camera &cam					[[buffer(2)]],
-					   constant light *lgts					[[buffer(3)]],
-					   constant uint &nlight				[[buffer(4)]],
-					   shadowmaps shds						[[texture(0)]]) {
+fragment lpix frg_fwd(const frg f							[[stage_in]],
+					  constant materialbuf &materials		[[buffer(0)]],
+					  constant camera &cam					[[buffer(2)]],
+					  constant light *lgts					[[buffer(3)]],
+					  constant uint &nlight					[[buffer(4)]],
+					  shadowmaps shds						[[texture(0)]]) {
 	material mat = materialsmp(f, materials);
 	float3 p = f.pos;
 	float3 v = normalize(viewpos(cam.view) - p);
 	half3 rgb = 0.h;
 	for (uint i = 0; i < nlight; ++i)
 		rgb += com_lighting(mat, p, v, lgts, shds, i);
-	return half4(rgb, 0.h);
+	return {half4(rgb, 0.h)};
+}
+
+fragment lpix frg_tiled(const frg f							[[stage_in]],
+						constant materialbuf &materials		[[buffer(0)]],
+						constant camera &cam				[[buffer(2)]],
+						constant light *lgts				[[buffer(3)]],
+						threadgroup tile &tile				[[threadgroup(0)]],
+						shadowmaps shds						[[texture(0)]]) {
+	
+	uint msk = atomic_load_explicit(&tile.msk, memory_order_relaxed);
+#if HEATMAP
+	int n = 0;
+	for (int i = 0; (i += 1 + ctz(msk >> i)) < 33; ++n);
+	return {heatmap(n, 32)};
+#else
+	material mat = materialsmp(f, materials);
+	float3 pos = f.pos;
+	float3 eye = normalize(viewpos(cam.view) - pos);
+	half3 rgb = 0;
+	for (int i = 0; (i += 1 + ctz(msk >> i)) < 33;)
+		rgb += com_lighting(mat, pos, eye, lgts, shds, i - 1);
+	return {half4(rgb, 1.h)};
+#endif
+	
 }
 
 vertex float4 vtx_depth(const device vtx *vtcs		[[buffer(0)]],
@@ -452,40 +466,9 @@ vertex float4 vtx_depth(const device vtx *vtcs		[[buffer(0)]],
 	float4 loc = cam.proj * cam.invview * pos;
 	return loc;
 }
+fragment dpix frg_depth(const float4 loc [[position]]) {return {0.h, loc.z};}
 
-fragment pixel frg_depth(const float4 loc [[position]]) {
-	return {
-		.color = half4(0.h, 0.h, 0.h, 1.h),
-		.depth = loc.z,
-	};
-}
-
-fragment half4 frg_light(const frg f						[[stage_in]],
-						 constant materialbuf &materials	[[buffer(0)]],
-						 constant camera &cam				[[buffer(2)]],
-						 constant light *lgts				[[buffer(3)]],
-						 threadgroup tile &tile				[[threadgroup(0)]],
-						 shadowmaps shds					[[texture(0)]]) {
-	half3 rgb = 0;
-	
-	material mat = materialsmp(f, materials);
-	float3 pos = f.pos;
-	float3 eye = normalize(viewpos(cam.view) - pos);
-	
-	uint msk = atomic_load_explicit(&tile.msk, memory_order_relaxed);
-#if HEATMAP
-	int n = 0;
-	for (int i = 0; (i += 1 + ctz(msk >> i)) < 33; ++n);
-	return heatmap(n, 32);
-#else
-	for (int i = 0; (i += 1 + ctz(msk >> i)) < 33;)
-		rgb += com_lighting(mat, pos, eye, lgts, shds, i - 1);
-	return half4(rgb, 1.h);
-#endif
-	
-}
-
-kernel void knl_cull(imageblock<pixel, imageblock_layout_implicit> blk,
+kernel void knl_cull(imageblock<dpix, imageblock_layout_implicit> blk,
 					 constant camera &cam			[[buffer(2)]],
 					 constant light *lgts			[[buffer(3)]],
 					 constant uint &nlight			[[buffer(4)]],
@@ -496,7 +479,7 @@ kernel void knl_cull(imageblock<pixel, imageblock_layout_implicit> blk,
 					 uint tid						[[thread_index_in_threadgroup]],
 					 uint qid						[[thread_index_in_quadgroup]]) {
 	
-	pixel pix = blk.read(tloc);
+	float depth = blk.read(tloc).depth;
 	
 	if (tid == 0) {
 		atomic_store_explicit(&tile.msk, 1, memory_order_relaxed);
@@ -505,10 +488,10 @@ kernel void knl_cull(imageblock<pixel, imageblock_layout_implicit> blk,
 	}
 	threadgroup_barrier(mem_flags::mem_threadgroup);
 	
-	float mindepth = pix.depth;
+	float mindepth = depth;
 	mindepth = min(mindepth, quad_shuffle_xor(mindepth, 2));
 	mindepth = min(mindepth, quad_shuffle_xor(mindepth, 1));
-	float maxdepth = pix.depth;
+	float maxdepth = depth;
 	maxdepth = max(maxdepth, quad_shuffle_xor(maxdepth, 2));
 	maxdepth = max(maxdepth, quad_shuffle_xor(maxdepth, 1));
 	if (qid == 0) {
@@ -522,12 +505,9 @@ kernel void knl_cull(imageblock<pixel, imageblock_layout_implicit> blk,
 							   tile.maxdepth);
 	
 	uint gid = tptg.x * tptg.y;
-	for (uint i = 0; i < nlight; i += gid) {
-		uint lid = i + tid;
-		if (lid >= nlight || lid >= 32)
-			return;
+	uint n = (nlight < 32)? nlight : 32;
+	for (uint lid = tid; lid < n; lid += gid)
 		if (visible(lgts[lid], fst, cam))
 			atomic_fetch_or_explicit(&tile.msk, 1 << lid, memory_order_relaxed);
-	}
 	
 }

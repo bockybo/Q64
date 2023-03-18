@@ -40,7 +40,7 @@ class Demo: Ctrl {
 			alb: util.texture(path: "brick_alb.jpg", srgb: true),
 			nml: util.texture(path: "brick_nml.jpg"),
 			rgh_default: 0.1,
-			mtl_default: 0.0
+			mtl_default: 1.0
 		),
 		Material(alb_default: normalize(.xy)),
 		Material(alb_default: normalize(.xz)),
@@ -64,7 +64,7 @@ class Demo: Ctrl {
 		)
 		let tmp = Model(
 			meshes: util.mesh.load("Temple.obj", ctm: .mag(0.008)),
-			[Instance(matID: 2, ctm: .pos(float3(0, 0.01, -5)))]
+			[Instance(matID: 0, ctm: .pos(float3(0, 0.01, -5)))]
 		)
 		let sun = Model(
 			meshes: [util.mesh.sph(dim: float3(1.2),
@@ -110,7 +110,7 @@ class Demo: Ctrl {
 			let clight = CLight(
 				hue: 1.0 * hue,
 				src: pos + .y * (y + 3),
-				rad: 3.5 * y,
+				rad: 4 * y,
 				phi: 30 * .pi/180
 			)
 			let ilight = ILight(

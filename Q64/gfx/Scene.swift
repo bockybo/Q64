@@ -18,7 +18,6 @@ class Scene {
 	var lights: [Light] {
 		return [self.sun] + self.clights + self.ilights
 	}
-	var count: Int {return self.lights.count}
 	
 	func add(_ model: Model) {
 		self.models.append(model)

@@ -2,14 +2,6 @@ import MetalKit
 
 
 struct Model {
-//	var meshes: [MTKMesh]
-//	var instances: [MDL] = []
-//	var nid: Int {return self.instances.count}
-//	subscript(i: Int) -> MDL {
-//		get {return self.instances[i]}
-//		set(id) {self.instances[i] = id}
-//	}
-	
 	var meshes: [MTKMesh]
 	var instances: [Instance]
 	init(meshes: [MTKMesh], _ instances: [Instance] = []) {
@@ -17,13 +9,12 @@ struct Model {
 		self.instances = instances
 	}
 	
+	var mdls: [MDL] {return self.instances.map {$0.mdl}}
 	var nid: Int {return self.instances.count}
 	subscript(i: Int) -> Instance {
 		get {return self.instances[i]}
 		set(instance) {self.instances[i] = instance}
 	}
-	
-	var mdls: [MDL] {return self.instances.map {$0.mdl}}
 	
 }
 

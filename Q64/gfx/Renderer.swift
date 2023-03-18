@@ -24,14 +24,18 @@ class Renderer: NSObject, MTKViewDelegate {
 	static let max_nshade = 16
 	static let shadowquality = 16384 / 2
 	
-	static let fmt_color = MTLPixelFormat.bgra8Unorm_srgb
-	static let fmt_depth = MTLPixelFormat.depth32Float_stencil8
-	static let fmt_shade = MTLPixelFormat.depth32Float
-	
 	static let tile_w = 16
 	static let tile_h = 16
 	
-	var mode = Mode.tiled_forward
+	static let fmt_color	= MTLPixelFormat.bgra8Unorm_srgb
+	static let fmt_depth	= MTLPixelFormat.depth32Float_stencil8
+	static let fmt_shade	= MTLPixelFormat.depth32Float
+	static let fmt_dep		= MTLPixelFormat.r32Float
+	static let fmt_alb		= MTLPixelFormat.rgba8Unorm
+	static let fmt_nml		= MTLPixelFormat.rgba8Snorm
+	static let fmt_mat		= MTLPixelFormat.rgba8Unorm
+	
+	let mode = Mode.classic_deferred
 	enum Mode {
 		case classic_forward
 		case classic_deferred
@@ -126,19 +130,27 @@ class Renderer: NSObject, MTKViewDelegate {
 	func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
 		let res = uint2(uint(size.width), uint(size.height))
 		self.scene.camera.res = res
-		self.resize(res)
+		self.resize(res: res)
 		if view.isPaused {view.draw()}
 	}
 	
-	var depthtexture: MTLTexture!
-	private func resize(_ res: uint2) {
-		self.depthtexture = util.texture(label: "depth prepass texture") {
-			descr in
-			descr.usage = [.shaderRead, .renderTarget]
-			descr.storageMode = .memoryless
-			descr.pixelFormat = .r32Float
-			descr.width  = Int(res.x)
-			descr.height = Int(res.y)
+	var fb_dep: MTLTexture?
+	var fb_alb: MTLTexture?
+	var fb_nml: MTLTexture?
+	var fb_mat: MTLTexture?
+	private func resize(res: uint2) {
+		switch self.mode {
+			case .classic_forward:
+				break
+			case .classic_deferred:
+				self.fb_dep = util.framebuf(res: res, fmt: Self.fmt_dep, label: "texture: dep")
+				self.fb_alb = util.framebuf(res: res, fmt: Self.fmt_alb, label: "texture: alb")
+				self.fb_nml = util.framebuf(res: res, fmt: Self.fmt_nml, label: "texture: nml")
+				self.fb_mat = util.framebuf(res: res, fmt: Self.fmt_mat, label: "texture: mat")
+				break
+			case .tiled_forward:
+				self.fb_dep = util.framebuf(res: res, fmt: Self.fmt_dep, label: "texture: dep")
+				break
 		}
 	}
 	
@@ -221,9 +233,14 @@ class Renderer: NSObject, MTKViewDelegate {
 				case .classic_deferred:
 					buf.pass(label: "pass: light & drawable", descr: util.passdescr(descr) {
 						descr in
-						descr.imageblockSampleLength	= lib.states.psgbuf.imageblockSampleLength
-						descr.tileWidth  				= Renderer.tile_w
-						descr.tileHeight 				= Renderer.tile_h
+						descr.colorAttachments[1].texture = self.fb_dep
+						descr.colorAttachments[2].texture = self.fb_alb
+						descr.colorAttachments[3].texture = self.fb_nml
+						descr.colorAttachments[4].texture = self.fb_mat
+						for i in 1..<5 {
+							descr.colorAttachments[i].loadAction  = .dontCare
+							descr.colorAttachments[i].storeAction = .dontCare
+						}
 					}) {enc in
 						enc.setStencilReferenceValue(1)
 
@@ -259,19 +276,17 @@ class Renderer: NSObject, MTKViewDelegate {
 					
 					let tile_w = Renderer.tile_w
 					let tile_h = Renderer.tile_h
-					let tgsize = sizeof(uint.self) + 2*sizeof(float.self) * tile_w*tile_h
+					var tgsize = sizeof(uint.self) + 2*sizeof(float.self) * tile_w*tile_h
+					tgsize += 16 - tgsize%16
 					
 					buf.pass(label: "pass: light & drawable", descr: util.passdescr(descr) {
 						descr in
-						
-						descr.colorAttachments[1].texture		= self.depthtexture
-						descr.colorAttachments[1].loadAction	= .dontCare
-						descr.colorAttachments[1].storeAction	= .dontCare
-						
+						descr.colorAttachments[1].texture = self.fb_dep
+						descr.colorAttachments[1].loadAction  = .dontCare
+						descr.colorAttachments[1].storeAction = .dontCare
 						descr.tileWidth  = tile_w
 						descr.tileHeight = tile_h
 						descr.threadgroupMemoryLength = tgsize
-						
 					}) {enc in
 						
 						enc.setCull(mode: .back, wind: .counterClockwise)
@@ -286,15 +301,15 @@ class Renderer: NSObject, MTKViewDelegate {
 						enc.setFragmentTexture(self.shadowmaps, index: 0)
 						var nlight = uint(self.flt.nlight)
 						enc.setTBytes(&nlight, index: 4)
-						enc.setThreadgroupMemoryLength(tgsize + 16 - tgsize % 16, offset: 0, index: 0)
+						enc.setThreadgroupMemoryLength(tgsize, offset: 0, index: 0)
 						
 						enc.setDepthStencilState(lib.states.dsdepth)
 						enc.setRenderPipelineState(lib.states.psdepth)
 						self.render(enc: enc)
 						enc.setRenderPipelineState(lib.states.pscull)
 						enc.dispatchThreadsPerTile(MTLSizeMake(tile_w, tile_h, 1))
-						enc.setDepthStencilState(lib.states.dslight)
-						enc.setRenderPipelineState(lib.states.pslight)
+						enc.setDepthStencilState(lib.states.dstiled)
+						enc.setRenderPipelineState(lib.states.pstiled)
 						self.setmaterial(enc: enc)
 						self.render(enc: enc)
 						
