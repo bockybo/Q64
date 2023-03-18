@@ -15,6 +15,14 @@ import MetalKit
 
 class Renderer: NSObject, MTKViewDelegate {
 	
+	static let fmt_color	= MTLPixelFormat.bgra8Unorm_srgb
+	static let fmt_depth	= MTLPixelFormat.depth32Float_stencil8
+	static let fmt_shade	= MTLPixelFormat.depth32Float
+	static let fmt_dep		= MTLPixelFormat.r32Float
+	static let fmt_alb		= MTLPixelFormat.rgba8Unorm
+	static let fmt_nml		= MTLPixelFormat.rgba8Snorm
+	static let fmt_mat		= MTLPixelFormat.rgba8Unorm
+	
 	static let nflight = 3
 	
 	static let max_nmaterial = 32
@@ -26,20 +34,21 @@ class Renderer: NSObject, MTKViewDelegate {
 	
 	static let tile_w = 16
 	static let tile_h = 16
+	static let threadsize = sizeof(float.self) * 2
+	static let atomicsize = sizeof(uint.self)
+	static var groupsize: Int {
+		let nthread = Renderer.tile_w * Renderer.tile_h
+		let groupsize = Renderer.atomicsize + Renderer.threadsize*nthread
+		return 16 * (1 + (groupsize - 1)/16)
+	}
+	static let threadgrid = MTLSizeMake(16, 16, 1)
 	
-	static let fmt_color	= MTLPixelFormat.bgra8Unorm_srgb
-	static let fmt_depth	= MTLPixelFormat.depth32Float_stencil8
-	static let fmt_shade	= MTLPixelFormat.depth32Float
-	static let fmt_dep		= MTLPixelFormat.r32Float
-	static let fmt_alb		= MTLPixelFormat.rgba8Unorm
-	static let fmt_nml		= MTLPixelFormat.rgba8Snorm
-	static let fmt_mat		= MTLPixelFormat.rgba8Unorm
-	
-	let mode = Mode.classic_deferred
+	let mode = Mode.deferred_classic
 	enum Mode {
-		case classic_forward
-		case classic_deferred
-		case tiled_forward
+		case forward_classic
+		case forward_plus
+		case deferred_classic
+		case deferred_plus
 	}
 	
 	private let semaphore = DispatchSemaphore(value: Renderer.nflight)
@@ -65,25 +74,27 @@ class Renderer: NSObject, MTKViewDelegate {
 	}
 	private struct Flight {
 		
-		let cambuf = util.buffer(len: sizeof(CAM.self), label: "camera buffer")
+		let scnbuf = util.buffer(len: sizeof(SCN.self), label: "scene buffer")
 		let mdlbuf = util.buffer(len: sizeof(MDL.self) * Renderer.max_nmodel, label: "model buffer")
 		let lgtbuf = util.buffer(len: sizeof(LGT.self) * Renderer.max_nlight, label: "light buffer")
 		
 		var models: [Model] = []
-		var nlight: Int = 0
+		var nclight: Int = 0
+		var nilight: Int = 0
 		
 		mutating func copy(_ scene: Scene) {
 			
-			var cam = scene.camera.cam
-			self.cambuf.write(&cam, length: sizeof(cam))
-			
+			var scn = SCN(nlgt: uint(scene.lights.count), cam: scene.camera.cam)
 			let mdls = scene.models.reduce([], {$0 + $1.mdls})
-			self.models = scene.models
-			self.mdlbuf.write(mdls, length: mdls.count * sizeof(MDL.self))
-			
 			let lgts = scene.lights.map {$0.lgt}
-			self.nlight = lgts.count
-			self.lgtbuf.write(lgts, length: self.nlight * sizeof(LGT.self))
+			
+			self.scnbuf.write(&scn, length: sizeof(SCN.self))
+			self.mdlbuf.write(mdls, length: mdls.count * sizeof(MDL.self))
+			self.lgtbuf.write(lgts, length: lgts.count * sizeof(LGT.self))
+			
+			self.models = scene.models
+			self.nclight = scene.clights.count
+			self.nilight = scene.ilights.count
 			
 		}
 	}
@@ -100,7 +111,7 @@ class Renderer: NSObject, MTKViewDelegate {
 	}
 	
 	
-	private let materials = lib.shaders.frg_gbuf.makeArgumentEncoder(
+	private let materials = lib.shaders.frgbufx_gbuf.makeArgumentEncoder(
 		bufferIndex: 0,
 		bufferOptions: .storageModeManaged
 	)
@@ -140,17 +151,22 @@ class Renderer: NSObject, MTKViewDelegate {
 	var fb_mat: MTLTexture?
 	private func resize(res: uint2) {
 		switch self.mode {
-			case .classic_forward:
-				break
-			case .classic_deferred:
-				self.fb_dep = util.framebuf(res: res, fmt: Self.fmt_dep, label: "texture: dep")
-				self.fb_alb = util.framebuf(res: res, fmt: Self.fmt_alb, label: "texture: alb")
-				self.fb_nml = util.framebuf(res: res, fmt: Self.fmt_nml, label: "texture: nml")
-				self.fb_mat = util.framebuf(res: res, fmt: Self.fmt_mat, label: "texture: mat")
-				break
-			case .tiled_forward:
-				self.fb_dep = util.framebuf(res: res, fmt: Self.fmt_dep, label: "texture: dep")
-				break
+		case .forward_classic:
+			break
+		case .forward_plus:
+			self.fb_dep = util.framebuf(res: res, fmt: Self.fmt_dep, label: "texture: dep")
+			break
+		case .deferred_classic:
+			self.fb_dep = util.framebuf(res: res, fmt: Self.fmt_dep, label: "texture: dep")
+			self.fb_alb = util.framebuf(res: res, fmt: Self.fmt_alb, label: "texture: alb")
+			self.fb_nml = util.framebuf(res: res, fmt: Self.fmt_nml, label: "texture: nml")
+			self.fb_mat = util.framebuf(res: res, fmt: Self.fmt_mat, label: "texture: mat")
+			break
+		case .deferred_plus:
+			self.fb_dep = util.framebuf(res: res, fmt: Self.fmt_dep, label: "texture: dep")
+			self.fb_alb = util.framebuf(res: res, fmt: Self.fmt_alb, label: "texture: alb")
+			self.fb_nml = util.framebuf(res: res, fmt: Self.fmt_nml, label: "texture: nml")
+			self.fb_mat = util.framebuf(res: res, fmt: Self.fmt_mat, label: "texture: mat")
 		}
 	}
 	
@@ -179,13 +195,13 @@ class Renderer: NSObject, MTKViewDelegate {
 				descr.depthAttachment.storeAction = .store
 				descr.depthAttachment.texture = self.shadowmaps
 			}
-			for lid in 0 ..< 1 + self.scene.clights.count {
+			for lid in 0 ..< 1 + self.flt.nclight {
 				descr.depthAttachment.slice = lid
 				buf.pass(label: "pass: shade \(lid)", descr: descr) {
 					enc in
 					enc.setCull(mode: .back, wind: .clockwise)
-					enc.setStates(ps: lib.states.psshade, ds: lib.states.dsshade)
-					enc.setVBuffer(self.flt.lgtbuf, offset: lid * sizeof(LGT.self), index: 2)
+					enc.setStates(ps: lib.states.psx_shade, ds: lib.states.dsx_shade)
+					enc.setVBuffer(self.flt.lgtbuf, offset: lid * sizeof(LGT.self), index: 3)
 					enc.setVBuffer(self.flt.mdlbuf, index: 1)
 					self.render(enc: enc)
 				}
@@ -212,110 +228,157 @@ class Renderer: NSObject, MTKViewDelegate {
 			
 			switch self.mode {
 					
-				case .classic_forward:
-					buf.pass(label: "pass: light & drawable", descr: descr) {
-						enc in
-						enc.setCull(mode: .back, wind: .counterClockwise)
-						enc.setStates(ps: lib.states.psfwd, ds: lib.states.dsfwd)
-						enc.setFBuffer(self.materials.buf, index: 0)
-						enc.setVBuffer(self.flt.cambuf, index: 2)
-						enc.setFBuffer(self.flt.cambuf, index: 2)
-						enc.setVBuffer(self.flt.mdlbuf, index: 1)
-						enc.setFBuffer(self.flt.lgtbuf, index: 3)
-						var nlight = uint(self.flt.nlight)
-						enc.setFBytes(&nlight, index: 4)
-						enc.setFragmentTexture(self.shadowmaps, index: 0)
-						self.setmaterial(enc: enc)
-						self.render(enc: enc)
-					}
-					break
+			case .forward_classic:
+				buf.pass(label: "pass: [fwd0] light & drawable", descr: descr) {
+					enc in
+					enc.setCullMode(.back)
+					enc.setFrontFacing(.counterClockwise)
 					
-				case .classic_deferred:
-					buf.pass(label: "pass: light & drawable", descr: util.passdescr(descr) {
-						descr in
-						descr.colorAttachments[1].texture = self.fb_dep
-						descr.colorAttachments[2].texture = self.fb_alb
-						descr.colorAttachments[3].texture = self.fb_nml
-						descr.colorAttachments[4].texture = self.fb_mat
-						for i in 1..<5 {
-							descr.colorAttachments[i].loadAction  = .dontCare
-							descr.colorAttachments[i].storeAction = .dontCare
-						}
-					}) {enc in
-						enc.setStencilReferenceValue(1)
-
-						enc.setCull(mode: .back, wind: .counterClockwise)
-						enc.setStates(ps: lib.states.psgbuf, ds: lib.states.dsgbuf)
-						enc.setVBuffer(self.flt.cambuf, index: 2)
-						enc.setVBuffer(self.flt.mdlbuf, index: 1)
-						enc.setFBuffer(self.materials.buf, index: 0)
-						self.setmaterial(enc: enc)
-						self.render(enc: enc)
-						
-						enc.setFrontFacing(.clockwise)
-						enc.setFBuffer(self.flt.cambuf, index: 2)
-						enc.setFBuffer(self.flt.lgtbuf, index: 3)
-						enc.setVBuffer(self.flt.lgtbuf, index: 3)
-						enc.setFragmentTexture(self.shadowmaps, index: 0)
-						
-						var iid = 0, nid = 1
-						enc.setDepthStencilState(lib.states.dsquad)
-						enc.setRenderPipelineState(lib.states.psquad)
-						enc.draw(lib.lightmesh.quad, iid: iid, nid: nid)
-						iid += nid; nid = self.scene.clights.count
-						enc.setDepthStencilState(lib.states.dsvolume)
-						enc.setRenderPipelineState(lib.states.psvolume)
-						enc.draw(lib.lightmesh.cone, iid: iid, nid: nid)
-						iid += nid; nid = self.scene.ilights.count
-						enc.draw(lib.lightmesh.icos, iid: iid, nid: nid)
-
-					}
-					break
+					enc.setFBuffer(self.materials.buf, index: 0)
+					enc.setVBuffer(self.flt.mdlbuf, index: 1)
+					enc.setVBuffer(self.flt.scnbuf, index: 2)
+					enc.setFBuffer(self.flt.scnbuf, index: 2)
+					enc.setFBuffer(self.flt.lgtbuf, index: 3)
+					enc.setFragmentTexture(self.shadowmaps, index: 0)
 					
-				case .tiled_forward:
+					enc.setStates(ps: lib.states.psfwdc_light, ds: lib.states.dsfwdx_light)
+					self.setmaterial(enc: enc)
+					self.render(enc: enc)
 					
-					let tile_w = Renderer.tile_w
-					let tile_h = Renderer.tile_h
-					var tgsize = sizeof(uint.self) + 2*sizeof(float.self) * tile_w*tile_h
-					tgsize += 16 - tgsize%16
+				}
+				break
+				
+			case .forward_plus:
+				descr.tileWidth  = Self.tile_w
+				descr.tileHeight = Self.tile_h
+				descr.threadgroupMemoryLength = Self.groupsize
+				descr.colorAttachments[1].texture		= self.fb_dep
+				descr.colorAttachments[1].loadAction 	= .dontCare
+				descr.colorAttachments[1].storeAction	= .dontCare
+				buf.pass(label: "pass: [fwd+] light & drawable", descr: descr) {
+					enc in
+					enc.setCullMode(.back)
+					enc.setFrontFacing(.counterClockwise)
+					enc.setStencilReferenceValue(1)
 					
-					buf.pass(label: "pass: light & drawable", descr: util.passdescr(descr) {
-						descr in
-						descr.colorAttachments[1].texture = self.fb_dep
-						descr.colorAttachments[1].loadAction  = .dontCare
-						descr.colorAttachments[1].storeAction = .dontCare
-						descr.tileWidth  = tile_w
-						descr.tileHeight = tile_h
-						descr.threadgroupMemoryLength = tgsize
-					}) {enc in
-						
-						enc.setCull(mode: .back, wind: .counterClockwise)
-						
-						enc.setVBuffer(self.flt.mdlbuf, index: 1)
-						enc.setVBuffer(self.flt.cambuf, index: 2)
-						enc.setTBuffer(self.flt.cambuf, index: 2)
-						enc.setTBuffer(self.flt.lgtbuf, index: 3)
-						enc.setFBuffer(self.materials.buf, index: 0)
-						enc.setFBuffer(self.flt.cambuf, index: 2)
-						enc.setFBuffer(self.flt.lgtbuf, index: 3)
-						enc.setFragmentTexture(self.shadowmaps, index: 0)
-						var nlight = uint(self.flt.nlight)
-						enc.setTBytes(&nlight, index: 4)
-						enc.setThreadgroupMemoryLength(tgsize, offset: 0, index: 0)
-						
-						enc.setDepthStencilState(lib.states.dsdepth)
-						enc.setRenderPipelineState(lib.states.psdepth)
-						self.render(enc: enc)
-						enc.setRenderPipelineState(lib.states.pscull)
-						enc.dispatchThreadsPerTile(MTLSizeMake(tile_w, tile_h, 1))
-						enc.setDepthStencilState(lib.states.dstiled)
-						enc.setRenderPipelineState(lib.states.pstiled)
-						self.setmaterial(enc: enc)
-						self.render(enc: enc)
-						
-					}
-					break
+					enc.setFBuffer(self.materials.buf, index: 0)
+					enc.setVBuffer(self.flt.mdlbuf, index: 1)
+					enc.setVBuffer(self.flt.scnbuf, index: 2)
+					enc.setTBuffer(self.flt.scnbuf, index: 2)
+					enc.setTBuffer(self.flt.lgtbuf, index: 3)
+					enc.setFBuffer(self.flt.scnbuf, index: 2)
+					enc.setFBuffer(self.flt.lgtbuf, index: 3)
+					enc.setFragmentTexture(self.shadowmaps, index: 0)
 					
+					enc.setDepthStencilState(lib.states.dsx_prepass)
+					enc.setRenderPipelineState(lib.states.psfwdp_depth)
+					self.render(enc: enc)
+					
+					enc.setRenderPipelineState(lib.states.psfwdp_cull)
+					enc.setThreadgroupMemoryLength(Self.groupsize, offset: 0, index: 0)
+					enc.dispatchThreadsPerTile(Self.threadgrid)
+					
+					enc.setDepthStencilState(lib.states.dsfwdx_light)
+					enc.setRenderPipelineState(lib.states.psfwdp_light)
+					self.setmaterial(enc: enc)
+					self.render(enc: enc)
+					
+				}
+				break
+				
+			case .deferred_classic:
+				descr.colorAttachments[1].texture = self.fb_dep
+				descr.colorAttachments[2].texture = self.fb_alb
+				descr.colorAttachments[3].texture = self.fb_nml
+				descr.colorAttachments[4].texture = self.fb_mat
+				for i in 1..<5 {
+					descr.colorAttachments[i].loadAction  = .dontCare
+					descr.colorAttachments[i].storeAction = .dontCare
+				}
+				buf.pass(label: "pass: [buf0] light & drawable", descr: descr) {
+					enc in
+					enc.setCullMode(.back)
+					enc.setStencilReferenceValue(1)
+					
+					enc.setFBuffer(self.materials.buf, index: 0)
+					enc.setVBuffer(self.flt.mdlbuf, index: 1)
+					enc.setVBuffer(self.flt.scnbuf, index: 2)
+					enc.setVBuffer(self.flt.lgtbuf, index: 3)
+					enc.setFBuffer(self.flt.scnbuf, index: 2)
+					enc.setFBuffer(self.flt.lgtbuf, index: 3)
+					enc.setFragmentTexture(self.shadowmaps, index: 0)
+					
+					enc.setFrontFacing(.counterClockwise)
+					enc.setStates(ps: lib.states.psbufx_gbuf, ds: lib.states.dsx_prepass)
+					self.setmaterial(enc: enc)
+					self.render(enc: enc)
+					
+					enc.setFrontFacing(.clockwise)
+					var iid = 0, nid = 1
+					enc.setDepthStencilState(lib.states.dsbufx_quad)
+					enc.setRenderPipelineState(lib.states.psbufc_quad)
+					enc.draw(lib.lightmesh.quad, iid: iid, nid: nid)
+					iid += nid; nid = self.flt.nclight
+					enc.setDepthStencilState(lib.states.dsbufx_vol)
+					enc.setRenderPipelineState(lib.states.psbufc_vol)
+					enc.draw(lib.lightmesh.cone, iid: iid, nid: nid)
+					iid += nid; nid = self.flt.nilight
+					enc.draw(lib.lightmesh.icos, iid: iid, nid: nid)
+					
+				}
+				break
+				
+			case .deferred_plus:
+				descr.tileWidth  = Self.tile_w
+				descr.tileHeight = Self.tile_h
+				descr.threadgroupMemoryLength = Self.groupsize
+				descr.colorAttachments[1].texture = self.fb_dep
+				descr.colorAttachments[2].texture = self.fb_alb
+				descr.colorAttachments[3].texture = self.fb_nml
+				descr.colorAttachments[4].texture = self.fb_mat
+				for i in 1..<5 {
+					descr.colorAttachments[i].loadAction  = .dontCare
+					descr.colorAttachments[i].storeAction = .dontCare
+				}
+				buf.pass(label: "pass: [buf+] light & drawable", descr: descr) {
+					enc in
+					enc.setCullMode(.back)
+					enc.setStencilReferenceValue(1)
+					
+					enc.setFBuffer(self.materials.buf, index: 0)
+					enc.setVBuffer(self.flt.mdlbuf, index: 1)
+					enc.setVBuffer(self.flt.scnbuf, index: 2)
+					enc.setTBuffer(self.flt.scnbuf, index: 2)
+					enc.setFBuffer(self.flt.scnbuf, index: 2)
+					enc.setTBuffer(self.flt.lgtbuf, index: 3)
+					enc.setFBuffer(self.flt.lgtbuf, index: 3)
+					enc.setVBuffer(self.flt.lgtbuf, index: 3)
+					enc.setFragmentTexture(self.shadowmaps, index: 0)
+					
+					enc.setFrontFacing(.counterClockwise)
+					enc.setStates(ps: lib.states.psbufx_gbuf, ds: lib.states.dsx_prepass)
+					self.setmaterial(enc: enc)
+					self.render(enc: enc)
+					
+					enc.setRenderPipelineState(lib.states.psbufp_cull)
+					enc.setThreadgroupMemoryLength(Self.groupsize, offset: 0, index: 0)
+					enc.dispatchThreadsPerTile(Self.threadgrid)
+					
+					enc.setFrontFacing(.clockwise)
+					var iid = 0, nid = 1
+					enc.setDepthStencilState(lib.states.dsbufx_quad)
+					enc.setRenderPipelineState(lib.states.psbufp_quad)
+					enc.draw(lib.lightmesh.quad, iid: iid, nid: nid)
+					iid += nid; nid = self.flt.nclight
+					enc.setDepthStencilState(lib.states.dsbufx_vol)
+					enc.setRenderPipelineState(lib.states.psbufp_vol)
+					enc.draw(lib.lightmesh.cone, iid: iid, nid: nid)
+					iid += nid; nid = self.flt.nilight
+					enc.draw(lib.lightmesh.icos, iid: iid, nid: nid)
+					
+				}
+				break
+				
 			}
 			
 			buf.present(drawable)

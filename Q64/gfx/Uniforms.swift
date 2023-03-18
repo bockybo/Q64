@@ -2,26 +2,30 @@ import MetalKit
 
 
 struct CAM {
-	var proj: float4x4 = .I
-	var view: float4x4 = .I
-	var invproj: float4x4 = .I
-	var invview: float4x4 = .I
-	var res: uint2 = uint2(1)
+	var proj: float4x4
+	var view: float4x4
+	var invproj: float4x4
+	var invview: float4x4
+	var res: uint2
+}
+struct SCN {
+	var nlgt: uint
+	var cam: CAM
 }
 
 struct LGT {
-	var proj: float4x4 = .I
-	var view: float4x4 = .I
-	var invproj: float4x4 = .I
-	var invview: float4x4 = .I
-	var hue: float3 = float3(1)
-	var phi: float = float(0)
+	var proj: float4x4
+	var view: float4x4
+	var invproj: float4x4
+	var invview: float4x4
+	var hue: float3
+	var phi: float
 }
 
 struct MDL {
-	var ctm: float4x4 = .I
-	var inv: float4x4 = .I
-	var matID: uint = 0
+	var ctm: float4x4
+	var inv: float4x4
+	var matID: uint
 }
 
 struct MAT {
@@ -31,4 +35,3 @@ struct MAT {
 	var mtl: float
 	var  ao: float
 }
-

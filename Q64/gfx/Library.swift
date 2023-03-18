@@ -10,18 +10,20 @@ class lib {
 	struct shaders {
 		
 		static let vtx_shade	= util.shader("vtx_shade")
-		static let vtx_depth	= util.shader("vtx_depth")
 		static let vtx_main		= util.shader("vtx_main")
-		static let vtx_quad		= util.shader("vtx_quad")
-		static let vtx_volume	= util.shader("vtx_volume")
 		
-		static let frg_gbuf		= util.shader("frg_gbuf")
-		static let frg_fwd		= util.shader("frg_fwd")
-		static let frg_accum	= util.shader("frg_accum")
-		static let frg_tiled	= util.shader("frg_tiled")
-		static let frg_depth	= util.shader("frg_depth")
+		static let vtxfwdp_depth	= util.shader("vtxfwdp_depth")
+		static let frgfwdp_depth	= util.shader("frgfwdp_depth")
+		static let knlfwdp_cull		= util.shader("knlfwdp_cull")
+		static let frgfwdc_light	= util.shader("frgfwdc_light")
+		static let frgfwdp_light	= util.shader("frgfwdp_light")
 		
-		static let knl_cull		= util.shader("knl_cull")
+		static let vtxbufx_quad		= util.shader("vtxbufx_quad")
+		static let vtxbufx_vol		= util.shader("vtxbufx_vol")
+		static let frgbufx_gbuf		= util.shader("frgbufx_gbuf")
+		static let knlbufp_cull		= util.shader("knlbufp_cull")
+		static let frgbufc_light	= util.shader("frgbufc_light")
+		static let frgbufp_light	= util.shader("frgbufp_light")
 		
 	}
 	
@@ -62,124 +64,152 @@ class lib {
 	
 	struct states {
 		
-		private static func attach_gbuf(_ descr: MTLRenderPipelineDescriptor) {
+		static let psx_shade = util.pipestate(label: "ps shade") {
+			descr in
+			descr.vertexFunction					= lib.shaders.vtx_shade
+			descr.depthAttachmentPixelFormat 		= Renderer.fmt_shade
+			descr.inputPrimitiveTopology			= .triangle
+		}
+		
+		static let psfwdc_light = util.pipestate(label: "ps fwd0 lighting") {
+			descr in
+			descr.vertexFunction					= lib.shaders.vtx_main
+			descr.fragmentFunction					= lib.shaders.frgfwdc_light
+			descr.colorAttachments[0].pixelFormat	= Renderer.fmt_color
+			descr.depthAttachmentPixelFormat		= Renderer.fmt_depth
+			descr.stencilAttachmentPixelFormat		= Renderer.fmt_depth
+		}
+		
+		static let psfwdp_depth = util.pipestate(label: "ps fwd+ depth prepass") {
+			descr in
+			descr.vertexFunction					= lib.shaders.vtxfwdp_depth
+			descr.fragmentFunction					= lib.shaders.frgfwdp_depth
+			descr.depthAttachmentPixelFormat		= Renderer.fmt_depth
+			descr.stencilAttachmentPixelFormat		= Renderer.fmt_depth
+			descr.colorAttachments[0].pixelFormat	= Renderer.fmt_color
+			descr.colorAttachments[1].pixelFormat	= Renderer.fmt_dep
+		}
+		static let psfwdp_cull = util.tilestate(label: "ps fwd+ culling") {
+			descr in
+			descr.tileFunction						= lib.shaders.knlfwdp_cull
+			descr.colorAttachments[0].pixelFormat	= Renderer.fmt_color
+			descr.colorAttachments[1].pixelFormat	= Renderer.fmt_dep
+		}
+		static let psfwdp_light = util.pipestate(label: "ps fwd+ lighting") {
+			descr in
+			descr.vertexFunction					= lib.shaders.vtx_main
+			descr.fragmentFunction					= lib.shaders.frgfwdp_light
+			descr.colorAttachments[0].pixelFormat	= Renderer.fmt_color
+			descr.depthAttachmentPixelFormat		= Renderer.fmt_depth
+			descr.stencilAttachmentPixelFormat		= Renderer.fmt_depth
+			descr.colorAttachments[1].pixelFormat	= Renderer.fmt_dep
+		}
+		
+		
+		static let psbufx_gbuf = util.pipestate(label: "ps bufx gbuffer") {
+			descr in
+			descr.vertexFunction					= lib.shaders.vtx_main
+			descr.fragmentFunction					= lib.shaders.frgbufx_gbuf
+			descr.colorAttachments[0].pixelFormat	= Renderer.fmt_color
+			descr.depthAttachmentPixelFormat		= Renderer.fmt_depth
+			descr.stencilAttachmentPixelFormat		= Renderer.fmt_depth
 			descr.colorAttachments[1].pixelFormat	= Renderer.fmt_dep
 			descr.colorAttachments[2].pixelFormat	= Renderer.fmt_alb
 			descr.colorAttachments[3].pixelFormat	= Renderer.fmt_nml
 			descr.colorAttachments[4].pixelFormat	= Renderer.fmt_mat
 		}
 		
-		static let psshade = util.pipestate(label: "ps shade") {
+		static let psbufc_quad = util.pipestate(label: "ps buf0 lighting quad") {
 			descr in
-			descr.vertexFunction					= lib.shaders.vtx_shade
-			descr.depthAttachmentPixelFormat 		= Renderer.fmt_shade
-			descr.inputPrimitiveTopology			= .triangle
-			descr.rasterSampleCount = 1
-		}
-		static let psgbuf = util.pipestate(label: "ps gbuffer") {
-			descr in
-			descr.vertexFunction					= lib.shaders.vtx_main
-			descr.fragmentFunction					= lib.shaders.frg_gbuf
+			descr.vertexFunction					= lib.shaders.vtxbufx_quad
+			descr.fragmentFunction					= lib.shaders.frgbufc_light
 			descr.colorAttachments[0].pixelFormat	= Renderer.fmt_color
 			descr.depthAttachmentPixelFormat		= Renderer.fmt_depth
 			descr.stencilAttachmentPixelFormat		= Renderer.fmt_depth
-			states.attach_gbuf(descr)
+			descr.colorAttachments[1].pixelFormat	= Renderer.fmt_dep
+			descr.colorAttachments[2].pixelFormat	= Renderer.fmt_alb
+			descr.colorAttachments[3].pixelFormat	= Renderer.fmt_nml
+			descr.colorAttachments[4].pixelFormat	= Renderer.fmt_mat
+		}
+		static let psbufc_vol = util.pipestate(label: "ps buf0 lighting volume") {
+			descr in
+			descr.vertexFunction					= lib.shaders.vtxbufx_vol
+			descr.fragmentFunction					= lib.shaders.frgbufc_light
+			descr.colorAttachments[0].pixelFormat	= Renderer.fmt_color
+			descr.depthAttachmentPixelFormat		= Renderer.fmt_depth
+			descr.stencilAttachmentPixelFormat		= Renderer.fmt_depth
+			descr.colorAttachments[1].pixelFormat	= Renderer.fmt_dep
+			descr.colorAttachments[2].pixelFormat	= Renderer.fmt_alb
+			descr.colorAttachments[3].pixelFormat	= Renderer.fmt_nml
+			descr.colorAttachments[4].pixelFormat	= Renderer.fmt_mat
 		}
 		
-		static let psquad = util.pipestate(label: "ps lighting quad") {
+		static let psbufp_cull = util.tilestate(label: "ps buf0 culling") {
 			descr in
-			descr.vertexFunction					= lib.shaders.vtx_quad
-			descr.fragmentFunction					= lib.shaders.frg_accum
+			descr.tileFunction						= lib.shaders.knlbufp_cull
 			descr.colorAttachments[0].pixelFormat	= Renderer.fmt_color
-			descr.depthAttachmentPixelFormat		= Renderer.fmt_depth
-			descr.stencilAttachmentPixelFormat		= Renderer.fmt_depth
-			states.attach_gbuf(descr)
+			descr.colorAttachments[1].pixelFormat	= Renderer.fmt_dep
+			descr.colorAttachments[2].pixelFormat	= Renderer.fmt_alb
+			descr.colorAttachments[3].pixelFormat	= Renderer.fmt_nml
+			descr.colorAttachments[4].pixelFormat	= Renderer.fmt_mat
 		}
-		static let psvolume = util.pipestate(label: "ps lighting volume") {
+		static let psbufp_quad = util.pipestate(label: "ps buf+ lighting quad") {
 			descr in
-			descr.vertexFunction					= lib.shaders.vtx_volume
-			descr.fragmentFunction					= lib.shaders.frg_accum
+			descr.vertexFunction					= lib.shaders.vtxbufx_quad
+			descr.fragmentFunction					= lib.shaders.frgbufp_light
 			descr.colorAttachments[0].pixelFormat	= Renderer.fmt_color
 			descr.depthAttachmentPixelFormat		= Renderer.fmt_depth
 			descr.stencilAttachmentPixelFormat		= Renderer.fmt_depth
-			states.attach_gbuf(descr)
+			descr.colorAttachments[1].pixelFormat	= Renderer.fmt_dep
+			descr.colorAttachments[2].pixelFormat	= Renderer.fmt_alb
+			descr.colorAttachments[3].pixelFormat	= Renderer.fmt_nml
+			descr.colorAttachments[4].pixelFormat	= Renderer.fmt_mat
+		}
+		static let psbufp_vol = util.pipestate(label: "ps buf+ lighting volume") {
+			descr in
+			descr.vertexFunction					= lib.shaders.vtxbufx_vol
+			descr.fragmentFunction					= lib.shaders.frgbufp_light
+			descr.colorAttachments[0].pixelFormat	= Renderer.fmt_color
+			descr.depthAttachmentPixelFormat		= Renderer.fmt_depth
+			descr.stencilAttachmentPixelFormat		= Renderer.fmt_depth
+			descr.colorAttachments[1].pixelFormat	= Renderer.fmt_dep
+			descr.colorAttachments[2].pixelFormat	= Renderer.fmt_alb
+			descr.colorAttachments[3].pixelFormat	= Renderer.fmt_nml
+			descr.colorAttachments[4].pixelFormat	= Renderer.fmt_mat
 		}
 		
-		static let psfwd = util.pipestate(label: "ps lighting forward") {
+		
+		static let dsx_shade = util.depthstate(label: "ds shade") {
 			descr in
-			descr.vertexFunction					= lib.shaders.vtx_main
-			descr.fragmentFunction					= lib.shaders.frg_fwd
-			descr.colorAttachments[0].pixelFormat	= Renderer.fmt_color
-			descr.depthAttachmentPixelFormat		= Renderer.fmt_depth
-			descr.stencilAttachmentPixelFormat		= Renderer.fmt_depth
-			states.attach_gbuf(descr)
+			descr.isDepthWriteEnabled 				= true
+			descr.depthCompareFunction 				= .lessEqual
 		}
 		
-		static let dsshade = util.depthstate(label: "ds shade") {
-			descr in
-			descr.isDepthWriteEnabled 							= true
-			descr.depthCompareFunction 							= .lessEqual
-		}
-		static let dsgbuf = util.depthstate(label: "ds gbuffer") {
+		static let dsx_prepass = util.depthstate(label: "ds prepass") {
 			descr in
 			descr.isDepthWriteEnabled							= true
-			descr.depthCompareFunction 							= .lessEqual
+			descr.depthCompareFunction							= .less
 			descr.frontFaceStencil.depthStencilPassOperation	= .replace
 			descr.backFaceStencil.depthStencilPassOperation		= .replace
 		}
-		static let dsquad = util.depthstate(label: "ds lighting quad") {
+		static let dsfwdx_light = util.depthstate(label: "ds fwdx lighting") {
+			descr in
+			descr.isDepthWriteEnabled							= true
+			descr.depthCompareFunction							= .lessEqual
+			descr.frontFaceStencil.stencilCompareFunction		= .equal
+			descr.backFaceStencil.stencilCompareFunction		= .equal
+		}
+		
+		static let dsbufx_quad = util.depthstate(label: "ds bufx lighting quad") {
 			descr in
 			descr.frontFaceStencil.stencilCompareFunction		= .equal
 			descr.backFaceStencil.stencilCompareFunction		= .equal
 		}
-		static let dsvolume = util.depthstate(label: "ds lighting volume") {
+		static let dsbufx_vol = util.depthstate(label: "ds bufx lighting vol") {
 			descr in
 			descr.depthCompareFunction							= .greaterEqual
 		}
 		
-		static let dsfwd = util.depthstate(label: "ds lighting forward") {
-			descr in
-			descr.isDepthWriteEnabled							= true
-			descr.depthCompareFunction							= .less
-		}
-		
-		static let psdepth = util.pipestate(label: "ps depth") {
-			descr in
-			descr.vertexFunction					= lib.shaders.vtx_depth
-			descr.fragmentFunction					= lib.shaders.frg_depth
-			descr.depthAttachmentPixelFormat		= Renderer.fmt_depth
-			descr.stencilAttachmentPixelFormat		= Renderer.fmt_depth
-			descr.colorAttachments[0].pixelFormat	= Renderer.fmt_color
-			descr.colorAttachments[1].pixelFormat	= Renderer.fmt_dep
-		}
-		static let pstiled = util.pipestate(label: "ps tiled") {
-			descr in
-			descr.vertexFunction					= lib.shaders.vtx_main
-			descr.fragmentFunction					= lib.shaders.frg_tiled
-			descr.depthAttachmentPixelFormat		= Renderer.fmt_depth
-			descr.stencilAttachmentPixelFormat		= Renderer.fmt_depth
-			descr.colorAttachments[0].pixelFormat	= Renderer.fmt_color
-			descr.colorAttachments[1].pixelFormat	= Renderer.fmt_dep
-		}
-		static let pscull = util.tilestate(label: "ps cull") {
-			descr in
-			descr.tileFunction						= lib.shaders.knl_cull
-			descr.rasterSampleCount					= 1
-			descr.threadgroupSizeMatchesTileSize	= true
-			descr.colorAttachments[0].pixelFormat	= Renderer.fmt_color
-			descr.colorAttachments[1].pixelFormat	= .r32Float
-		}
-		
-		static let dsdepth = util.depthstate(label: "ds depth") {
-			descr in
-			descr.isDepthWriteEnabled				= true
-			descr.depthCompareFunction				= .less
-		}
-		static let dstiled = util.depthstate(label: "ds tiled") {
-			descr in
-			descr.isDepthWriteEnabled				= false
-			descr.depthCompareFunction				= .lessEqual
-		}
 		
 	}
 	
