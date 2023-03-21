@@ -6,14 +6,11 @@ import MetalKit
 //	subview to pull unifs <- server doesn't need hooks
 class Demo: Ctrl {
 	static let dim: float = 50
-	static let nsph = 8
-	static let nbox = 16
+	static let nsph = 6
+	static let nbox = 0
 	
 	static let materials = [
-		Material(
-			rgh_default: 0.6,
-			mtl_default: 1.0
-		),
+		Material(),
 		Material(
 			alb: util.texture(path: "snow_alb.jpg", srgb: true),
 			nml: util.texture(path: "snow_nml.jpg"),
@@ -91,45 +88,38 @@ class Demo: Ctrl {
 		
 		scene.camera.fov = 60 * .pi/180
 		
-		scene.sun.hue = 0.5 * normalize(float3(0.95, 0.85, 0.65))
+//		scene.sun.hue = float3(0)
+		scene.sun.hue = float3(1)
+//		scene.sun.hue = 0.4 * normalize(float3(0.95, 0.85, 0.65))
 		scene.sun.src = float3(1, 0.5, 1) * Demo.dim
 		scene.sun.dst = float3(0)
 		scene.sun.p0.xy = Demo.dim/1.5 * float2(-1)
 		scene.sun.p1.xy = Demo.dim/1.5 * float2(+1)
 		
 		for i in 0..<sph.nid {
-//			let x = 0.45 * Demo.dim * float.random(in: -1..<1)
-//			let z = 0.45 * Demo.dim * float.random(in: -1..<1)
 			let a = 2 * .pi * float(i)/float(sph.nid)
 			let x = 0.3 * Demo.dim * cosf(a)
 			let z = 0.3 * Demo.dim * sinf(a)
 			let h = float.random(in: 0.4..<1.2)
 			let y = 6*h
 			let pos = float3(x, 0, z)
-			let hue = Demo.materials[pil[i].matID].alb_default
-			let clight = CLight(
-				hue: 1.0 * hue,
-				src: pos + .y * (y + 3),
-				rad: 4 * y,
-				phi: 30 * .pi/180
-			)
-			let ilight = ILight(
-				hue: float3(3.0),
-				rad: 0.5 * y + 1
-			)
 			sph[i].ctm = .ymag(h) * .pos(pos)
-			scene.clights.append(clight)
-			scene.ilights.append(ilight)
+			scene.clights.append(.init(
+				hue: 5.0 * Demo.materials[pil[i].matID].alb_default,
+				src: pos + .y * (y + 2),
+				rad: 3 * y,
+				phi: 25 * .pi/180
+			))
 		}
 		
 		for i in 0..<box.nid {
 			let x = 0.45 * Demo.dim * float.random(in: -1..<1)
 			let z = 0.45 * Demo.dim * float.random(in: -1..<1)
 			box[i].ctm = .pos(float3(x, 0, z))
-			scene.ilights.append(.init(src: float3(x, 3.0, z), rad: 5.0))
+			scene.ilights.append(.init(src: float3(x, 4, z), rad: 5))
 		}
 		
-		scene.ilights += .init(repeating: .init(rad: 1.5), count: 6)
+		scene.ilights += .init(repeating: .init(rad: 1.5), count: 3)
 		
 		scene.add([crs, gnd, ogn, tmp, sun, sph, box, pil])
 		
@@ -146,20 +136,21 @@ class Demo: Ctrl {
 		scene.camera.pos = self.camera.pos
 		scene.camera.rot = self.camera.rot
 		
-		scene.sun.src = Demo.dim * float3(
-			cosf(self.t / 2),
-			sinf(self.t * 3) * 0.2 + 0.5,
-			sinf(self.t / 2)
-		)
+		scene.sun.src.x = Demo.dim * cosf(self.t / 2)
+		scene.sun.src.z = Demo.dim * sinf(self.t / 2)
+		scene.sun.src.y = 30 + 10 * sinf(self.t * 2)
+//		scene.sun.src.y = 30
 		
 		for (i, light) in scene.clights.enumerated() {
 			scene.clights[i].dst = self.cruiser.pos
-			scene.ilights[i].src = light.src
-			scene[7][i].ctm = .look(dst: self.cruiser.pos, src: light.src) * .zpos(3)
+			scene[7][i].ctm = .look(
+				dst: light.dst,
+				src: light.src
+			) * .zpos(3)
 		}
 		
-		for i in 0..<6 {
-			let a = 2 * .pi * float(i)/float(6)
+		for i in 0..<3 {
+			let a = 2 * .pi * float(i)/float(3)
 			let x = 3.0 * cosf(a + self.t)
 			let z = 3.0 * sinf(a + self.t)
 			let i = scene.ilights.count - i - 1
@@ -168,7 +159,8 @@ class Demo: Ctrl {
 		
 		scene[0][0].ctm = self.cruiser.ctm
 		scene[2][0].ctm = .yrot(3 * self.t) * .ypos(3)
-		scene[4][0].ctm = .pos(scene.sun.src)
+//		scene[4][0].ctm = .pos(scene.sun.src)
+		scene[4][0].ctm = .mag(0)
 		
 	}
 	

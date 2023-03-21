@@ -15,10 +15,10 @@ struct SCN {
 
 struct LGT {
 	var proj: float4x4
-	var view: float4x4
-	var invproj: float4x4
-	var invview: float4x4
 	var hue: float3
+	var pos: float3
+	var dir: float3
+	var rad: float
 	var phi: float
 }
 

@@ -9,8 +9,10 @@ class lib {
 	
 	struct shaders {
 		
-		static let vtx_shade	= util.shader("vtx_shade")
-		static let vtx_main		= util.shader("vtx_main")
+		static let vtx_main			= util.shader("vtx_main")
+		
+		static let vtx_shade		= util.shader("vtx_shade")
+		static let frg_shade		= util.shader("frg_shade")
 		
 		static let vtxfwdp_depth	= util.shader("vtxfwdp_depth")
 		static let frgfwdp_depth	= util.shader("frgfwdp_depth")
@@ -67,7 +69,10 @@ class lib {
 		static let psx_shade = util.pipestate(label: "ps shade") {
 			descr in
 			descr.vertexFunction					= lib.shaders.vtx_shade
-			descr.depthAttachmentPixelFormat 		= Renderer.fmt_shade
+			descr.fragmentFunction					= lib.shaders.frg_shade
+			descr.colorAttachments[0].pixelFormat	= Renderer.fmt_shade
+			descr.depthAttachmentPixelFormat 		= Renderer.fmt_depth
+			descr.rasterSampleCount					= Renderer.shadow_msaa
 			descr.inputPrimitiveTopology			= .triangle
 		}
 		
@@ -85,7 +90,6 @@ class lib {
 			descr.vertexFunction					= lib.shaders.vtxfwdp_depth
 			descr.fragmentFunction					= lib.shaders.frgfwdp_depth
 			descr.depthAttachmentPixelFormat		= Renderer.fmt_depth
-			descr.stencilAttachmentPixelFormat		= Renderer.fmt_depth
 			descr.colorAttachments[0].pixelFormat	= Renderer.fmt_color
 			descr.colorAttachments[1].pixelFormat	= Renderer.fmt_dep
 		}
@@ -94,6 +98,7 @@ class lib {
 			descr.tileFunction						= lib.shaders.knlfwdp_cull
 			descr.colorAttachments[0].pixelFormat	= Renderer.fmt_color
 			descr.colorAttachments[1].pixelFormat	= Renderer.fmt_dep
+			descr.threadgroupSizeMatchesTileSize	= true
 		}
 		static let psfwdp_light = util.pipestate(label: "ps fwd+ lighting") {
 			descr in
@@ -152,6 +157,7 @@ class lib {
 			descr.colorAttachments[2].pixelFormat	= Renderer.fmt_alb
 			descr.colorAttachments[3].pixelFormat	= Renderer.fmt_nml
 			descr.colorAttachments[4].pixelFormat	= Renderer.fmt_mat
+			descr.threadgroupSizeMatchesTileSize	= true
 		}
 		static let psbufp_quad = util.pipestate(label: "ps buf+ lighting quad") {
 			descr in
@@ -171,7 +177,6 @@ class lib {
 			descr.fragmentFunction					= lib.shaders.frgbufp_light
 			descr.colorAttachments[0].pixelFormat	= Renderer.fmt_color
 			descr.depthAttachmentPixelFormat		= Renderer.fmt_depth
-			descr.stencilAttachmentPixelFormat		= Renderer.fmt_depth
 			descr.colorAttachments[1].pixelFormat	= Renderer.fmt_dep
 			descr.colorAttachments[2].pixelFormat	= Renderer.fmt_alb
 			descr.colorAttachments[3].pixelFormat	= Renderer.fmt_nml
@@ -181,8 +186,8 @@ class lib {
 		
 		static let dsx_shade = util.depthstate(label: "ds shade") {
 			descr in
-			descr.isDepthWriteEnabled 				= true
-			descr.depthCompareFunction 				= .lessEqual
+			descr.isDepthWriteEnabled 							= true
+			descr.depthCompareFunction 							= .lessEqual
 		}
 		
 		static let dsx_prepass = util.depthstate(label: "ds prepass") {
@@ -192,12 +197,16 @@ class lib {
 			descr.frontFaceStencil.depthStencilPassOperation	= .replace
 			descr.backFaceStencil.depthStencilPassOperation		= .replace
 		}
-		static let dsfwdx_light = util.depthstate(label: "ds fwdx lighting") {
+		
+		static let dsfwdc_light = util.depthstate(label: "ds fwd0 lighting") {
 			descr in
 			descr.isDepthWriteEnabled							= true
 			descr.depthCompareFunction							= .lessEqual
-			descr.frontFaceStencil.stencilCompareFunction		= .equal
-			descr.backFaceStencil.stencilCompareFunction		= .equal
+		}
+		static let dsfwdp_light = util.depthstate(label: "ds fwd+ lighting") {
+			descr in
+			descr.isDepthWriteEnabled							= false
+			descr.depthCompareFunction							= .lessEqual
 		}
 		
 		static let dsbufx_quad = util.depthstate(label: "ds bufx lighting quad") {

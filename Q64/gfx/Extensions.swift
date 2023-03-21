@@ -86,15 +86,8 @@ extension MTLRenderCommandEncoder {
 		self.setTileBytes(bytes, length: count * sizeof(T.self), index: index)
 	}
 	
-//	obvi tmp, just makes draw() more readable for dev
-	func setStates(ps: MTLRenderPipelineState, ds: MTLDepthStencilState? = nil) {
-		self.setRenderPipelineState(ps)
-		if let ds = ds {self.setDepthStencilState(ds)}
-	}
-	func setCull(mode: MTLCullMode? = nil, wind: MTLWinding? = nil) {
-		if let mode = mode {self.setCullMode(mode)}
-		if let wind = wind {self.setFrontFacing(wind)}
-	}
+	func setPS(_ ps: MTLRenderPipelineState) {return self.setRenderPipelineState(ps)}
+	func setDS(_ ds: MTLDepthStencilState) {return self.setDepthStencilState(ds)}
 	
 }
 
