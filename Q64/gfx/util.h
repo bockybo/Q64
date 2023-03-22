@@ -1,11 +1,8 @@
-#ifndef util_h
-#define util_h
-
-#include <metal_stdlib>
+#import <metal_stdlib>
 using namespace metal;
 
-#include "unifs.h"
-#include "types.h"
+#import "unifs.h"
+#import "types.h"
 
 
 inline float4 mmul4(float4x4 mat, float4 vec) {return mat * vec;}
@@ -43,6 +40,19 @@ inline float3 eyedir(camera cam, float3 pos) {
 	return normalize(viewpos(cam.view) - pos);
 }
 
+inline float4 make_plane(float3 p0, float3 p1, float3 p2) {
+	float3 d0 = p0 - p2;
+	float3 d1 = p1 - p2;
+	float3 n = normalize(cross(d0, d1));
+	return float4(n, dot(n, p2));
+}
+inline bool inplane(float4 plane, float3 pos, float eps = 0.f) {
+	return eps >= plane.w - dot(plane.xyz, pos);
+}
+inline bool inplane(float4 plane, float3 p, float3 d) {
+	return inplane(plane, p) || inplane(plane, p + d);
+}
+
 inline bool is_qlight(light lgt) {return lgt.phi == -1.f;}
 inline bool is_ilight(light lgt) {return lgt.phi ==  0.f;}
 inline bool is_clight(light lgt) {return lgt.phi > 0.f;}
@@ -66,11 +76,11 @@ inline material materialsmp(const mfrg f, constant materialbuf &materials) {
 	constexpr sampler smp(address::repeat);
 	constant modelmaterial &mmat = materials[f.mat];
 	material mat;
-	mat.alb = smpdefault(smp, f.tex, mmat.alb, (float3)mmat.alb_default);
-	mat.nml = smpdefault(smp, f.tex, mmat.nml, (float3)mmat.nml_default);
-	mat.rgh = smpdefault(smp, f.tex, mmat.rgh, (float3)mmat.rgh_default).r;
-	mat.mtl = smpdefault(smp, f.tex, mmat.mtl, (float3)mmat.mtl_default).r;
-	mat. ao = smpdefault(smp, f.tex, mmat. ao, (float3)mmat. ao_default).r;
+	mat.alb = smpdefault(smp, f.tex, mmat.alb, mmat.defaults.alb);
+	mat.nml = smpdefault(smp, f.tex, mmat.nml, mmat.defaults.nml);
+	mat.rgh = smpdefault(smp, f.tex, mmat.rgh, mmat.defaults.rgh).r;
+	mat.mtl = smpdefault(smp, f.tex, mmat.mtl, mmat.defaults.mtl).r;
+	mat. ao = smpdefault(smp, f.tex, mmat. ao, mmat.defaults. ao).r;
 	float3x3 tbn = {f.tgt, f.btg, f.nml};
 	mat.nml = normalize(tbn * normalize(mat.nml * 2.h - 1.h));
 	return mat;
@@ -92,6 +102,3 @@ inline half3 debug_cull(uint msk) {
 	half x = (half)popcount(msk) / 32.h;
 	return mix(a, b, x)/256.h;
 }
-
-
-#endif

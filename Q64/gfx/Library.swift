@@ -77,14 +77,6 @@ class lib {
 			descr.inputPrimitiveTopology			= .triangle
 		}
 		
-		static let psx_cull = util.tilestate(label: "ps light culling") {
-			descr in
-			descr.tileFunction						= lib.shaders.knl_cull
-			descr.colorAttachments[0].pixelFormat	= Renderer.fmt_color
-			descr.colorAttachments[1].pixelFormat	= Renderer.fmt_dep
-			descr.threadgroupSizeMatchesTileSize	= true
-		}
-		
 		static let psfwdc_light = util.pipestate(label: "ps fwd0 lighting") {
 			descr in
 			descr.vertexFunction					= lib.shaders.vtx_main
@@ -99,6 +91,7 @@ class lib {
 			descr.vertexFunction					= lib.shaders.vtxfwdp_depth
 			descr.fragmentFunction					= lib.shaders.frgfwdp_depth
 			descr.depthAttachmentPixelFormat		= Renderer.fmt_depth
+			descr.stencilAttachmentPixelFormat		= Renderer.fmt_depth
 			descr.colorAttachments[0].pixelFormat	= Renderer.fmt_color
 			descr.colorAttachments[1].pixelFormat	= Renderer.fmt_dep
 		}
@@ -110,6 +103,13 @@ class lib {
 			descr.depthAttachmentPixelFormat		= Renderer.fmt_depth
 			descr.stencilAttachmentPixelFormat		= Renderer.fmt_depth
 			descr.colorAttachments[1].pixelFormat	= Renderer.fmt_dep
+		}
+		static let psfwdp_cull = util.tilestate(label: "ps fwd+ light culling") {
+			descr in
+			descr.tileFunction						= lib.shaders.knl_cull
+			descr.colorAttachments[0].pixelFormat	= Renderer.fmt_color
+			descr.colorAttachments[1].pixelFormat	= Renderer.fmt_dep
+			descr.threadgroupSizeMatchesTileSize	= true
 		}
 		
 		
@@ -169,10 +169,21 @@ class lib {
 			descr.fragmentFunction					= lib.shaders.frgbufp_light
 			descr.colorAttachments[0].pixelFormat	= Renderer.fmt_color
 			descr.depthAttachmentPixelFormat		= Renderer.fmt_depth
+			descr.stencilAttachmentPixelFormat		= Renderer.fmt_depth
 			descr.colorAttachments[1].pixelFormat	= Renderer.fmt_dep
 			descr.colorAttachments[2].pixelFormat	= Renderer.fmt_alb
 			descr.colorAttachments[3].pixelFormat	= Renderer.fmt_nml
 			descr.colorAttachments[4].pixelFormat	= Renderer.fmt_mat
+		}
+		static let psbufp_cull = util.tilestate(label: "ps buf+ light culling") {
+			descr in
+			descr.tileFunction						= lib.shaders.knl_cull
+			descr.colorAttachments[0].pixelFormat	= Renderer.fmt_color
+			descr.colorAttachments[1].pixelFormat	= Renderer.fmt_dep
+			descr.colorAttachments[2].pixelFormat	= Renderer.fmt_alb
+			descr.colorAttachments[3].pixelFormat	= Renderer.fmt_nml
+			descr.colorAttachments[4].pixelFormat	= Renderer.fmt_mat
+			descr.threadgroupSizeMatchesTileSize	= true
 		}
 		
 		
@@ -197,8 +208,9 @@ class lib {
 		}
 		static let dsfwdp_light = util.depthstate(label: "ds fwd+ lighting") {
 			descr in
-			descr.isDepthWriteEnabled							= false
 			descr.depthCompareFunction							= .lessEqual
+			descr.frontFaceStencil.stencilCompareFunction		= .equal
+			descr.backFaceStencil.stencilCompareFunction		= .equal
 		}
 		
 		static let dsbufx_quad = util.depthstate(label: "ds bufx lighting quad") {

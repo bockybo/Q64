@@ -11,20 +11,7 @@ struct frustum {
 	float3 points[8]; // TODO: use for aabb?
 };
 
-
-static inline float4 make_plane(float3 p0, float3 p1, float3 p2) {
-	float3 d0 = p0 - p2;
-	float3 d1 = p1 - p2;
-	float3 n = normalize(cross(d0, d1));
-	return float4(n, dot(n, p2));
-}
-static inline bool inplane(float4 plane, float3 pos, float eps = 0.f) {
-	return eps >= plane.w - dot(plane.xyz, pos);
-}
-static inline bool inplane(float4 plane, float3 p, float3 d) {
-	return inplane(plane, p) || inplane(plane, p + d);
-}
-static frustum make_frustum(camera cam,
+frustum make_frustum(camera cam,
 					 float2 p0,
 					 float2 p1,
 					 float mindepth,
@@ -49,15 +36,15 @@ static frustum make_frustum(camera cam,
 	
 	return fst;
 }
-static inline bool visible_quad(light lgt, frustum fst, camera cam) {return true;}
-static inline bool visible_icos(light lgt, frustum fst, camera cam) {
+inline bool visible_quad(light lgt, frustum fst, camera cam) {return true;}
+inline bool visible_icos(light lgt, frustum fst, camera cam) {
 	float3 p = mmul3(cam.invview, lgt.pos, 1.f);
 	bool vis = true;
 	for (int i = 0; i < 6; ++i)
 		vis &= inplane(fst.planes[i], p, lgt.rad);
 	return vis;
 }
-static inline bool visible_cone(light lgt, frustum fst, camera cam) {
+inline bool visible_cone(light lgt, frustum fst, camera cam) {
 	float3 p = mmul3(cam.invview, lgt.pos, 1.f);
 	float3 d = mmul3(cam.invview, lgt.dir, 0.f);
 	d = normalize(d);
@@ -72,7 +59,7 @@ static inline bool visible_cone(light lgt, frustum fst, camera cam) {
 	}
 	return vis;
 }
-static inline bool dispatch_visible(light lgt, frustum fst, camera cam) {
+inline bool dispatch_visible(light lgt, frustum fst, camera cam) {
 	if (is_qlight(lgt)) return visible_quad(lgt, fst, cam);
 	if (is_ilight(lgt)) return visible_icos(lgt, fst, cam);
 	return visible_cone(lgt, fst, cam);

@@ -1,10 +1,7 @@
-#ifndef unif_h
-#define unif_h
-
 #import <metal_stdlib>
 using namespace metal;
 
-#include "config.h"
+#import "config.h"
 
 
 using  pvtx = packed_float3;
@@ -72,13 +69,6 @@ struct modelmaterial {
 	texture2d<float> rgh	[[texture(2)]];
 	texture2d<float> mtl	[[texture(3)]];
 	texture2d<float>  ao	[[texture(4)]];
-	float3 alb_default		[[id(5)]];
-	float3 nml_default		[[id(6)]];
-	float  rgh_default		[[id(7)]];
-	float  mtl_default		[[id(8)]];
-	float   ao_default		[[id(9)]];
+	material defaults		[[id(5)]];
 };
 using materialbuf = array<modelmaterial, NMATERIAL>;
-
-
-#endif

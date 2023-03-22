@@ -1,7 +1,4 @@
-#ifndef lighting_components_h
-#define lighting_components_h
-
-#include <metal_stdlib>
+#import <metal_stdlib>
 using namespace metal;
 
 
@@ -27,6 +24,7 @@ inline float NDF_trowreitz(float alpha, float ndh) {
 	float c = max(1e-3, 1.f + (a2 - 1.f) * ndh*ndh);
 	return a2 / (M_PI_F*c*c);
 }
+
 inline float GSF_ggxwalter(float alpha, float ndl, float ndv) {
 	float a2 = alpha * alpha;
 	float ndl2 = ndl * ndl;
@@ -42,5 +40,3 @@ inline float GSF_ggxschlick(float alpha, float ndl, float ndv) {
 	float vbot = ndv * (1.f - ha) + ha;
 	return ndl*ndv / (lbot*vbot);
 }
-
-#endif

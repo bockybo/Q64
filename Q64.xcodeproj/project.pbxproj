@@ -56,6 +56,7 @@
 		7EBE5E0229CAA9C8008E4D6F /* deferred.metal in Sources */ = {isa = PBXBuildFile; fileRef = 7EBE5E0129CAA9C8008E4D6F /* deferred.metal */; };
 		7EBE5E0429CAAA67008E4D6F /* forward.metal in Sources */ = {isa = PBXBuildFile; fileRef = 7EBE5E0329CAAA67008E4D6F /* forward.metal */; };
 		7EBE5E0629CAAA98008E4D6F /* shadow.metal in Sources */ = {isa = PBXBuildFile; fileRef = 7EBE5E0529CAAA98008E4D6F /* shadow.metal */; };
+		7EBE5E0829CAC270008E4D6F /* com_lighting.metal in Sources */ = {isa = PBXBuildFile; fileRef = 7EBE5E0729CAC270008E4D6F /* com_lighting.metal */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -112,10 +113,11 @@
 		7EBE5DFA29CAA3B8008E4D6F /* culling.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = culling.metal; sourceTree = "<group>"; };
 		7EBE5DFC29CAA3EB008E4D6F /* types.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = types.h; sourceTree = "<group>"; };
 		7EBE5DFD29CAA50E008E4D6F /* util.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = util.h; sourceTree = "<group>"; };
-		7EBE5E0029CAA795008E4D6F /* lighting.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = lighting.h; sourceTree = "<group>"; };
+		7EBE5E0029CAA795008E4D6F /* com_lighting.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = com_lighting.h; sourceTree = "<group>"; };
 		7EBE5E0129CAA9C8008E4D6F /* deferred.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = deferred.metal; sourceTree = "<group>"; };
 		7EBE5E0329CAAA67008E4D6F /* forward.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = forward.metal; sourceTree = "<group>"; };
 		7EBE5E0529CAAA98008E4D6F /* shadow.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = shadow.metal; sourceTree = "<group>"; };
+		7EBE5E0729CAC270008E4D6F /* com_lighting.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = com_lighting.metal; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -222,10 +224,11 @@
 				7EBE5E0329CAAA67008E4D6F /* forward.metal */,
 				7EBE5E0129CAA9C8008E4D6F /* deferred.metal */,
 				7EBE5DF529CA8B4B008E4D6F /* config.h */,
-				7EBE5E0029CAA795008E4D6F /* lighting.h */,
+				7EBE5E0029CAA795008E4D6F /* com_lighting.h */,
+				7EBE5E0729CAC270008E4D6F /* com_lighting.metal */,
+				7EBE5DFD29CAA50E008E4D6F /* util.h */,
 				7EBE5DF929CA9368008E4D6F /* unifs.h */,
 				7EBE5DFC29CAA3EB008E4D6F /* types.h */,
-				7EBE5DFD29CAA50E008E4D6F /* util.h */,
 				7EBE5DF429CA8AA1008E4D6F /* lighting_model.h */,
 			);
 			path = gfx;
@@ -349,6 +352,7 @@
 				7E6AA5CF29B4D30700D2282F /* Uniforms.swift in Sources */,
 				7EBE5E0429CAAA67008E4D6F /* forward.metal in Sources */,
 				7E2FDF492978AC3400DE8F1F /* Control.swift in Sources */,
+				7EBE5E0829CAC270008E4D6F /* com_lighting.metal in Sources */,
 				7E2E35DA29AB3FDC006E80E3 /* Extensions.swift in Sources */,
 				7E6AA5D129B4DB9400D2282F /* Model.swift in Sources */,
 				7E2FDF2D29789AD900DE8F1F /* Math.swift in Sources */,

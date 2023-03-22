@@ -136,10 +136,10 @@ class Demo: Ctrl {
 		scene.camera.pos = self.camera.pos
 		scene.camera.rot = self.camera.rot
 		
-//		scene.sun.src.x = Demo.dim * cosf(self.t / 2)
-//		scene.sun.src.z = Demo.dim * sinf(self.t / 2)
-//		scene.sun.src.y = 30 + 10 * sinf(self.t * 2)
-		scene.sun.src.y = 30
+		scene.sun.src.x = Demo.dim * cosf(self.t / 2)
+		scene.sun.src.z = Demo.dim * sinf(self.t / 2)
+		scene.sun.src.y = 30 + 10 * sinf(self.t * 2)
+//		scene.sun.src.y = 30
 		
 		for (i, light) in scene.clights.enumerated() {
 			scene.clights[i].dst = self.cruiser.pos
@@ -159,8 +159,8 @@ class Demo: Ctrl {
 		
 		scene[0][0].ctm = self.cruiser.ctm
 		scene[2][0].ctm = .yrot(3 * self.t) * .ypos(3)
-//		scene[4][0].ctm = .pos(scene.sun.src)
-		scene[4][0].ctm = .mag(0)
+		scene[4][0].ctm = .pos(scene.sun.src)
+//		scene[4][0].ctm = .mag(0)
 		
 	}
 	

@@ -1,19 +1,19 @@
-#include <metal_stdlib>
+#import <metal_stdlib>
 using namespace metal;
 
-#include "config.h"
-#include "util.h"
-#include "types.h"
-#include "unifs.h"
-#include "lighting.h"
+#import "config.h"
+#import "util.h"
+#import "types.h"
+#import "unifs.h"
+#import "com_lighting.h"
 
 
-static inline half4 fwdx_lighting(mfrg f,
-								  constant materialbuf &materials,
-								  constant scene &scn,
-								  constant light *lgts,
-								  shadowmaps shds,
-								  uint msk) {
+inline half4 fwdx_lighting(mfrg f,
+						   constant materialbuf &materials,
+						   constant scene &scn,
+						   constant light *lgts,
+						   shadowmaps shds,
+						   uint msk) {
 #if DEBUG_CULL
 	return half4(debug_cull(msk), 1.f);
 #endif

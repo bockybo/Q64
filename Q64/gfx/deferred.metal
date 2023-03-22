@@ -1,12 +1,19 @@
-#include <metal_stdlib>
+#import <metal_stdlib>
 using namespace metal;
 
-#include "config.h"
-#include "util.h"
-#include "types.h"
-#include "unifs.h"
-#include "lighting.h"
+#import "config.h"
+#import "util.h"
+#import "types.h"
+#import "unifs.h"
+#import "com_lighting.h"
 
+
+struct gbuf {
+	float dep [[raster_order_group(1), color(1)]];
+	half4 alb [[raster_order_group(1), color(2)]];
+	half4 nml [[raster_order_group(1), color(3)]];
+	half4 mat [[raster_order_group(1), color(4)]];
+};
 
 fragment gbuf frgbufx_gbuf(mfrg f								[[stage_in]],
 						   constant materialbuf &materials		[[buffer(0)]]) {
@@ -24,7 +31,6 @@ vertex lfrg vtxbufx_quad(const device pvtx *vtcs	[[buffer(0)]],
 						 uint lid					[[instance_id]]) {
 	return {.loc = float4(vtcs[vid], 1.f), .lid = lid};
 }
-
 vertex lfrg vtxbufx_vol(const device pvtx *vtcs 	[[buffer(0)]],
 						constant scene &scn			[[buffer(2)]],
 						constant light *lgts		[[buffer(3)]],
@@ -35,12 +41,12 @@ vertex lfrg vtxbufx_vol(const device pvtx *vtcs 	[[buffer(0)]],
 	return {.loc = loc, .lid = lid};
 }
 
-static inline half4 bufx_lighting(lfrg f,
-								  const gbuf buf,
-								  constant scene &scn,
-								  constant light *lgts,
-								  shadowmaps shds,
-								  uint msk) {
+inline half4 bufx_lighting(lfrg f,
+						   const gbuf buf,
+						   constant scene &scn,
+						   constant light *lgts,
+						   shadowmaps shds,
+						   uint msk) {
 #if DEBUG_CULL
 	return half4(debug_cull(msk), 1.f);
 #endif
@@ -57,6 +63,7 @@ static inline half4 bufx_lighting(lfrg f,
 	float3 pos = wldpos(scn.cam, float3(ndc, buf.dep));
 	float3 eye = eyedir(scn.cam, pos);
 	half3 rgb = com_lighting(mat, pos, eye, lgts, shds, f.lid);
+	
 	return half4(rgb, 1.h);
 }
 
