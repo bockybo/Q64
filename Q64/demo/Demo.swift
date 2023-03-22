@@ -6,8 +6,8 @@ import MetalKit
 //	subview to pull unifs <- server doesn't need hooks
 class Demo: Ctrl {
 	static let dim: float = 50
-	static let nsph = 6
-	static let nbox = 0
+	static let nsph = 8
+	static let nbox = 12
 	
 	static let materials = [
 		Material(),
@@ -89,8 +89,8 @@ class Demo: Ctrl {
 		scene.camera.fov = 60 * .pi/180
 		
 //		scene.sun.hue = float3(0)
-		scene.sun.hue = float3(1)
-//		scene.sun.hue = 0.4 * normalize(float3(0.95, 0.85, 0.65))
+//		scene.sun.hue = float3(1)
+		scene.sun.hue = 0.4 * normalize(float3(0.95, 0.85, 0.65))
 		scene.sun.src = float3(1, 0.5, 1) * Demo.dim
 		scene.sun.dst = float3(0)
 		scene.sun.p0.xy = Demo.dim/1.5 * float2(-1)
@@ -116,10 +116,10 @@ class Demo: Ctrl {
 			let x = 0.45 * Demo.dim * float.random(in: -1..<1)
 			let z = 0.45 * Demo.dim * float.random(in: -1..<1)
 			box[i].ctm = .pos(float3(x, 0, z))
-			scene.ilights.append(.init(src: float3(x, 4, z), rad: 5))
+			scene.ilights.append(.init(hue: float3(1), src: float3(x, 4, z), rad: 5))
 		}
 		
-		scene.ilights += .init(repeating: .init(rad: 1.5), count: 3)
+		scene.ilights += .init(repeating: .init(hue: float3(3), rad: 1.5), count: 3)
 		
 		scene.add([crs, gnd, ogn, tmp, sun, sph, box, pil])
 		
@@ -136,10 +136,10 @@ class Demo: Ctrl {
 		scene.camera.pos = self.camera.pos
 		scene.camera.rot = self.camera.rot
 		
-		scene.sun.src.x = Demo.dim * cosf(self.t / 2)
-		scene.sun.src.z = Demo.dim * sinf(self.t / 2)
-		scene.sun.src.y = 30 + 10 * sinf(self.t * 2)
-//		scene.sun.src.y = 30
+//		scene.sun.src.x = Demo.dim * cosf(self.t / 2)
+//		scene.sun.src.z = Demo.dim * sinf(self.t / 2)
+//		scene.sun.src.y = 30 + 10 * sinf(self.t * 2)
+		scene.sun.src.y = 30
 		
 		for (i, light) in scene.clights.enumerated() {
 			scene.clights[i].dst = self.cruiser.pos

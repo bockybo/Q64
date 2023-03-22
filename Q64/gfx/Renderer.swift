@@ -3,6 +3,7 @@ import MetalKit
 
 // TODO:
 // point light shadows w/ vertex amplification
+// pipeline on gpu?
 // clustered forward & deferred
 // order independent transparancy
 // particles
@@ -33,7 +34,7 @@ class Renderer: NSObject, MTKViewDelegate {
 	static let max_nshade = 32
 	
 	static let shadow_size = 16384 / 8
-	static let shadow_msaa = 4
+	static let shadow_msaa = 2
 	
 	static let tile_w = 16
 	static let tile_h = 16
@@ -45,7 +46,7 @@ class Renderer: NSObject, MTKViewDelegate {
 		return 16 * (1 + (bptg - 1)/16)
 	}
 	
-	let mode = Mode.forward_plus
+	let mode = Mode.deferred_classic
 	enum Mode {
 		case forward_classic
 		case forward_plus
@@ -116,7 +117,7 @@ class Renderer: NSObject, MTKViewDelegate {
 				descr.arrayLength		= Renderer.max_nshade
 				descr.width				= size
 				descr.height			= size
-				descr.usage				= [.renderTarget, .shaderRead]
+				descr.usage				= [.renderTarget, .shaderRead, .shaderWrite]
 				descr.storageMode		= .private
 				descr.textureType		= .type2DArray
 			}
@@ -257,7 +258,7 @@ class Renderer: NSObject, MTKViewDelegate {
 			if Self.shadow_msaa == 1 {
 				let descr = util.passdescr {
 					descr in
-					descr.colorAttachments[0].loadAction  = .dontCare
+					descr.colorAttachments[0].loadAction  = .clear
 					descr.colorAttachments[0].storeAction = .store
 					descr.colorAttachments[0].texture = self.shadowmaps.rdmmt
 					descr.depthAttachment.loadAction  = .dontCare
@@ -275,7 +276,7 @@ class Renderer: NSObject, MTKViewDelegate {
 			} else {
 				let descr = util.passdescr {
 					descr in
-					descr.colorAttachments[0].loadAction  = .dontCare
+					descr.colorAttachments[0].loadAction  = .clear
 					descr.colorAttachments[0].storeAction = .multisampleResolve
 					descr.colorAttachments[0].texture = self.shadowmaps.wrtmmt!
 					descr.colorAttachments[0].resolveTexture = self.shadowmaps.rdmmt
@@ -311,6 +312,9 @@ class Renderer: NSObject, MTKViewDelegate {
 				descr.depthAttachment.texture			= view.depthStencilTexture!
 				descr.depthAttachment.loadAction		= .dontCare
 				descr.depthAttachment.storeAction		= .dontCare
+				descr.stencilAttachment.texture			= view.depthStencilTexture!
+				descr.stencilAttachment.loadAction		= .dontCare
+				descr.stencilAttachment.storeAction		= .dontCare
 				if (self.mode == .forward_plus || self.mode == .deferred_plus) {
 					descr.tileWidth  = Self.tile_w
 					descr.tileHeight = Self.tile_h
@@ -363,7 +367,7 @@ class Renderer: NSObject, MTKViewDelegate {
 					enc.setPS(lib.states.psfwdp_depth)
 					self.drawgeometry(enc: enc)
 					
-					enc.setPS(lib.states.psfwdp_cull)
+					enc.setPS(lib.states.psx_cull)
 					enc.setThreadgroupMemoryLength(Self.groupsize, offset: 0, index: 0)
 					enc.dispatchThreadsPerTile(MTLSizeMake(Self.tile_w, Self.tile_h, 1))
 					
@@ -432,7 +436,7 @@ class Renderer: NSObject, MTKViewDelegate {
 					self.setmaterials(enc: enc)
 					self.drawgeometry(enc: enc)
 					
-					enc.setPS(lib.states.psbufp_cull)
+					enc.setPS(lib.states.psx_cull)
 					enc.setThreadgroupMemoryLength(Self.groupsize, offset: 0, index: 0)
 					enc.dispatchThreadsPerTile(MTLSizeMake(Self.tile_w, Self.tile_h, 1))
 					

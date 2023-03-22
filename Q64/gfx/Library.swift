@@ -14,18 +14,19 @@ class lib {
 		static let vtx_shade		= util.shader("vtx_shade")
 		static let frg_shade		= util.shader("frg_shade")
 		
+		static let knl_cull			= util.shader("knl_cull")
+		
 		static let vtxfwdp_depth	= util.shader("vtxfwdp_depth")
 		static let frgfwdp_depth	= util.shader("frgfwdp_depth")
-		static let knlfwdp_cull		= util.shader("knlfwdp_cull")
 		static let frgfwdc_light	= util.shader("frgfwdc_light")
 		static let frgfwdp_light	= util.shader("frgfwdp_light")
 		
 		static let vtxbufx_quad		= util.shader("vtxbufx_quad")
 		static let vtxbufx_vol		= util.shader("vtxbufx_vol")
 		static let frgbufx_gbuf		= util.shader("frgbufx_gbuf")
-		static let knlbufp_cull		= util.shader("knlbufp_cull")
 		static let frgbufc_light	= util.shader("frgbufc_light")
 		static let frgbufp_light	= util.shader("frgbufp_light")
+		
 		
 	}
 	
@@ -76,6 +77,14 @@ class lib {
 			descr.inputPrimitiveTopology			= .triangle
 		}
 		
+		static let psx_cull = util.tilestate(label: "ps light culling") {
+			descr in
+			descr.tileFunction						= lib.shaders.knl_cull
+			descr.colorAttachments[0].pixelFormat	= Renderer.fmt_color
+			descr.colorAttachments[1].pixelFormat	= Renderer.fmt_dep
+			descr.threadgroupSizeMatchesTileSize	= true
+		}
+		
 		static let psfwdc_light = util.pipestate(label: "ps fwd0 lighting") {
 			descr in
 			descr.vertexFunction					= lib.shaders.vtx_main
@@ -92,13 +101,6 @@ class lib {
 			descr.depthAttachmentPixelFormat		= Renderer.fmt_depth
 			descr.colorAttachments[0].pixelFormat	= Renderer.fmt_color
 			descr.colorAttachments[1].pixelFormat	= Renderer.fmt_dep
-		}
-		static let psfwdp_cull = util.tilestate(label: "ps fwd+ culling") {
-			descr in
-			descr.tileFunction						= lib.shaders.knlfwdp_cull
-			descr.colorAttachments[0].pixelFormat	= Renderer.fmt_color
-			descr.colorAttachments[1].pixelFormat	= Renderer.fmt_dep
-			descr.threadgroupSizeMatchesTileSize	= true
 		}
 		static let psfwdp_light = util.pipestate(label: "ps fwd+ lighting") {
 			descr in
@@ -149,16 +151,6 @@ class lib {
 			descr.colorAttachments[4].pixelFormat	= Renderer.fmt_mat
 		}
 		
-		static let psbufp_cull = util.tilestate(label: "ps buf0 culling") {
-			descr in
-			descr.tileFunction						= lib.shaders.knlbufp_cull
-			descr.colorAttachments[0].pixelFormat	= Renderer.fmt_color
-			descr.colorAttachments[1].pixelFormat	= Renderer.fmt_dep
-			descr.colorAttachments[2].pixelFormat	= Renderer.fmt_alb
-			descr.colorAttachments[3].pixelFormat	= Renderer.fmt_nml
-			descr.colorAttachments[4].pixelFormat	= Renderer.fmt_mat
-			descr.threadgroupSizeMatchesTileSize	= true
-		}
 		static let psbufp_quad = util.pipestate(label: "ps buf+ lighting quad") {
 			descr in
 			descr.vertexFunction					= lib.shaders.vtxbufx_quad
@@ -218,7 +210,6 @@ class lib {
 			descr in
 			descr.depthCompareFunction							= .greaterEqual
 		}
-		
 		
 	}
 	

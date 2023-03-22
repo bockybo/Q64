@@ -25,6 +25,9 @@ class CtrlView: NSView {
 		self.ctrl.tick(scene: scene, ms: 1e-6 * float(ns))
 		return t1
 	}
+	deinit {
+		self.stop()
+	}
 	
 }
 

@@ -45,8 +45,8 @@ class ViewController: NSViewController {
 		win.acceptsMouseMovedEvents = true
 		self.ctrlview.start(tps: cfg.tps, scene: self.scene)
 	}
-	override func viewWillDisappear() {
-		super.viewWillDisappear()
+	override func viewDidDisappear() {
+		super.viewDidDisappear()
 		self.ctrlview.stop()
 	}
 	
