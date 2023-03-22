@@ -1,9 +1,8 @@
-#include <metal_stdlib>
+#import <metal_stdlib>
 using namespace metal;
 
-#include "util.h"
-#include "types.h"
-#include "unifs.h"
+#import "util.h"
+#import "culling.h"
 
 
 struct frustum {
@@ -11,7 +10,7 @@ struct frustum {
 	float3 points[8]; // TODO: use for aabb?
 };
 
-frustum make_frustum(camera cam,
+frustum make_frustum(xcamera cam,
 					 float2 p0,
 					 float2 p1,
 					 float mindepth,
@@ -36,15 +35,15 @@ frustum make_frustum(camera cam,
 	
 	return fst;
 }
-inline bool visible_quad(light lgt, frustum fst, camera cam) {return true;}
-inline bool visible_icos(light lgt, frustum fst, camera cam) {
+inline bool visible_quad(xlight lgt, frustum fst, xcamera cam) {return true;}
+inline bool visible_icos(xlight lgt, frustum fst, xcamera cam) {
 	float3 p = mmul3(cam.invview, lgt.pos, 1.f);
 	bool vis = true;
 	for (int i = 0; i < 6; ++i)
 		vis &= inplane(fst.planes[i], p, lgt.rad);
 	return vis;
 }
-inline bool visible_cone(light lgt, frustum fst, camera cam) {
+inline bool visible_cone(xlight lgt, frustum fst, xcamera cam) {
 	float3 p = mmul3(cam.invview, lgt.pos, 1.f);
 	float3 d = mmul3(cam.invview, lgt.dir, 0.f);
 	d = normalize(d);
@@ -59,15 +58,15 @@ inline bool visible_cone(light lgt, frustum fst, camera cam) {
 	}
 	return vis;
 }
-inline bool dispatch_visible(light lgt, frustum fst, camera cam) {
+inline bool dispatch_visible(xlight lgt, frustum fst, xcamera cam) {
 	if (is_qlight(lgt)) return visible_quad(lgt, fst, cam);
 	if (is_ilight(lgt)) return visible_icos(lgt, fst, cam);
 	return visible_cone(lgt, fst, cam);
 }
 
 kernel void knl_cull(imageblock<dpix, imageblock_layout_implicit> blk,
-					 constant scene &scn		[[buffer(2)]],
-					 constant light *lgts		[[buffer(3)]],
+					 constant xscene &scn		[[buffer(2)]],
+					 constant xlight *lgts		[[buffer(3)]],
 					 threadgroup tile &tile		[[threadgroup(0)]],
 					 ushort2 tptg				[[threads_per_threadgroup]],
 					 ushort2 titg				[[thread_position_in_threadgroup]],

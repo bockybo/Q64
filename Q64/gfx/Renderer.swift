@@ -27,12 +27,6 @@ class Renderer: NSObject, MTKViewDelegate {
 	
 	static let nflight = 3
 	
-	static let max_nmaterial = 32
-	static let max_nmodel = 1024
-	
-	static let max_nlight = 32
-	static let max_nshade = 32
-	
 	static let shadow_size = 16384 / 8
 	static let shadow_msaa = 2
 	
@@ -77,9 +71,9 @@ class Renderer: NSObject, MTKViewDelegate {
 	}
 	private struct Flight {
 		
-		let scnbuf = util.buffer(len: sizeof(SCN.self), label: "scene buffer")
-		let mdlbuf = util.buffer(len: sizeof(MDL.self) * Renderer.max_nmodel, label: "model buffer")
-		let lgtbuf = util.buffer(len: sizeof(LGT.self) * Renderer.max_nlight, label: "light buffer")
+		let scnbuf = util.buffer(len: sizeof(xscene.self), label: "scene buffer")
+		let mdlbuf = util.buffer(len: sizeof(xmodel.self) * Int(MAX_NMODEL), label: "model buffer")
+		let lgtbuf = util.buffer(len: sizeof(xlight.self) * Int(MAX_NLIGHT), label: "light buffer")
 		
 		var models: [Model] = []
 		var nclight: Int = 0
@@ -91,9 +85,9 @@ class Renderer: NSObject, MTKViewDelegate {
 			let mdls = scene.models.reduce([], {$0 + $1.mdls})
 			let lgts = scene.lights.map {$0.lgt}
 			
-			self.scnbuf.write(&scn, length: sizeof(SCN.self))
-			self.mdlbuf.write(mdls, length: mdls.count * sizeof(MDL.self))
-			self.lgtbuf.write(lgts, length: lgts.count * sizeof(LGT.self))
+			self.scnbuf.write(&scn, length: sizeof(xscene.self))
+			self.mdlbuf.write(mdls, length: sizeof(xmodel.self) * mdls.count)
+			self.lgtbuf.write(lgts, length: sizeof(xlight.self) * lgts.count)
 			
 			self.models = scene.models
 			self.nclight = scene.clights.count
@@ -177,7 +171,7 @@ class Renderer: NSObject, MTKViewDelegate {
 			let setup = {(descr: MTLTextureDescriptor) in
 				descr.width				= size
 				descr.height			= size
-				descr.arrayLength		= Renderer.max_nshade
+				descr.arrayLength		= Int(MAX_NSHADE)
 			}
 			
 			self.rdmmt = util.texture(label: "resolved shadowmap moments") {
@@ -209,7 +203,7 @@ class Renderer: NSObject, MTKViewDelegate {
 					descr.usage				= []
 					descr.storageMode		= .private
 					descr.textureType		= .type2DMultisampleArray
-					descr.sampleCount		= msaa
+					descr.sampleCount		= Int(msaa)
 				}
 				self.wrtdep = util.texture(label: "multisampled shadowmap depths") {
 					descr in
@@ -218,7 +212,7 @@ class Renderer: NSObject, MTKViewDelegate {
 					descr.usage				= []
 					descr.storageMode		= .memoryless
 					descr.textureType		= .type2DMultisampleArray
-					descr.sampleCount		= msaa
+					descr.sampleCount		= Int(msaa)
 				}
 			}
 			
@@ -254,7 +248,7 @@ class Renderer: NSObject, MTKViewDelegate {
 	)
 	
 	private func writematerials(_ materials: [Material]) {
-		assert(materials.count <= Self.max_nmaterial)
+		assert(materials.count <= MAX_NMATERIAL)
 		let n = Material.nproperty
 		for (matID, material) in materials.enumerated() {
 			let textures = material.textures
@@ -309,15 +303,14 @@ class Renderer: NSObject, MTKViewDelegate {
 		enc.draw(lib.lightmesh.icos, iid: iid, nid: nid)
 	}
 	
-	
 	func draw(in view: MTKView) {
 		self.semaphore.wait()
 		self.rotate()
 		
-		self.cmdque.commit(label: "commit: shade") {
+		self.cmdque.commit(label: "commit: shadow gen") {
 			buf in
 			
-			let n = min(Self.max_nshade, 1 + self.flt.nclight)
+			let n = min(Int(MAX_NSHADE), 1 + self.flt.nclight)
 			buf.pass(label: "pass: shadow gen", descr: util.passdescr {
 				descr in
 				self.shadowmaps.attach(to: descr)
@@ -362,8 +355,8 @@ class Renderer: NSObject, MTKViewDelegate {
 				}
 			}) {enc in
 				
+				enc.setStencilReferenceValue(0xFF)
 				enc.setCullMode(.back)
-				enc.setStencilReferenceValue(1)
 				enc.setFrontFacing(.counterClockwise)
 				
 				enc.setFragmentTexture(self.shadowmaps.rdmmt, index: 0)

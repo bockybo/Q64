@@ -3,9 +3,8 @@ using namespace metal;
 
 #import "config.h"
 #import "util.h"
-#import "types.h"
-#import "unifs.h"
-#import "com_lighting.h"
+#import "material.h"
+#import "lighting.h"
 
 
 struct gbuf {
@@ -15,25 +14,30 @@ struct gbuf {
 	half4 mat [[raster_order_group(1), color(4)]];
 };
 
-fragment gbuf frgbufx_gbuf(mfrg f								[[stage_in]],
+struct lfrg {
+	float4 loc [[position]];
+	uint lid [[flat]];
+};
+
+fragment gbuf frgbufx_gbuf(geo g								[[stage_in]],
 						   constant materialbuf &materials		[[buffer(0)]]) {
-	material mat = materialsmp(f, materials);
+	xmaterial mat = materialsmp(g, materials);
 	return {
-		.dep = f.loc.z,
+		.dep = g.loc.z,
 		.alb = half4((half3)mat.alb, 0.h),
 		.nml = half4((half3)mat.nml, 0.h),
 		.mat = half4(mat.rgh, mat.mtl, mat.ao, 0.h),
 	};
 }
 
-vertex lfrg vtxbufx_quad(const device pvtx *vtcs	[[buffer(0)]],
+vertex lfrg vtxbufx_quad(const device xpvtx *vtcs	[[buffer(0)]],
 						 uint vid					[[vertex_id]],
 						 uint lid					[[instance_id]]) {
 	return {.loc = float4(vtcs[vid], 1.f), .lid = lid};
 }
-vertex lfrg vtxbufx_vol(const device pvtx *vtcs 	[[buffer(0)]],
-						constant scene &scn			[[buffer(2)]],
-						constant light *lgts		[[buffer(3)]],
+vertex lfrg vtxbufx_vol(const device xpvtx *vtcs 	[[buffer(0)]],
+						constant xscene &scn		[[buffer(2)]],
+						constant xlight *lgts		[[buffer(3)]],
 						uint vid					[[vertex_id]],
 						uint lid					[[instance_id]]) {
 	float3 pos = lgtfwd(lgts[lid], vtcs[vid]);
@@ -43,8 +47,8 @@ vertex lfrg vtxbufx_vol(const device pvtx *vtcs 	[[buffer(0)]],
 
 inline half4 bufx_lighting(lfrg f,
 						   const gbuf buf,
-						   constant scene &scn,
-						   constant light *lgts,
+						   constant xscene &scn,
+						   constant xlight *lgts,
 						   shadowmaps shds,
 						   uint msk) {
 #if DEBUG_CULL
@@ -52,7 +56,7 @@ inline half4 bufx_lighting(lfrg f,
 #endif
 	if (!(msk & (1 << f.lid)))
 		return {0.h};
-	material mat = {
+	xmaterial mat = {
 		.alb = (float3)buf.alb.rgb,
 		.nml = (float3)buf.nml.xyz,
 		.rgh = (float) buf.mat.r,
@@ -70,8 +74,8 @@ inline half4 bufx_lighting(lfrg f,
 fragment cpix frgbufc_light(lfrg f								[[stage_in]],
 							const cpix pix,
 							const gbuf buf,
-							constant scene &scn					[[buffer(2)]],
-							constant light *lgts				[[buffer(3)]],
+							constant xscene &scn				[[buffer(2)]],
+							constant xlight *lgts				[[buffer(3)]],
 							shadowmaps shds						[[texture(0)]]) {
 	return {pix.color + bufx_lighting(f, buf, scn, lgts, shds, mskc(scn.nlgt))};
 }
@@ -79,8 +83,8 @@ fragment cpix frgbufp_light(lfrg f								[[stage_in]],
 							const cpix pix,
 							const gbuf buf,
 							threadgroup tile &tile				[[threadgroup(0)]],
-							constant scene &scn					[[buffer(2)]],
-							constant light *lgts				[[buffer(3)]],
+							constant xscene &scn				[[buffer(2)]],
+							constant xlight *lgts				[[buffer(3)]],
 							shadowmaps shds						[[texture(0)]]) {
 	return {pix.color + bufx_lighting(f, buf, scn, lgts, shds, mskp(tile))};
 }

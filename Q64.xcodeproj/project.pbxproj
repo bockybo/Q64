@@ -29,7 +29,6 @@
 		7E42DF4E29B6AD4200B48123 /* Utility.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E42DF4D29B6AD4200B48123 /* Utility.swift */; };
 		7E6927E629B9835700FB8F4E /* Camera.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E6927E529B9835700FB8F4E /* Camera.swift */; };
 		7E6AA5CB29B48D4700D2282F /* Light.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E6AA5CA29B48D4700D2282F /* Light.swift */; };
-		7E6AA5CF29B4D30700D2282F /* Uniforms.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E6AA5CE29B4D30700D2282F /* Uniforms.swift */; };
 		7E6AA5D129B4DB9400D2282F /* Model.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E6AA5D029B4DB9400D2282F /* Model.swift */; };
 		7E81D9F929B087DE00272E0B /* steel_alb.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 7E81D9F629B087DD00272E0B /* steel_alb.jpg */; };
 		7E81DA0029B0897E00272E0B /* snow_rgh.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 7E81D9FC29B0897C00272E0B /* snow_rgh.jpg */; };
@@ -56,7 +55,10 @@
 		7EBE5E0229CAA9C8008E4D6F /* deferred.metal in Sources */ = {isa = PBXBuildFile; fileRef = 7EBE5E0129CAA9C8008E4D6F /* deferred.metal */; };
 		7EBE5E0429CAAA67008E4D6F /* forward.metal in Sources */ = {isa = PBXBuildFile; fileRef = 7EBE5E0329CAAA67008E4D6F /* forward.metal */; };
 		7EBE5E0629CAAA98008E4D6F /* shadow.metal in Sources */ = {isa = PBXBuildFile; fileRef = 7EBE5E0529CAAA98008E4D6F /* shadow.metal */; };
-		7EBE5E0829CAC270008E4D6F /* com_lighting.metal in Sources */ = {isa = PBXBuildFile; fileRef = 7EBE5E0729CAC270008E4D6F /* com_lighting.metal */; };
+		7EBE5E0829CAC270008E4D6F /* lighting.metal in Sources */ = {isa = PBXBuildFile; fileRef = 7EBE5E0729CAC270008E4D6F /* lighting.metal */; };
+		7EBE5E6F29CB88CF008E4D6F /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7EBE5E6E29CB88CF008E4D6F /* Foundation.framework */; };
+		7EBE5E7129CB88D6008E4D6F /* QuartzCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7EBE5E7029CB88D6008E4D6F /* QuartzCore.framework */; };
+		7EBE5E7329CB88DB008E4D6F /* Metal.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7EBE5E7229CB88DB008E4D6F /* Metal.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -81,10 +83,12 @@
 		7E2FDF3229789EA800DE8F1F /* Scene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Scene.swift; sourceTree = "<group>"; };
 		7E2FDF422978A93800DE8F1F /* CtrlView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CtrlView.swift; sourceTree = "<group>"; };
 		7E2FDF482978AC3400DE8F1F /* Control.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Control.swift; sourceTree = "<group>"; };
+		7E3CDB0629CB9BF800E1B81E /* material.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = material.h; sourceTree = "<group>"; };
+		7E3CDB0729CB9D3D00E1B81E /* culling.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = culling.h; sourceTree = "<group>"; };
+		7E3CDB0829CB9DB400E1B81E /* geometry.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = geometry.h; sourceTree = "<group>"; };
 		7E42DF4D29B6AD4200B48123 /* Utility.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Utility.swift; sourceTree = "<group>"; };
 		7E6927E529B9835700FB8F4E /* Camera.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Camera.swift; sourceTree = "<group>"; };
 		7E6AA5CA29B48D4700D2282F /* Light.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Light.swift; sourceTree = "<group>"; };
-		7E6AA5CE29B4D30700D2282F /* Uniforms.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Uniforms.swift; sourceTree = "<group>"; };
 		7E6AA5D029B4DB9400D2282F /* Model.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Model.swift; sourceTree = "<group>"; };
 		7E81D9F629B087DD00272E0B /* steel_alb.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = steel_alb.jpg; sourceTree = "<group>"; };
 		7E81D9FC29B0897C00272E0B /* snow_rgh.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = snow_rgh.jpg; sourceTree = "<group>"; };
@@ -109,15 +113,17 @@
 		7EBE5DF429CA8AA1008E4D6F /* lighting_model.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = lighting_model.h; sourceTree = "<group>"; };
 		7EBE5DF529CA8B4B008E4D6F /* config.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = config.h; sourceTree = "<group>"; };
 		7EBE5DF729CA8DA1008E4D6F /* ice_nml.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = ice_nml.png; sourceTree = "<group>"; };
-		7EBE5DF929CA9368008E4D6F /* unifs.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = unifs.h; sourceTree = "<group>"; };
+		7EBE5DF929CA9368008E4D6F /* shared.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = shared.h; sourceTree = "<group>"; };
 		7EBE5DFA29CAA3B8008E4D6F /* culling.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = culling.metal; sourceTree = "<group>"; };
-		7EBE5DFC29CAA3EB008E4D6F /* types.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = types.h; sourceTree = "<group>"; };
 		7EBE5DFD29CAA50E008E4D6F /* util.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = util.h; sourceTree = "<group>"; };
-		7EBE5E0029CAA795008E4D6F /* com_lighting.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = com_lighting.h; sourceTree = "<group>"; };
+		7EBE5E0029CAA795008E4D6F /* lighting.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = lighting.h; sourceTree = "<group>"; };
 		7EBE5E0129CAA9C8008E4D6F /* deferred.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = deferred.metal; sourceTree = "<group>"; };
 		7EBE5E0329CAAA67008E4D6F /* forward.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = forward.metal; sourceTree = "<group>"; };
 		7EBE5E0529CAAA98008E4D6F /* shadow.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = shadow.metal; sourceTree = "<group>"; };
-		7EBE5E0729CAC270008E4D6F /* com_lighting.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = com_lighting.metal; sourceTree = "<group>"; };
+		7EBE5E0729CAC270008E4D6F /* lighting.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = lighting.metal; sourceTree = "<group>"; };
+		7EBE5E6E29CB88CF008E4D6F /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = System/Library/Frameworks/Foundation.framework; sourceTree = SDKROOT; };
+		7EBE5E7029CB88D6008E4D6F /* QuartzCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuartzCore.framework; path = System/Library/Frameworks/QuartzCore.framework; sourceTree = SDKROOT; };
+		7EBE5E7229CB88DB008E4D6F /* Metal.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Metal.framework; path = System/Library/Frameworks/Metal.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -125,6 +131,9 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				7EBE5E7329CB88DB008E4D6F /* Metal.framework in Frameworks */,
+				7EBE5E7129CB88D6008E4D6F /* QuartzCore.framework in Frameworks */,
+				7EBE5E6F29CB88CF008E4D6F /* Foundation.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -168,6 +177,7 @@
 			children = (
 				7E2FDF122978991200DE8F1F /* Q64 */,
 				7E2FDF112978991200DE8F1F /* Products */,
+				7EBE5E6D29CB88CF008E4D6F /* Frameworks */,
 			);
 			sourceTree = "<group>";
 		};
@@ -212,23 +222,24 @@
 				7E42DF4D29B6AD4200B48123 /* Utility.swift */,
 				7E2E35D929AB3FDC006E80E3 /* Extensions.swift */,
 				7E2FDF2A29789A9C00DE8F1F /* Renderer.swift */,
-				7E6AA5CE29B4D30700D2282F /* Uniforms.swift */,
 				7E2FDF3229789EA800DE8F1F /* Scene.swift */,
 				7E6927E529B9835700FB8F4E /* Camera.swift */,
 				7E6AA5D029B4DB9400D2282F /* Model.swift */,
 				7E6AA5CA29B48D4700D2282F /* Light.swift */,
 				7EB30BE029B8198A0041CEAF /* Material.swift */,
+				7EBE5DF529CA8B4B008E4D6F /* config.h */,
+				7EBE5DF929CA9368008E4D6F /* shared.h */,
+				7EBE5DFD29CAA50E008E4D6F /* util.h */,
 				7E2FDF3029789CE200DE8F1F /* geometry.metal */,
+				7E3CDB0829CB9DB400E1B81E /* geometry.h */,
 				7EBE5E0529CAAA98008E4D6F /* shadow.metal */,
 				7EBE5DFA29CAA3B8008E4D6F /* culling.metal */,
+				7E3CDB0729CB9D3D00E1B81E /* culling.h */,
 				7EBE5E0329CAAA67008E4D6F /* forward.metal */,
 				7EBE5E0129CAA9C8008E4D6F /* deferred.metal */,
-				7EBE5DF529CA8B4B008E4D6F /* config.h */,
-				7EBE5E0029CAA795008E4D6F /* com_lighting.h */,
-				7EBE5E0729CAC270008E4D6F /* com_lighting.metal */,
-				7EBE5DFD29CAA50E008E4D6F /* util.h */,
-				7EBE5DF929CA9368008E4D6F /* unifs.h */,
-				7EBE5DFC29CAA3EB008E4D6F /* types.h */,
+				7EBE5E0029CAA795008E4D6F /* lighting.h */,
+				7EBE5E0729CAC270008E4D6F /* lighting.metal */,
+				7E3CDB0629CB9BF800E1B81E /* material.h */,
 				7EBE5DF429CA8AA1008E4D6F /* lighting_model.h */,
 			);
 			path = gfx;
@@ -241,6 +252,16 @@
 				7E2FDF2C29789AD900DE8F1F /* Math.swift */,
 			);
 			path = core;
+			sourceTree = "<group>";
+		};
+		7EBE5E6D29CB88CF008E4D6F /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				7EBE5E7229CB88DB008E4D6F /* Metal.framework */,
+				7EBE5E7029CB88D6008E4D6F /* QuartzCore.framework */,
+				7EBE5E6E29CB88CF008E4D6F /* Foundation.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -349,10 +370,9 @@
 				7E2FDF432978A93800DE8F1F /* CtrlView.swift in Sources */,
 				7EBE5E0229CAA9C8008E4D6F /* deferred.metal in Sources */,
 				7E2FDF192978991200DE8F1F /* Q64.xcdatamodeld in Sources */,
-				7E6AA5CF29B4D30700D2282F /* Uniforms.swift in Sources */,
 				7EBE5E0429CAAA67008E4D6F /* forward.metal in Sources */,
 				7E2FDF492978AC3400DE8F1F /* Control.swift in Sources */,
-				7EBE5E0829CAC270008E4D6F /* com_lighting.metal in Sources */,
+				7EBE5E0829CAC270008E4D6F /* lighting.metal in Sources */,
 				7E2E35DA29AB3FDC006E80E3 /* Extensions.swift in Sources */,
 				7E6AA5D129B4DB9400D2282F /* Model.swift in Sources */,
 				7E2FDF2D29789AD900DE8F1F /* Math.swift in Sources */,
@@ -413,6 +433,7 @@
 				COPY_PHASE_STRIP = NO;
 				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEFINES_MODULE = YES;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
@@ -429,13 +450,18 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
+				HEADER_SEARCH_PATHS = "";
 				MACOSX_DEPLOYMENT_TARGET = 12.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
+				MTL_HEADER_SEARCH_PATHS = "";
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = macosx;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_INSTALL_OBJC_HEADER = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "$(PROJECT_DIR)/$(PROJECT_NAME)/gfx/unifs.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_PRECOMPILE_BRIDGING_HEADER = YES;
 			};
 			name = Debug;
 		};
@@ -474,6 +500,7 @@
 				COPY_PHASE_STRIP = NO;
 				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEFINES_MODULE = YES;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
@@ -484,12 +511,17 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
+				HEADER_SEARCH_PATHS = "";
 				MACOSX_DEPLOYMENT_TARGET = 12.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
+				MTL_HEADER_SEARCH_PATHS = "";
 				SDKROOT = macosx;
 				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_INSTALL_OBJC_HEADER = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "$(PROJECT_DIR)/$(PROJECT_NAME)/gfx/unifs.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_PRECOMPILE_BRIDGING_HEADER = YES;
 			};
 			name = Release;
 		};
@@ -498,6 +530,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++17";
 				CODE_SIGN_ENTITLEMENTS = Q64/app/Q64.entitlements;
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Automatic;
@@ -516,6 +549,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.Q64;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "$(PROJECT_DIR)/$(PROJECT_NAME)/gfx/shared.h";
 				SWIFT_VERSION = 5.0;
 			};
 			name = Debug;
@@ -525,6 +559,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++17";
 				CODE_SIGN_ENTITLEMENTS = Q64/app/Q64.entitlements;
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Automatic;
@@ -543,6 +578,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.Q64;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "$(PROJECT_DIR)/$(PROJECT_NAME)/gfx/shared.h";
 				SWIFT_VERSION = 5.0;
 			};
 			name = Release;

@@ -3,22 +3,21 @@ using namespace metal;
 
 #import "config.h"
 #import "util.h"
-#import "types.h"
-#import "unifs.h"
-#import "com_lighting.h"
+#import "material.h"
+#import "lighting.h"
 
 
-inline half4 fwdx_lighting(mfrg f,
+inline half4 fwdx_lighting(geo g,
 						   constant materialbuf &materials,
-						   constant scene &scn,
-						   constant light *lgts,
+						   constant xscene &scn,
+						   constant xlight *lgts,
 						   shadowmaps shds,
 						   uint msk) {
 #if DEBUG_CULL
 	return half4(debug_cull(msk), 1.f);
 #endif
-	material mat = materialsmp(f, materials);
-	float3 pos = f.pos;
+	xmaterial mat = materialsmp(g, materials);
+	float3 pos = g.pos;
 	float3 eye = eyedir(scn.cam, pos);
 	half3 rgb = 0.h;
 	for (int i = 0; (i += ctz(msk >> i)) < 32; ++i)
@@ -26,9 +25,9 @@ inline half4 fwdx_lighting(mfrg f,
 	return half4(rgb, 1.h);
 }
 
-vertex float4 vtxfwdp_depth(const device mvtx *vtcs		[[buffer(0)]],
-							const device model *mdls	[[buffer(1)]],
-							constant scene &scn			[[buffer(2)]],
+vertex float4 vtxfwdp_depth(const device xmvtx *vtcs	[[buffer(0)]],
+							const device xmodel *mdls	[[buffer(1)]],
+							constant xscene &scn		[[buffer(2)]],
 							uint vid					[[vertex_id]],
 							uint iid					[[instance_id]]) {
 	float3 pos = mmul3(mdls[iid].ctm, float4(vtcs[vid].pos, 1.f));
@@ -38,18 +37,18 @@ vertex float4 vtxfwdp_depth(const device mvtx *vtcs		[[buffer(0)]],
 
 fragment dpix frgfwdp_depth(float4 loc [[position]]) {return {loc.z};}
 
-fragment cpix frgfwdc_light(mfrg f								[[stage_in]],
+fragment cpix frgfwdc_light(geo g								[[stage_in]],
 							constant materialbuf &materials		[[buffer(0)]],
-							constant scene &scn					[[buffer(2)]],
-							constant light *lgts				[[buffer(3)]],
+							constant xscene &scn				[[buffer(2)]],
+							constant xlight *lgts				[[buffer(3)]],
 							shadowmaps shds						[[texture(0)]]) {
-	return {fwdx_lighting(f, materials, scn, lgts, shds, mskc(scn.nlgt))};
+	return {fwdx_lighting(g, materials, scn, lgts, shds, mskc(scn.nlgt))};
 }
-fragment cpix frgfwdp_light(mfrg f								[[stage_in]],
+fragment cpix frgfwdp_light(geo	g								[[stage_in]],
 							constant materialbuf &materials		[[buffer(0)]],
-							constant scene &scn					[[buffer(2)]],
-							constant light *lgts				[[buffer(3)]],
+							constant xscene &scn				[[buffer(2)]],
+							constant xlight *lgts				[[buffer(3)]],
 							threadgroup tile &tile				[[threadgroup(0)]],
 							shadowmaps shds						[[texture(0)]]) {
-	return {fwdx_lighting(f, materials, scn, lgts, shds, mskp(tile))};
+	return {fwdx_lighting(g, materials, scn, lgts, shds, mskp(tile))};
 }

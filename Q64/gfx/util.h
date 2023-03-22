@@ -1,9 +1,11 @@
 #import <metal_stdlib>
 using namespace metal;
 
-#import "unifs.h"
-#import "types.h"
+#import "shared.h"
 
+
+struct cpix {half4 color [[raster_order_group(0), color(0)]];};
+struct dpix {float depth [[raster_order_group(0), color(1)]];};
 
 inline float4 mmul4(float4x4 mat, float4 vec) {return mat * vec;}
 inline float3 mmul3(float4x4 mat, float4 vec) {return (mat * vec).xyz;}
@@ -30,13 +32,13 @@ inline float angle(float3 a, float3 b) {
 	return acos(dot(a, b));
 }
 
-inline float4 scrpos(camera cam, float3 pos) {
+inline float4 scrpos(xcamera cam, float3 pos) {
 	return mmul4(cam.proj * cam.invview, pos);
 }
-inline float3 wldpos(camera cam, float3 ndc) {
+inline float3 wldpos(xcamera cam, float3 ndc) {
 	return mmulw(cam.view * cam.invproj, ndc);
 }
-inline float3 eyedir(camera cam, float3 pos) {
+inline float3 eyedir(xcamera cam, float3 pos) {
 	return normalize(viewpos(cam.view) - pos);
 }
 
@@ -53,52 +55,18 @@ inline bool inplane(float4 plane, float3 p, float3 d) {
 	return inplane(plane, p) || inplane(plane, p + d);
 }
 
-inline bool is_qlight(light lgt) {return lgt.phi == -1.f;}
-inline bool is_ilight(light lgt) {return lgt.phi ==  0.f;}
-inline bool is_clight(light lgt) {return lgt.phi > 0.f;}
-inline float3 lgtfwd(light lgt, float3 pos) {
+inline bool is_qlight(xlight lgt) {return lgt.phi == -1.f;}
+inline bool is_ilight(xlight lgt) {return lgt.phi ==  0.f;}
+inline bool is_clight(xlight lgt) {return lgt.phi > 0.f;}
+inline float3 lgtfwd(xlight lgt, float3 pos) {
 	pos = orient(lgt.dir) * pos;
 	pos *= lgt.rad;
 	pos += lgt.pos;
 	return pos;
 }
-inline float3 lgtbwd(light lgt, float3 pos) {
+inline float3 lgtbwd(xlight lgt, float3 pos) {
 	pos -= lgt.pos;
 	pos /= lgt.rad;
 	pos = transpose(orient(lgt.dir)) * pos;
 	return pos;
-}
-
-inline float3 smpdefault(sampler smp, float2 uv, texture2d<float> tex, float3 def) {
-	return saturate(is_null_texture(tex) ? def : tex.sample(smp, uv).rgb);
-}
-inline material materialsmp(const mfrg f, constant materialbuf &materials) {
-	constexpr sampler smp(address::repeat);
-	constant modelmaterial &mmat = materials[f.mat];
-	material mat;
-	mat.alb = smpdefault(smp, f.tex, mmat.alb, mmat.defaults.alb);
-	mat.nml = smpdefault(smp, f.tex, mmat.nml, mmat.defaults.nml);
-	mat.rgh = smpdefault(smp, f.tex, mmat.rgh, mmat.defaults.rgh).r;
-	mat.mtl = smpdefault(smp, f.tex, mmat.mtl, mmat.defaults.mtl).r;
-	mat. ao = smpdefault(smp, f.tex, mmat. ao, mmat.defaults. ao).r;
-	float3x3 tbn = {f.tgt, f.btg, f.nml};
-	mat.nml = normalize(tbn * normalize(mat.nml * 2.h - 1.h));
-	return mat;
-}
-
-inline uint mskc(uint nlgt) {
-	return !nlgt? 0u : -1u >> (32u - ((nlgt < 32u)? nlgt : 32u));
-}
-inline uint mskp(threadgroup tile &tile) {
-	return atomic_load_explicit(&tile.msk, memory_order_relaxed);
-}
-
-inline half3 debug_mask(light lgt) {
-	return (half3)normalize(lgt.hue) * 0.2h;
-}
-inline half3 debug_cull(uint msk) {
-	constexpr half3 a = half3( 16,  16,  32);
-	constexpr half3 b = half3(256, 128,   0);
-	half x = (half)popcount(msk) / 32.h;
-	return mix(a, b, x)/256.h;
 }

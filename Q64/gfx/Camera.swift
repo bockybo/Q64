@@ -30,10 +30,10 @@ struct Camera {
 		return view
 	}
 	
-	var cam: CAM {
+	var cam: xcamera {
 		let proj = self.proj
 		let view = self.view
-		return .init(
+		return xcamera(
 			proj: proj,
 			view: view,
 			invproj: proj.inv,

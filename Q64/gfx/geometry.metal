@@ -1,24 +1,23 @@
-#include <metal_stdlib>
+#import <metal_stdlib>
 using namespace metal;
 
-#include "util.h"
-#include "types.h"
-#include "unifs.h"
+#import "geometry.h"
+#import "util.h"
 
 
-vertex mfrg vtx_main(const device mvtx *vtcs		[[buffer(0)]],
-					 const device model *mdls		[[buffer(1)]],
-					 constant scene &scn			[[buffer(2)]],
-					 uint vid						[[vertex_id]],
-					 uint iid						[[instance_id]]) {
-	mvtx v = vtcs[vid];
-	model mdl = mdls[iid];
+vertex geo vtx_main(const device xmvtx *vtcs		[[buffer(0)]],
+					const device xmodel *mdls		[[buffer(1)]],
+					constant xscene &scn			[[buffer(2)]],
+					uint vid						[[vertex_id]],
+					uint iid						[[instance_id]]) {
+	xmvtx v = vtcs[vid];
+	xmodel mdl = mdls[iid];
 	float4x4 inv = transpose(mdl.inv);
-	mfrg f = {.tex = v.tex, .mat = mdl.mat};
-	f.pos = mmul3(mdl.ctm, v.pos);
-	f.loc = scrpos(scn.cam, f.pos);
-	f.nml = normalize(mmul3(inv, (float3)v.nml, 0.f));
-	f.tgt = normalize(mmul3(inv, (float3)v.tgt.xyz, 0.f));
-	f.btg = normalize(cross(f.nml, f.tgt) * v.tgt.w);
-	return f;
+	geo g = {.tex = v.tex, .mat = mdl.mat};
+	g.pos = mmul3(mdl.ctm, v.pos);
+	g.loc = scrpos(scn.cam, g.pos);
+	g.nml = normalize(mmul3(inv, (float3)v.nml, 0.f));
+	g.tgt = normalize(mmul3(inv, (float3)v.tgt.xyz, 0.f));
+	g.btg = normalize(cross(g.nml, g.tgt) * v.tgt.w);
+	return g;
 }

@@ -24,7 +24,7 @@ struct Material {
 	var rgh_default: float = 1
 	var mtl_default: float = 0
 	var  ao_default: float = 1
-	var defaults: MAT {return .init(
+	var defaults: xmaterial {return .init(
 		alb: self.alb_default,
 		nml: self.nml_default,
 		rgh: self.rgh_default,

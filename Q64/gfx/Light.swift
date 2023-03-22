@@ -11,14 +11,14 @@ protocol Light {
 	var rad: float {get}
 	var phi: float {get}
 	var proj: float4x4 {get}
-	var lgt: LGT {get}
+	var lgt: xlight {get}
 }
 extension Light {
 	var dir: float3 {return .z}
 	var rad: float {return 1}
 	var phi: float {return 0}
-	var lgt: LGT {
-		return LGT(
+	var lgt: xlight {
+		return xlight(
 			proj: self.proj,
 			hue: self.hue,
 			pos: self.src,

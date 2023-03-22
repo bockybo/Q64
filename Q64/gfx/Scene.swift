@@ -30,10 +30,10 @@ class Scene {
 		set(model) {self.models[i] = model}
 	}
 	
-	var scn: SCN {
-		return SCN(
-			nlgt: uint(self.lights.count),
-			cam: self.camera.cam
+	var scn: xscene {
+		return xscene(
+			cam: self.camera.cam,
+			nlgt: uint(self.lights.count)
 		)
 	}
 	

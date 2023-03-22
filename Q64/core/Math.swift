@@ -2,23 +2,12 @@ import MetalKit
 
 
 typealias float = Float32
-typealias float2 = SIMD2<float>
-typealias float3 = SIMD3<float>
-typealias float4 = SIMD4<float>
-
+typealias  int =  Int32
 typealias uint = UInt32
-typealias uint2 = SIMD2<uint>
-typealias uint3 = SIMD3<uint>
-typealias uint4 = SIMD4<uint>
-
-typealias float3x3 = simd_float3x3
-typealias float4x4 = simd_float4x4
-
 
 extension SIMD2 {init(_ scalar: Scalar) {self.init(repeating: scalar)}}
 extension SIMD3 {init(_ scalar: Scalar) {self.init(repeating: scalar)}}
 extension SIMD4 {init(_ scalar: Scalar) {self.init(repeating: scalar)}}
-
 
 extension float3 {
 	static let x = float3(1, 0, 0)
