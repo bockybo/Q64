@@ -90,13 +90,13 @@ inline float4 dispatch_attenuate(float3 pos, xlight lgt, shadowmaps shds, uint l
 	return attenuate_cone(pos, lgt, shds, lid);
 }
 
-inline float3 bdrfd(float3 fd0, float ndl) {return max(0.f, ndl) * FD(fd0);}
+inline float3 bdrfd(float3 fd0) {return FD(fd0);}
 inline float3 bdrfs(float3 fs0, float ndl, float ndv, float ndh, float ldh, float a) {
-	float3 fs = FS(fs0, ldh);
-	fs *= 0.25f / max(1e-8f, ndv);
-	fs *= (ndh <= 0.f)? 0.f : NDF(a, ndh);
-	fs *= (ndv <= 0.f)? 0.f : GSF(a, ndl, ndv, ndh, ldh);
-	return fs;
+	float ks = 1.f / (4.f * M_PI_F * abs(ndl * ndv));
+	ks *= NDF(a, ndh) * (ndh > 0.f);
+	ks *= GSF(a, ndl);
+	ks *= GSF(a, ndv);
+	return ks * FS(fs0, ldh);
 }
 float3 bdrf(xmaterial mat, float3 l, float3 v) {
 	float3 n = normalize(mat.nml);
@@ -107,9 +107,9 @@ float3 bdrf(xmaterial mat, float3 l, float3 v) {
 	float ldh = max(0.f, dot(l, h));
 	float3 fd = mix(mat.alb, 0.f, mat.mtl) * mat.ao;
 	float3 fs = mix(BASE_F0, mat.alb, mat.mtl);
-	fd = bdrfd(fd, ndl);
+	fd = bdrfd(fd);
 	fs = bdrfs(fs, ndl, ndv, ndh, ldh, mat.rgh);
-	return saturate(fd + fs);
+	return saturate(ndl * (fd + fs));
 }
 
 half3 com_lighting(xmaterial mat,

@@ -15,5 +15,5 @@
 
 #define FD					FD_lambert
 #define FS					FS_schlick
-#define NDF					NDF_beckmann
-#define GSF					GSF_ggxwalter
+#define NDF					NDF_ggx
+#define GSF					GSF_smith

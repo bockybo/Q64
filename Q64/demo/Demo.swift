@@ -29,15 +29,14 @@ class Demo: Ctrl {
 		Material(
 			alb: util.texture(path: "ice_alb.png", srgb: true),
 			nml: util.texture(path: "ice_nml.png"),
-			mtl: util.texture(path: "ice_ao.png"),
-			ao: util.texture(path: "ice_mtl.png"),
-			rgh_default: 0.15
+			ao: util.texture(path: "ice_ao.png"),
+			rgh_default: 0.1,
+			mtl_default: 0.9
 		),
 		Material(
 			alb: util.texture(path: "brick_alb.jpg", srgb: true),
 			nml: util.texture(path: "brick_nml.jpg"),
-			rgh_default: 0.1,
-			mtl_default: 1.0
+			rgh_default: 0.8
 		),
 		Material(alb_default: normalize(.xy)),
 		Material(alb_default: normalize(.xz)),
