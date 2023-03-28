@@ -33,7 +33,9 @@ class Scene {
 	var scn: xscene {
 		return xscene(
 			cam: self.camera.cam,
-			nlgt: uint(self.lights.count)
+			nlgt: uint(self.lights.count),
+			nclgt: uint(self.clights.count),
+			nilgt: uint(self.ilights.count)
 		)
 	}
 	

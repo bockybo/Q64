@@ -7,24 +7,6 @@ using namespace metal;
 #import "lighting.h"
 
 
-inline half4 fwdx_lighting(geo g,
-						   constant materialbuf &materials,
-						   constant xscene &scn,
-						   constant xlight *lgts,
-						   shadowmaps shds,
-						   uint msk) {
-#if DEBUG_CULL
-	return half4(debug_cull(msk), 1.f);
-#endif
-	xmaterial mat = materialsmp(g, materials);
-	float3 pos = g.pos;
-	float3 eye = eyedir(scn.cam, pos);
-	half3 rgb = 0.h;
-	for (int i = 0; (i += ctz(msk >> i)) < 32; ++i)
-		rgb += com_lighting(mat, pos, eye, lgts, shds, i);
-	return half4(rgb, 1.h);
-}
-
 vertex float4 vtxfwdp_depth(const device xmvtx *vtcs	[[buffer(0)]],
 							const device xmodel *mdls	[[buffer(1)]],
 							constant xscene &scn		[[buffer(2)]],
@@ -37,18 +19,31 @@ vertex float4 vtxfwdp_depth(const device xmvtx *vtcs	[[buffer(0)]],
 
 fragment dpix frgfwdp_depth(float4 loc [[position]]) {return {loc.z};}
 
+inline cpix fwdx_lighting(geo g,
+						  constant materialbuf &materials,
+						  constant xscene &scn,
+						  constant xlight *lgts,
+						  texture2d_array<float> shds,
+						  uint msk) {
+	xmaterial mat = materialsmp(g, materials);
+	float3 wld = g.pos;
+	float3 rgb = 0.f;
+	for (uint i = 0; (i += ctz(msk >> i)) < scn.nlgt; ++i)
+		rgb = com_lighting(rgb, wld, mat, scn, lgts, {shds, i});
+	return {half4((half3)rgb, 1.h)};
+}
 fragment cpix frgfwdc_light(geo g								[[stage_in]],
 							constant materialbuf &materials		[[buffer(0)]],
 							constant xscene &scn				[[buffer(2)]],
 							constant xlight *lgts				[[buffer(3)]],
-							shadowmaps shds						[[texture(0)]]) {
-	return {fwdx_lighting(g, materials, scn, lgts, shds, mskc(scn.nlgt))};
+							texture2d_array<float> shds			[[texture(0)]]) {
+	return fwdx_lighting(g, materials, scn, lgts, shds, mskc(scn.nlgt));
 }
 fragment cpix frgfwdp_light(geo	g								[[stage_in]],
 							constant materialbuf &materials		[[buffer(0)]],
 							constant xscene &scn				[[buffer(2)]],
 							constant xlight *lgts				[[buffer(3)]],
 							threadgroup tile &tile				[[threadgroup(0)]],
-							shadowmaps shds						[[texture(0)]]) {
-	return {fwdx_lighting(g, materials, scn, lgts, shds, mskp(tile))};
+							texture2d_array<float> shds			[[texture(0)]]) {
+	return fwdx_lighting(g, materials, scn, lgts, shds, mskp(tile));
 }

@@ -11,7 +11,8 @@ class lib {
 		
 		static let vtx_main			= util.shader("vtx_main")
 		
-		static let vtx_shade		= util.shader("vtx_shade")
+		static let vtx_shade1		= util.shader("vtx_shade1")
+		static let vtx_shade6		= util.shader("vtx_shade6")
 		static let frg_shade		= util.shader("frg_shade")
 		
 		static let knl_cull			= util.shader("knl_cull")
@@ -56,25 +57,30 @@ class lib {
 			dim: lib.lightmesh.volumedim,
 			descr: lib.vtxdescrs.base
 		)
-		static let cone = util.mesh.cone(
-			dim: lib.lightmesh.volumedim * (1 + .xz),
-			seg: uint2(20, 20),
-			ctm: .xrot(-.pi/2) * .ypos(-0.5),
-			descr: lib.vtxdescrs.base
-		) // origin at center not apex, docs lie
+		// TODO: static let hemi
 		
 	}
 	
 	struct states {
 		
-		static let psx_shade = util.pipestate(label: "ps shade") {
+		static let psx_shade1 = util.pipestate(label: "ps shade2d") {
 			descr in
-			descr.vertexFunction					= lib.shaders.vtx_shade
+			descr.vertexFunction					= lib.shaders.vtx_shade1
 			descr.fragmentFunction					= lib.shaders.frg_shade
 			descr.colorAttachments[0].pixelFormat	= Renderer.fmt_shade
 			descr.depthAttachmentPixelFormat 		= Renderer.fmt_depth
 			descr.rasterSampleCount					= Renderer.shadow_msaa
 			descr.inputPrimitiveTopology			= .triangle
+		}
+		static let psx_shade6 = util.pipestate(label: "ps shade3d") {
+			descr in
+			descr.vertexFunction					= lib.shaders.vtx_shade6
+			descr.fragmentFunction					= lib.shaders.frg_shade
+			descr.colorAttachments[0].pixelFormat	= Renderer.fmt_shade
+			descr.depthAttachmentPixelFormat 		= Renderer.fmt_depth
+			descr.rasterSampleCount					= Renderer.shadow_msaa
+			descr.inputPrimitiveTopology			= .triangle
+			descr.maxVertexAmplificationCount		= 6
 		}
 		
 		static let psfwdc_light = util.pipestate(label: "ps fwd0 lighting") {

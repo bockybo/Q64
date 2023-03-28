@@ -1,13 +1,18 @@
 import MetalKit
 
 
-typealias float = Float32
-typealias  int =  Int32
-typealias uint = UInt32
+typealias float		= Float32
+typealias int		= Int32
+typealias short		= Int16
+typealias uint		= UInt32
+typealias ushort	= UInt16
 
 extension SIMD2 {init(_ scalar: Scalar) {self.init(repeating: scalar)}}
 extension SIMD3 {init(_ scalar: Scalar) {self.init(repeating: scalar)}}
 extension SIMD4 {init(_ scalar: Scalar) {self.init(repeating: scalar)}}
+
+func any(_ v: float3) -> Bool {return v.x != 0 || v.y != 0 || v.z != 0}
+func all(_ v: float3) -> Bool {return v.x != 0 && v.y != 0 && v.z != 0}
 
 extension float3 {
 	static let x = float3(1, 0, 0)
@@ -111,33 +116,39 @@ extension float4x4 {
 	}}
 	
 	static func look(dir: float3, src: float3 = float3(0), up: float3 = .y) -> float4x4 {return .tf {
-		let f = dir
-		let s = normalize(cross(f, up))
-		let u = normalize(cross(s, f))
+		let s = normalize(cross(dir, up))
+		let u = normalize(cross(s, dir))
 		$0[0].xyz = s
 		$0[1].xyz = u
-		$0[2].xyz = -f
-		$0[3].xyz = src
+		$0[2].xyz = -dir
+		$0[3].xyz =  src
 	}}
 	static func look(dst: float3, src: float3 = float3(0), up: float3 = .y) -> float4x4 {
 		return .look(dir: normalize(dst - src), src: src, up: up)
 	}
-	
-	static func persp(fov: float, asp: float = 1, z0: float, z1: float) -> float4x4 {return .tf {
-		let y = 1 / tan(0.5 * fov)
-		let x = y / asp
-		let z = z1 / (z0 - z1)
-		let w = z * z0
-		$0 = .mag(float3(x, y, z))
-		$0[2].w = -1
-		$0[3].z =  w
-	}}
 	
 	static func ortho(p0: float3, p1: float3) -> float4x4 {
 		let m = float4x4.mag(float3(2, 2, -1) / (p1 - p0))
 		let t = float4x4.pos(float3(1, 1,  0) * (p1 + p0) * -0.5)
 		return m * t
 	}
+	static func persp(
+		fov: float,
+		asp: float = 1,
+		z0: float,
+		z1: float,
+		w: Bool = true
+	) -> float4x4 {
+		let y = 1 / tan(0.5 * fov)
+		let x = y / asp
+		let z = z1 / (z0 - z1)
+		var proj = float4x4.mag(float3(x, y, z))
+		proj[2].w = -1
+		proj[3].z = z * z0
+		proj[3].w = w ? 1 : 0
+		return proj
+	}
+	
 	
 	
 	static func xpos(_ p: float) -> float4x4 {return .pos(float3(p, 0, 0))}

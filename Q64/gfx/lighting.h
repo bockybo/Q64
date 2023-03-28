@@ -5,14 +5,16 @@ using namespace metal;
 #import "culling.h"
 
 
-using shadowmaps = texture2d_array<float>;
+struct shadowmap {
+	static constexpr sampler smp = sampler(filter::linear);
+	texture2d_array<float> map;
+	uint i;
+	float2 sample(float2 loc, int2 off = 0);
+};
 
-half3 com_lighting(xmaterial mat,
-				   float3 pos,
-				   float3 eye,
-				   constant xlight *lgts,
-				   shadowmaps shds,
-				   uint lid);
-
-inline half3 debug_mask(xlight lgt);
-inline half3 debug_cull(uint msk);
+float3 com_lighting(float3 rgb,
+					float3 wld,
+					xmaterial mat,
+					constant xscene &scn,
+					constant xlight *lgts,
+					shadowmap shd);

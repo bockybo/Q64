@@ -7,7 +7,7 @@ import MetalKit
 class Demo: Ctrl {
 	static let dim: float = 50
 	static let nsph = 8
-	static let nbox = 12
+	static let nhem = 0
 	
 	static let materials = [
 		Material(),
@@ -20,16 +20,20 @@ class Demo: Ctrl {
 			alb: util.texture(path: "gold_alb.jpg", srgb: true),
 			nml: util.texture(path: "gold_nml.jpg"),
 			rgh: util.texture(path: "gold_rgh.jpg"),
-			ao: util.texture(path: "gold_ao.jpg"),
 			mtl_default: 1.0
 		),
 		Material(
-			alb_default: float3(255, 255, 0)
+			alb: util.texture(path: "steel_alb.png", srgb: true),
+			nml: util.texture(path: "steel_nml.png"),
+			mtl: util.texture(path: "steel_mtl.png"),
+			rgh_default: 0.3
+		),
+		Material(
+			alb_default: float3(1, 1, 0)
 		),
 		Material(
 			alb: util.texture(path: "ice_alb.png", srgb: true),
 			nml: util.texture(path: "ice_nml.png"),
-			ao: util.texture(path: "ice_ao.png"),
 			rgh_default: 0.1,
 			mtl_default: 0.9
 		),
@@ -41,49 +45,63 @@ class Demo: Ctrl {
 		Material(alb_default: normalize(.xy)),
 		Material(alb_default: normalize(.xz)),
 		Material(alb_default: normalize(.yz)),
+		Material(
+			rgh_default: 0.1,
+			mtl_default: 1.0
+		),
 	]
+	
+	let crs = Model(meshes: util.mesh.load("cruiser.obj", ctm: .mag(0.25)), [
+		Instance(matID: 0)
+	])
+	let gnd = Model(meshes: [util.mesh.box(dim: Demo.dim * .xz + .y)], [
+		Instance(matID: 1, ctm: .ypos(-0.5))
+	])
+	let ogn = Model(meshes: [util.mesh.sph(dim: 0.4 * (.xz + .y * 2))], [
+		Instance(matID: 2)
+	])
+	let tmp = Model(meshes: util.mesh.load("Temple.obj", ctm: .mag(0.008)), [
+		Instance(matID: 3, ctm: .pos(float3(0, 0.01, -5)))
+	])
+	let sun = Model(meshes: [util.mesh.sph(dim: float3(1.2),
+										   seg: uint2(100),
+										   inwd: true)], [
+		Instance(matID: 4)
+	])
+	let sph = Model(meshes: [util.mesh.hem(dim: float3(0.5, 6.0, 0.5),
+										   seg: uint2(100, 20))],
+		.init(repeating: Instance(matID: 5), count: Demo.nsph)
+	)
+	let hem = Model(meshes: [util.mesh.cap(dim: float3(1.0, 2.5, 1.0),
+										   seg: uint3(20, 20, 10))],
+		.init(repeating: Instance(matID: 6), count: Demo.nhem)
+	)
+	let pil = Model(meshes: [util.mesh.cap(dim: float3(0.3, 0.8, 0.3),
+										   seg: uint3(20, 20, 20),
+										   ctm: .xrot(.pi/2))],
+		(0..<Demo.nsph).map {i in Instance(matID: 7 + i%3)}
+	)
+	let box = Model(meshes: [util.mesh.box(dim: float3(32, 8, 3))], [
+		Instance(matID: 10, ctm: .ypos(-0.5) * .zpos(-16)),
+		Instance(matID: 10, ctm: .ypos(-0.5) * .xpos(-16) * .yrot(.pi/2)),
+		Instance(matID: 10, ctm: .ypos(-0.5) * .xpos(+16) * .yrot(.pi/2)),
+	])
+	
 	
 	required init(scene: Scene) {
 		defer {self.paused = false}
 		
-		let crs = Model(
-			meshes: util.mesh.load("cruiser.obj", ctm: .mag(0.25)),
-			[Instance(matID: 0)]
-		)
-		let gnd = Model(
-			meshes: [util.mesh.box(dim: Demo.dim * .xz + .y)],
-			[Instance(matID: 1, ctm: .ypos(-0.5))]
-		)
-		let ogn = Model(
-			meshes: [util.mesh.sph(dim: 0.4 * (.xz + .y * 2))],
-			[Instance(matID: 2)]
-		)
-		let tmp = Model(
-			meshes: util.mesh.load("Temple.obj", ctm: .mag(0.008)),
-			[Instance(matID: 0, ctm: .pos(float3(0, 0.01, -5)))]
-		)
-		let sun = Model(
-			meshes: [util.mesh.sph(dim: float3(1.2),
-								   seg: uint2(100),
-								   inwd: true)],
-			[Instance(matID: 3)]
-		)
-		var sph = Model(
-			meshes: [util.mesh.hem(dim: float3(0.5, 6.0, 0.5),
-								   seg: uint2(100, 20))],
-			.init(repeating: Instance(matID: 4), count: Demo.nsph)
-		)
-		var box = Model(
-			meshes: [util.mesh.cap(dim: float3(1.0, 2.5, 1.0),
-								   seg: uint3(20, 20, 10))],
-			.init(repeating: Instance(matID: 5), count: Demo.nbox)
-		)
-		let pil = Model(
-			meshes: [util.mesh.cap(dim: float3(0.3, 0.8, 0.3),
-								   seg: uint3(20, 20, 20),
-								   ctm: .xrot(.pi/2))],
-			(0..<Demo.nsph).map {i in Instance(matID: 6 + i%3)}
-		)
+		scene.add([
+			self.crs,
+			self.gnd,
+			self.ogn,
+			self.tmp,
+//			self.sun,
+			self.sph,
+			self.hem,
+			self.pil,
+			self.box,
+		])
 		
 		scene.camera.fov = 60 * .pi/180
 		
@@ -92,17 +110,22 @@ class Demo: Ctrl {
 		scene.sun.hue = 0.4 * normalize(float3(0.95, 0.85, 0.65))
 		scene.sun.src = float3(1, 0.5, 1) * Demo.dim
 		scene.sun.dst = float3(0)
-		scene.sun.p0.xy = Demo.dim/1.5 * float2(-1)
-		scene.sun.p1.xy = Demo.dim/1.5 * float2(+1)
+		scene.sun.w = Demo.dim / 1.5
 		
-		for i in 0..<sph.nid {
-			let a = 2 * .pi * float(i)/float(sph.nid)
-			let x = 0.3 * Demo.dim * cosf(a)
-			let z = 0.3 * Demo.dim * sinf(a)
+		scene.ilights += [
+			.init(hue: float3(1, 1, 0), rad: 24),
+			.init(hue: float3(1, 0, 1), rad: 24),
+			.init(hue: float3(0, 1, 1), rad: 24),
+		]
+		
+		for i in 0..<self.sph.nid {
+			let a = 2 * .pi * float(i)/float(self.sph.nid)
+			let x = 0.25 * Demo.dim * cosf(a)
+			let z = 0.25 * Demo.dim * sinf(a)
 			let h = float.random(in: 0.4..<1.2)
 			let y = 6*h
 			let pos = float3(x, 0, z)
-			sph[i].ctm = .ymag(h) * .pos(pos)
+			self.sph[i].ctm = .ymag(h) * .pos(pos)
 			scene.clights.append(.init(
 				hue: 5.0 * Demo.materials[pil[i].matID].alb_default,
 				src: pos + .y * (y + 2),
@@ -111,16 +134,16 @@ class Demo: Ctrl {
 			))
 		}
 		
-		for i in 0..<box.nid {
+		for i in 0..<self.hem.nid {
 			let x = 0.45 * Demo.dim * float.random(in: -1..<1)
 			let z = 0.45 * Demo.dim * float.random(in: -1..<1)
-			box[i].ctm = .pos(float3(x, 0, z))
-			scene.ilights.append(.init(hue: float3(1), src: float3(x, 4, z), rad: 5))
+			self.box[i].ctm = .pos(float3(x, 0, z))
+			scene.ilights.append(.init(
+				hue: float3(1),
+				src: float3(x, 4, z),
+				rad: 5
+			))
 		}
-		
-		scene.ilights += .init(repeating: .init(hue: float3(3), rad: 1.5), count: 3)
-		
-		scene.add([crs, gnd, ogn, tmp, sun, sph, box, pil])
 		
 	}
 	
@@ -135,31 +158,29 @@ class Demo: Ctrl {
 		scene.camera.pos = self.camera.pos
 		scene.camera.rot = self.camera.rot
 		
-		scene.sun.src.x = Demo.dim * cosf(self.t / 2)
-		scene.sun.src.z = Demo.dim * sinf(self.t / 2)
-		scene.sun.src.y = 30 + 10 * sinf(self.t * 2)
-//		scene.sun.src.y = 30
-		
-		for (i, light) in scene.clights.enumerated() {
-			scene.clights[i].dst = self.cruiser.pos
-			scene[7][i].ctm = .look(
-				dst: light.dst,
-				src: light.src
-			) * .zpos(3)
-		}
+//		scene.sun.src.x = Demo.dim * cosf(self.t / 2)
+//		scene.sun.src.z = Demo.dim * sinf(self.t / 2)
+//		scene.sun.src.y = 30 + 10 * sinf(self.t * 2)
+		scene.sun.src.y = 30
 		
 		for i in 0..<3 {
 			let a = 2 * .pi * float(i)/float(3)
-			let x = 3.0 * cosf(a + self.t)
-			let z = 3.0 * sinf(a + self.t)
-			let i = scene.ilights.count - i - 1
-			scene.ilights[i].src = scene[3][0].ctm.pos + float3(x, 1.5, z)
+			let x = 2.4 * cosf(a + self.t)
+			let z = 2.4 * sinf(a + self.t)
+			scene.ilights[i].src = self.cruiser.pos + float3(x, 1.5, z)
 		}
 		
-		scene[0][0].ctm = self.cruiser.ctm
-		scene[2][0].ctm = .yrot(3 * self.t) * .ypos(3)
-		scene[4][0].ctm = .pos(scene.sun.src)
-//		scene[4][0].ctm = .mag(0)
+		for i in 0..<self.pil.nid {
+			scene.clights[i].dst = self.cruiser.pos
+			self.pil[i].ctm = .look(
+				dst: scene.clights[i].dst,
+				src: scene.clights[i].src
+			) * .zpos(3)
+		}
+		
+		self.crs[0].ctm = self.cruiser.ctm
+		self.ogn[0].ctm = .yrot(3 * self.t) * .ypos(3)
+//		self.sun[0].ctm = .pos(scene.sun.src)
 		
 	}
 	
@@ -189,7 +210,8 @@ class Demo: Ctrl {
 			}
 		}
 		private var dlt: float3 {
-			return (self.mov == float3(0)) ? float3(0) : .yrot(self.rot.y) * normalize(self.mov)
+			guard any(self.mov) else {return float3(0)}
+			return .yrot(self.rot.y) * normalize(self.mov)
 		}
 	}
 	
@@ -198,23 +220,25 @@ class Demo: Ctrl {
 		var pos = float3(0)
 		var rot = float3(0)
 		var vel = float3(0)
-		mutating func tick(dt: float) {
-			self.rot.x -= 0.03 * self.mov.x
-			self.rot.z -= 0.06 * self.mov.z
-			self.rot.y -= 0.08 * self.rot.z * dt
-			self.vel.x += 0.2 * self.rot.x * sin(-self.rot.y)
-			self.vel.z += 0.2 * self.rot.x * cos(-self.rot.y)
-			self.pos -= 0.018 * self.vel * dt
-			self.vel *= 0.995
-			self.rot.x *= 0.9
-			self.rot.z *= 0.9
-		}
 		var ctm: float4x4 {
 			var ctm = float4x4.pos(self.pos)
 			ctm *= .yrot(self.rot.y)
 			ctm *= .xrot(self.rot.x)
 			ctm *= .zrot(self.rot.z)
 			return ctm
+		}
+		mutating func tick(dt: float) {
+			self.vel.y += 0.75 * self.mov.y
+			self.vel.y -= 0.10 * (self.pos.y - 0.5)
+			self.rot.x -= 0.03 * self.mov.x
+			self.rot.z -= 0.06 * self.mov.z
+			self.rot.y -= 0.08 * self.rot.z * dt
+			self.vel.x -= 0.2 * self.rot.x * sin(-self.rot.y)
+			self.vel.z -= 0.2 * self.rot.x * cos(-self.rot.y)
+			self.pos += 0.018 * self.vel * dt
+			self.vel.y *= 0.925
+			self.vel.xz *= 0.995
+			self.rot.xz *= 0.9
 		}
 	}
 	
@@ -241,6 +265,7 @@ class Demo: Ctrl {
 			.dn:	{self.cruiser.mov -= .x},
 			.lt:	{self.cruiser.mov -= .z},
 			.rt:	{self.cruiser.mov += .z},
+			.ent:	{self.cruiser.mov += .y},
 		],
 		keyup: [
 			.spc:	{self.camera.mov -= .y},
@@ -253,6 +278,7 @@ class Demo: Ctrl {
 			.dn:	{self.cruiser.mov += .x},
 			.lt:	{self.cruiser.mov += .z},
 			.rt:	{self.cruiser.mov -= .z},
+			.ent:	{self.cruiser.mov -= .y},
 		],
 		mov: [
 			-1: {if !self.paused {self.camera.rot(sns: $0)}}

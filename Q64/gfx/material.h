@@ -10,8 +10,7 @@ struct material {
 	texture2d<float> nml	[[texture(1)]];
 	texture2d<float> rgh	[[texture(2)]];
 	texture2d<float> mtl	[[texture(3)]];
-	texture2d<float>  ao	[[texture(4)]];
-	xmaterial defaults		[[id(5)]];
+	xmaterial defaults		[[id(4)]];
 };
 using materialbuf = array<material, MAX_NMATERIAL>;
 
@@ -26,7 +25,6 @@ inline xmaterial materialsmp(geo g, constant materialbuf &materials) {
 	xmat.nml = smpdefault(smp, g.tex, mmat.nml, mmat.defaults.nml);
 	xmat.rgh = smpdefault(smp, g.tex, mmat.rgh, mmat.defaults.rgh).r;
 	xmat.mtl = smpdefault(smp, g.tex, mmat.mtl, mmat.defaults.mtl).r;
-	xmat. ao = smpdefault(smp, g.tex, mmat. ao, mmat.defaults. ao).r;
 	float3x3 tbn = {g.tgt, g.btg, g.nml};
 	xmat.nml = normalize(tbn * normalize(xmat.nml * 2.h - 1.h));
 	return xmat;

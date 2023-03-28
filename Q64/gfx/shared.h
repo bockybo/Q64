@@ -52,6 +52,8 @@ typedef struct {
 typedef struct {
 	xcamera cam;
 	uint nlgt;
+	uint nclgt;
+	uint nilgt;
 } xscene;
 
 typedef struct {
@@ -68,5 +70,4 @@ typedef struct {
 	float3 nml;
 	float  rgh;
 	float  mtl;
-	float   ao;
 } xmaterial;

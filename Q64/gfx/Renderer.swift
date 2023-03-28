@@ -22,13 +22,13 @@ class Renderer: NSObject, MTKViewDelegate {
 	static let fmt_shade	= MTLPixelFormat.rg32Float
 	static let fmt_dep		= MTLPixelFormat.r32Float
 	static let fmt_alb		= MTLPixelFormat.rgba8Unorm
-	static let fmt_nml		= MTLPixelFormat.rgba8Snorm
-	static let fmt_mat		= MTLPixelFormat.rgba8Unorm
+	static let fmt_nml		= MTLPixelFormat.rgba16Snorm
+	static let fmt_mat		= MTLPixelFormat.rg8Unorm
 	
 	static let nflight = 3
 	
 	static let shadow_size = 16384 / 8
-	static let shadow_msaa = 2
+	static let shadow_msaa = 1
 	
 	static let tile_w = 16
 	static let tile_h = 16
@@ -76,8 +76,11 @@ class Renderer: NSObject, MTKViewDelegate {
 		let lgtbuf = util.buffer(len: sizeof(xlight.self) * Int(MAX_NLIGHT), label: "light buffer")
 		
 		var models: [Model] = []
+		
 		var nclight: Int = 0
 		var nilight: Int = 0
+		var nlight: Int {return 1 + self.nclight + self.nilight}
+		var nshade: Int {return 1 + self.nclight + 6*self.nilight}
 		
 		mutating func copy(_ scene: Scene) {
 			
@@ -178,7 +181,7 @@ class Renderer: NSObject, MTKViewDelegate {
 				descr in
 				setup(descr)
 				descr.pixelFormat		= Renderer.fmt_shade
-				descr.usage				= [.renderTarget, .shaderRead, .shaderWrite]
+				descr.usage				= [.renderTarget, .shaderRead]
 				descr.storageMode		= .private
 				descr.textureType		= .type2DArray
 			}
@@ -289,18 +292,15 @@ class Renderer: NSObject, MTKViewDelegate {
 		quadstate: MTLRenderPipelineState,
 		volstate:  MTLRenderPipelineState
 	) {
+		// TODO: use hemispheres for cones
 		enc.setFrontFacing(.clockwise)
 		enc.setVBuffer(self.flt.lgtbuf, index: 3)
-		var iid = 0, nid = 1
 		enc.setDS(lib.states.dsbufx_quad)
 		enc.setPS(quadstate)
-		enc.draw(lib.lightmesh.quad, iid: iid, nid: nid)
-		iid += nid; nid = self.flt.nclight
+		enc.draw(lib.lightmesh.quad, iid: 0, nid: 1)
 		enc.setDS(lib.states.dsbufx_vol)
 		enc.setPS(volstate)
-		enc.draw(lib.lightmesh.cone, iid: iid, nid: nid)
-		iid += nid; nid = self.flt.nilight
-		enc.draw(lib.lightmesh.icos, iid: iid, nid: nid)
+		enc.draw(lib.lightmesh.icos, iid: 1, nid: self.flt.nlight - 1)
 	}
 	
 	func draw(in view: MTKView) {
@@ -310,25 +310,32 @@ class Renderer: NSObject, MTKViewDelegate {
 		self.cmdque.commit(label: "commit: shadow gen") {
 			buf in
 			
-			let n = min(Int(MAX_NSHADE), 1 + self.flt.nclight)
 			buf.pass(label: "pass: shadow gen", descr: util.passdescr {
 				descr in
 				self.shadowmaps.attach(to: descr)
-				descr.renderTargetArrayLength = n
+				descr.renderTargetArrayLength = min(Int(MAX_NSHADE), self.flt.nshade)
 			}) {enc in
 				enc.setCullMode(.back)
 				enc.setFrontFacing(.clockwise)
 				enc.setVBuffer(self.flt.lgtbuf, index: 3)
+				enc.setVBuffer(self.flt.scnbuf, index: 2)
 				enc.setVBuffer(self.flt.mdlbuf, index: 1)
-				enc.setPS(lib.states.psx_shade)
 				enc.setDS(lib.states.dsx_shade)
-				for lid in 0..<n {
-					var lid = uint(lid)
+				var lid: uint = 0
+				enc.setPS(lib.states.psx_shade1)
+				while lid < 1+self.flt.nclight {
 					enc.setVBytes(&lid, index: 4)
 					self.drawgeometry(enc: enc)
+					lid += 1
+				}
+				enc.setPS(lib.states.psx_shade6)
+				enc.setVertexAmplificationCount(6, viewMappings: nil)
+				while lid < self.flt.nlight {
+					enc.setVBytes(&lid, index: 4)
+					self.drawgeometry(enc: enc)
+					lid += 1
 				}
 			}
-			
 		}
 		
 		self.cmdque.commit(label: "commit: light & drawable") {

@@ -7,125 +7,126 @@ using namespace metal;
 #import "lighting_model.h"
 
 
-inline half3 debug_mask(xlight lgt) {
-	return (half3)normalize(lgt.hue) * 0.2h;
+float2 shadowmap::sample(float2 loc, int2 off) {
+	return map.sample(smp, loc, i, off).xy;
 }
-inline half3 debug_cull(uint msk) {
-	constexpr half3 a = half3( 16,  16,  32);
-	constexpr half3 b = half3(256, 128,   0);
-	half x = (half)popcount(msk) / 32.h;
-	return mix(a, b, x)/256.h;
-}
-
 
 inline float shadowcmp(float cmp, float2 mmts) {
-	constexpr float vmin = SHD_VMIN;
-	constexpr float pmin = SHD_PMIN;
-	float v = max(vmin, mmts.y - mmts.x*mmts.x);
-	float d = cmp - mmts.x;
-	float p = v / (v + d*d);
-	return (d < 0.f)? 1.f : saturate((p - pmin)/(1.f - pmin));
+	return cmp <= mmts.x;
 }
-inline float shadow(float3 pos, xlight lgt, shadowmaps shds, uint lid) {
-	constexpr sampler smp(filter::linear);
-	constexpr int n = SHD_NPCF;
-	float3 ndc = mmulw(lgt.proj, lgtbwd(lgt, pos));
-	float2 loc = ndc2loc(ndc.xy);
-	float cmp = ndc.z;
+//inline float shadowcmp(float cmp, float2 mmts) {
+//	constexpr float pmin = SHD_PMIN;
+//	constexpr float pmax = SHD_PMAX;
+//	float v = abs(mmts.y - mmts.x*mmts.x);
+//	float d = cmp - mmts.x;
+//	float p = v / (v + d*d);
+//	return (d <= 0.f)? 1.f : saturate(unmix(pmin, pmax, p));
+//}
+
+//inline float shadowsmp(shadowmap shd, float2 loc, float cmp) {
+//	return shadowcmp(cmp, shd.sample(loc));
+//}
+//inline float shadowsmp(shadowmap shd, float2 loc, float cmp) {
+//	constexpr int n = SHD_NPCF;
+//	float2 mmts = 0.f;
+//	for (int x = 0; x < n; ++x)
+//		for (int y = 0; y < n; ++y)
+//			mmts += shd.sample(loc, int2(x, y)-n/2);
+//	return shadowcmp(cmp, mmts / (float)(n*n));
+//}
+inline float shadowsmp(shadowmap shd, float2 loc, float cmp) {
+	constexpr float spr = 7e-4f;
+	constexpr float2 offs[4] = {
+		float2(-0.942016240, -0.39906216),
+		float2( 0.945586090, -0.76890725),
+		float2(-0.094184101, -0.92938870),
+		float2( 0.344959380,  0.29387760),
+	};
 	float2 mmts = 0.f;
-	for (int x = 0; x < n; ++x)
-		for (int y = 0; y < n; ++y)
-			mmts += shds.sample(smp, loc, lid, int2(x, y)-n/2).rg;
-	return shadowcmp(cmp, mmts/(n*n));
-}
-inline float shadow_quad(float3 pos, xlight lgt, shadowmaps shds, uint lid) {
-	return shadow(pos, lgt, shds, lid);
-}
-inline float shadow_cone(float3 pos, xlight lgt, shadowmaps shds, uint lid) {
-	return shadow(pos, lgt, shds, lid);
-}
-inline float shadow_icos(float3 pos, xlight lgt, shadowmaps shds, uint lid) {
-	return 1.f; // TODO: use orient?
+	for (int i = 0; i < 4; ++i)
+		mmts += shd.sample(loc + offs[i]*spr);
+	return shadowcmp(cmp, mmts * 0.25f);
 }
 
-inline float attenuation_rad(float3 pos, xlight lgt) {
-	float sqd = length_squared(lgt.pos - pos);
-	float sqr = lgt.rad * lgt.rad;
-	return max(0.f, 1.f - sqd/sqr);
-}
-inline float attenuation_phi(float3 pos, xlight lgt) {
-	float3 dir = normalize(lgt.pos - pos);
-	float phi = angle(-lgt.dir, dir);
-	return max(0.f, 1.f - phi/lgt.phi);
-}
-// xyz: normalized direction, w: attenuation
-// TODO: use actual visible function pointers
-inline float4 attenuate_quad(float3 pos, xlight lgt, shadowmaps shds, uint lid) {
-	float3 dir = -lgt.dir;
-	float  att = shadow_quad(pos, lgt, shds, lid);
-	return float4(dir, att);
-}
-inline float4 attenuate_icos(float3 pos, xlight lgt, shadowmaps shds, uint lid) {
-	float att = 1.f;
-	att *= attenuation_rad(pos, lgt);
-	if (att <= 0.f)
-		return 0.f;
-	att *= shadow_icos(pos, lgt, shds, lid);
-	float3 dir = normalize(lgt.pos - pos);
-	return float4(dir, att);
-}
-inline float4 attenuate_cone(float3 pos, xlight lgt, shadowmaps shds, uint lid) {
-	float att = 1.f;
-	att *= attenuation_rad(pos, lgt);
-	att *= attenuation_phi(pos, lgt);
-	if (att <= 0.f)
-		return 0.f;
-	att *= shadow_cone(pos, lgt, shds, lid);
-	float3 dir = normalize(lgt.pos - pos);
-	return float4(dir, att);
-}
-inline float4 dispatch_attenuate(float3 pos, xlight lgt, shadowmaps shds, uint lid) {
-	if (is_qlight(lgt)) return attenuate_quad(pos, lgt, shds, lid);
-	if (is_ilight(lgt)) return attenuate_icos(pos, lgt, shds, lid);
-	return attenuate_cone(pos, lgt, shds, lid);
-}
-
-inline float3 bdrfd(float3 fd0) {return FD(fd0);}
-inline float3 bdrfs(float3 fs0, float ndl, float ndv, float ndh, float ldh, float a) {
-	float ks = 1.f / (4.f * M_PI_F * abs(ndl * ndv));
-	ks *= NDF(a, ndh) * (ndh > 0.f);
-	ks *= GSF(a, ndl);
-	ks *= GSF(a, ndv);
-	return ks * FS(fs0, ldh);
-}
 float3 bdrf(xmaterial mat, float3 l, float3 v) {
+	
 	float3 n = normalize(mat.nml);
 	float3 h = normalize(l + v);
 	float ndl = max(0.f, dot(n, l));
 	float ndv = max(0.f, dot(n, v));
 	float ndh = max(0.f, dot(n, h));
 	float ldh = max(0.f, dot(l, h));
-	float3 fd = mix(mat.alb, 0.f, mat.mtl) * mat.ao;
-	float3 fs = mix(BASE_F0, mat.alb, mat.mtl);
-	fd = bdrfd(fd);
-	fs = bdrfs(fs, ndl, ndv, ndh, ldh, mat.rgh);
+
+	float3 fd = mat.alb;
+	float3 fs = BASE_F0;
+
+	fs = mix(fs, mat.alb, mat.mtl);
+	fs = FS(fs, ldh);
+	
+	fd = mix(fd, 0.f, mat.mtl);
+	fd = mix(fd, 0.f, fs);
+	fd = FD(fd, ldh, ndl, ndv, mat.rgh);
+
+	fs *= NDF(mat.rgh, ndh);
+	fs *= GSF(mat.rgh, max(1e-5f, ndl));
+	fs *= GSF(mat.rgh, max(1e-5f, ndv));
+	fs /= 4.f * max(1e-5f, ndl) * max(1e-5f, ndv);
+
 	return saturate(ndl * (fd + fs));
+	
 }
 
-half3 com_lighting(xmaterial mat,
-				   float3 pos,
-				   float3 eye,
-				   constant xlight *lgts,
-				   shadowmaps shds,
-				   uint lid) {
-	xlight lgt = lgts[lid];
+inline float3 debug_mask(xlight lgt) {
+	return normalize(lgt.hue) * 0.2h;
+}
+inline float3 debug_cull(float3 rgb) {
+	constexpr float3 a = float3(0.00f, 0.10f, 0.25f);
+	constexpr float3 b = float3(1.00f, 0.25f, 0.00f);
+	return all(rgb == 0.h)? a : rgb + (b - a)/32.h;
+}
+
+// TODO: loop til scene counts for light types, rather than dispatch
+float3 com_lighting(float3 rgb,
+					float3 wld,
+					xmaterial mat,
+					constant xscene &scn,
+					constant xlight *lgts,
+					shadowmap shd) {
+	xlight lgt = lgts[shd.i];
+#if DEBUG_CULL
+	return debug_cull(rgb);
+#endif
 #if DEBUG_MASK
 	return debug_mask(lgt);
 #endif
-	float4 att = dispatch_attenuate(pos, lgt, shds, lid);
-	float3 dir = att.xyz;
-	float3 rgb = att.a;
-	rgb *= lgt.hue;
-	rgb *= bdrf(mat, dir, eye);
-	return (half3)saturate(rgb);
+	float  att = 1.f;
+	float3 dir;
+	float3 pos;
+	if (is_qlight(lgt)) {
+		dir = -lgt.dir;
+		pos = lgtpos(lgt, wld);
+	} else {
+		float3 dlt = lgt.pos - wld;
+		dir = normalize(dlt);
+		float sqd = length_squared(dlt);
+		float sqr = lgt.rad * lgt.rad;
+		att *= max(0.f, 1.f - sqd/sqr);
+		if (is_clight(lgt)) {
+			float phi = angle(lgt.dir, -dir);
+			att *= max(0.f, 1.f - phi/lgt.phi);
+			pos = lgtpos(lgt, wld);
+		} else {
+			short amp = faceof(-dlt);
+			shd.i = sid6(scn, shd.i, amp);
+			pos = lgtpos(lgt, wld, amp);
+		}
+	}
+	if (att > 0.f) {
+		float3 eye = eyedir(scn.cam, wld);
+		float3 ndc = mmulw(lgt.proj, pos);
+		att *= shadowsmp(shd, ndc2loc(ndc.xy), ndc.z);
+		rgb += saturate(att * lgt.hue * bdrf(mat, dir, eye));
+	}
+	return rgb;
+	
 }

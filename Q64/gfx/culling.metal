@@ -10,6 +10,19 @@ struct frustum {
 	float3 points[8]; // TODO: use for aabb?
 };
 
+inline float4 make_plane(float3 p0, float3 p1, float3 p2) {
+	float3 d0 = p0 - p2;
+	float3 d1 = p1 - p2;
+	float3 n = normalize(cross(d0, d1));
+	return float4(n, dot(n, p2));
+}
+inline bool inplane(float4 plane, float3 pos, float eps = 0.f) {
+	return eps >= plane.w - dot(plane.xyz, pos);
+}
+inline bool inplane(float4 plane, float3 p, float3 d) {
+	return inplane(plane, p) || inplane(plane, p + d);
+}
+
 frustum make_frustum(xcamera cam,
 					 float2 p0,
 					 float2 p1,
@@ -96,8 +109,8 @@ kernel void knl_cull(imageblock<dpix, imageblock_layout_implicit> blk,
 	uint gid = tptg.x * tptg.y;
 	uint n = (scn.nlgt < 32)? scn.nlgt : 32;
 	for (uint lid = tid; lid < n; lid += gid)
+		// TODO: loop til scene counts for light types, rather than dispatch
 		msk |= dispatch_visible(lgts[lid], fst, scn.cam) << lid;
 	atomic_fetch_or_explicit(&tile.msk, msk, memory_order_relaxed);
 	
 }
-

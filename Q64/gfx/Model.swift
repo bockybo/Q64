@@ -1,7 +1,7 @@
 import MetalKit
 
 
-struct Model {
+class Model {
 	var meshes: [MTKMesh]
 	var instances: [Instance]
 	init(meshes: [MTKMesh], _ instances: [Instance] = []) {

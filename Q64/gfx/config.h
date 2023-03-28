@@ -9,11 +9,11 @@
 
 #define BASE_F0				0.04f
 
-#define SHD_NPCF			3
-#define SHD_VMIN			1e-7f
-#define SHD_PMIN			0.2f
+#define SHD_NPCF			1
+#define SHD_PMIN			0.4f
+#define SHD_PMAX			1.0f
 
-#define FD					FD_lambert
+#define FD					FD_disney
 #define FS					FS_schlick
-#define NDF					NDF_ggx
-#define GSF					GSF_smith
+#define NDF					NDF_ggxtrowreitz
+#define GSF					GSF_ggxschlick
