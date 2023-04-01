@@ -7,10 +7,13 @@ import MetalKit
 class Demo: Ctrl {
 	static let dim: float = 50
 	static let nsph = 8
-	static let nhem = 0
+	static let nhem = 4
 	
 	static let materials = [
-		Material(),
+		Material(
+			rgh_default: 0.1,
+			mtl_default: 0.0
+		),
 		Material(
 			alb: util.texture(path: "snow_alb.jpg", srgb: true),
 			nml: util.texture(path: "snow_nml.jpg"),
@@ -49,6 +52,11 @@ class Demo: Ctrl {
 			rgh_default: 0.1,
 			mtl_default: 1.0
 		),
+		
+		Material(rgh_default: 0.9, mtl_default: 0.0),
+		Material(rgh_default: 0.1, mtl_default: 0.0),
+		Material(rgh_default: 0.1, mtl_default: 1.0),
+		
 	]
 	
 	let crs = Model(meshes: util.mesh.load("cruiser.obj", ctm: .mag(0.25)), [
@@ -106,10 +114,9 @@ class Demo: Ctrl {
 		scene.camera.fov = 60 * .pi/180
 		
 //		scene.sun.hue = float3(0)
-//		scene.sun.hue = float3(1)
-		scene.sun.hue = 0.4 * normalize(float3(0.95, 0.85, 0.65))
-		scene.sun.src = float3(1, 0.5, 1) * Demo.dim
-		scene.sun.dst = float3(0)
+		scene.sun.hue = float3(1)
+//		scene.sun.hue = 0.4 * normalize(float3(0.95, 0.85, 0.65))
+		scene.sun.dir = -float3(1, 0.5, 1) * Demo.dim
 		scene.sun.w = Demo.dim / 1.5
 		
 		scene.ilights += [
@@ -122,13 +129,13 @@ class Demo: Ctrl {
 			let a = 2 * .pi * float(i)/float(self.sph.nid)
 			let x = 0.25 * Demo.dim * cosf(a)
 			let z = 0.25 * Demo.dim * sinf(a)
-			let h = float.random(in: 0.4..<1.2)
+			let h = float.random(in: 0.6..<1.5)
 			let y = 6*h
 			let pos = float3(x, 0, z)
 			self.sph[i].ctm = .ymag(h) * .pos(pos)
 			scene.clights.append(.init(
 				hue: 5.0 * Demo.materials[pil[i].matID].alb_default,
-				src: pos + .y * (y + 2),
+				pos: pos + .y * (y + 2),
 				rad: 3 * y,
 				phi: 25 * .pi/180
 			))
@@ -137,10 +144,10 @@ class Demo: Ctrl {
 		for i in 0..<self.hem.nid {
 			let x = 0.45 * Demo.dim * float.random(in: -1..<1)
 			let z = 0.45 * Demo.dim * float.random(in: -1..<1)
-			self.box[i].ctm = .pos(float3(x, 0, z))
+			self.hem[i].ctm = .pos(float3(x, 0, z))
 			scene.ilights.append(.init(
 				hue: float3(1),
-				src: float3(x, 4, z),
+				pos: float3(x, 4, z),
 				rad: 5
 			))
 		}
@@ -158,29 +165,29 @@ class Demo: Ctrl {
 		scene.camera.pos = self.camera.pos
 		scene.camera.rot = self.camera.rot
 		
-//		scene.sun.src.x = Demo.dim * cosf(self.t / 2)
-//		scene.sun.src.z = Demo.dim * sinf(self.t / 2)
-//		scene.sun.src.y = 30 + 10 * sinf(self.t * 2)
-		scene.sun.src.y = 30
+//		scene.sun.dir = -float3(
+//			cosf(self.t/2) * Demo.dim,
+//			sinf(self.t*2) * 10 + 30,
+//			sinf(self.t/2) * Demo.dim
+//		)
 		
 		for i in 0..<3 {
 			let a = 2 * .pi * float(i)/float(3)
 			let x = 2.4 * cosf(a + self.t)
 			let z = 2.4 * sinf(a + self.t)
-			scene.ilights[i].src = self.cruiser.pos + float3(x, 1.5, z)
+			scene.ilights[i].pos = self.cruiser.pos + float3(x, 1.5, z)
 		}
 		
 		for i in 0..<self.pil.nid {
-			scene.clights[i].dst = self.cruiser.pos
-			self.pil[i].ctm = .look(
-				dst: scene.clights[i].dst,
-				src: scene.clights[i].src
-			) * .zpos(3)
+			let pos = scene.clights[i].pos
+			let dir = self.cruiser.pos - pos
+			scene.clights[i].dir = dir
+			self.pil[i].ctm = .pos(pos) * .direct(dir) * .zpos(3)
 		}
 		
 		self.crs[0].ctm = self.cruiser.ctm
 		self.ogn[0].ctm = .yrot(3 * self.t) * .ypos(3)
-//		self.sun[0].ctm = .pos(scene.sun.src)
+//		self.sun[0].ctm = .pos(scene.sun.pos)
 		
 	}
 	
@@ -216,6 +223,7 @@ class Demo: Ctrl {
 	}
 	
 	struct Cruiser {
+		static let yhov: float = 2
 		var mov = float3(0)
 		var pos = float3(0)
 		var rot = float3(0)
@@ -228,8 +236,8 @@ class Demo: Ctrl {
 			return ctm
 		}
 		mutating func tick(dt: float) {
-			self.vel.y += 0.75 * self.mov.y
-			self.vel.y -= 0.10 * (self.pos.y - 0.5)
+			self.vel.y += 0.85 * self.mov.y
+			self.vel.y -= 0.10 * (self.pos.y - Self.yhov)
 			self.rot.x -= 0.03 * self.mov.x
 			self.rot.z -= 0.06 * self.mov.z
 			self.rot.y -= 0.08 * self.rot.z * dt
@@ -266,6 +274,12 @@ class Demo: Ctrl {
 			.lt:	{self.cruiser.mov -= .z},
 			.rt:	{self.cruiser.mov += .z},
 			.ent:	{self.cruiser.mov += .y},
+			
+			._1: {self.crs[0].matID = 11},
+			._2: {self.crs[0].matID = 12},
+			._3: {self.crs[0].matID = 13},
+			._4: {self.crs[0].matID = 14},
+			
 		],
 		keyup: [
 			.spc:	{self.camera.mov -= .y},

@@ -86,12 +86,12 @@ inline float3 debug_cull(float3 rgb) {
 }
 
 // TODO: loop til scene counts for light types, rather than dispatch
-float3 com_lighting(float3 rgb,
-					float3 wld,
-					xmaterial mat,
-					constant xscene &scn,
-					constant xlight *lgts,
-					shadowmap shd) {
+float3 comx_lighting(float3 rgb,
+					 float3 wld,
+					 xmaterial mat,
+					 constant xscene &scn,
+					 constant xlight *lgts,
+					 shadowmap shd) {
 	xlight lgt = lgts[shd.i];
 #if DEBUG_CULL
 	return debug_cull(rgb);
@@ -99,7 +99,7 @@ float3 com_lighting(float3 rgb,
 #if DEBUG_MASK
 	return debug_mask(lgt);
 #endif
-	float  att = 1.f;
+	float att = 1.f;
 	float3 dir;
 	float3 pos;
 	if (is_qlight(lgt)) {
@@ -107,16 +107,15 @@ float3 com_lighting(float3 rgb,
 		pos = lgtpos(lgt, wld);
 	} else {
 		float3 dlt = lgt.pos - wld;
+		float rad = length(dlt);
+		att *= max(0.f, 1.f - rad/lgt.rad);
 		dir = normalize(dlt);
-		float sqd = length_squared(dlt);
-		float sqr = lgt.rad * lgt.rad;
-		att *= max(0.f, 1.f - sqd/sqr);
 		if (is_clight(lgt)) {
-			float phi = angle(lgt.dir, -dir);
+			float phi = angle90(lgt.dir, -dir);
 			att *= max(0.f, 1.f - phi/lgt.phi);
 			pos = lgtpos(lgt, wld);
 		} else {
-			short amp = faceof(-dlt);
+			short amp = faceof(dlt);
 			shd.i = sid6(scn, shd.i, amp);
 			pos = lgtpos(lgt, wld, amp);
 		}
@@ -125,8 +124,8 @@ float3 com_lighting(float3 rgb,
 		float3 eye = eyedir(scn.cam, wld);
 		float3 ndc = mmulw(lgt.proj, pos);
 		att *= shadowsmp(shd, ndc2loc(ndc.xy), ndc.z);
-		rgb += saturate(att * lgt.hue * bdrf(mat, dir, eye));
+		rgb += att * lgt.hue * bdrf(mat, dir, eye);
 	}
-	return rgb;
-	
+	return saturate(rgb);
+
 }

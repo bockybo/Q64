@@ -9,7 +9,7 @@ struct tile {
 };
 
 inline uint mskc(uint nlgt) {
-	return !nlgt? 0u : -1u >> (32u - ((nlgt < 32u)? nlgt : 32u));
+	return -1u >> -min(0u, nlgt - MAX_NLIGHT);
 }
 inline uint mskp(threadgroup tile &tile) {
 	return atomic_load_explicit(&tile.msk, memory_order_relaxed);

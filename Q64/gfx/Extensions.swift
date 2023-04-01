@@ -34,6 +34,17 @@ extension MTLCommandBuffer {
 
 extension MTLRenderCommandEncoder {
 	
+	func draw(_ nvtx: Int, iid: Int = 0, nid: Int = 1, vid: Int = 0) {
+		if (nid == 0) {return}
+		assert(nid > 0)
+		self.drawPrimitives(
+			type:			.triangle,
+			vertexStart:	vid,
+			vertexCount:	nvtx,
+			instanceCount:	nid,
+			baseInstance:	iid
+		)
+	}
 	func draw(_ submesh: MTKSubmesh, iid: Int = 0, nid: Int = 1) {
 		if (nid == 0) {return}
 		assert(nid > 0) // shouldn't metal assert this??
@@ -49,19 +60,14 @@ extension MTLRenderCommandEncoder {
 		)
 	}
 	func draw(_ mesh: MTKMesh, iid: Int = 0, nid: Int = 1) {
-		for buf in mesh.vertexBuffers {
-			self.setVBuffer(buf.buffer, offset: buf.offset, index: 0)
-			self.draw(mesh.submeshes, iid: iid, nid: nid)
+		assert(mesh.vertexBuffers.count == 1) // what are u supposed to do?
+		let buf = mesh.vertexBuffers[0]
+		self.setVBuffer(buf.buffer, offset: buf.offset, index: 0)
+		for submesh in mesh.submeshes {
+			self.draw(submesh, iid: iid, nid: nid)
 		}
-		self.unsetVBuffer(index: 0)
+//		self.unsetVBuffer(index: 0)
 	}
-	func draw(_ submeshes: [MTKSubmesh], iid: Int = 0, nid: Int = 1) {
-		for submesh in submeshes {self.draw(submesh, iid: iid, nid: nid)}
-	}
-	func draw(_ meshes: [MTKMesh], iid: Int = 0, nid: Int = 1) {
-		for mesh in meshes {self.draw(mesh, iid: iid, nid: nid)}
-	}
-	
 	
 	func setVBuffer(_ buf: MTLBuffer?, offset: Int = 0, index: Int) {
 		self.setVertexBuffer(buf, offset: offset, index: index)
@@ -89,6 +95,19 @@ extension MTLRenderCommandEncoder {
 	func setPS(_ ps: MTLRenderPipelineState) {return self.setRenderPipelineState(ps)}
 	func setDS(_ ds: MTLDepthStencilState) {return self.setDepthStencilState(ds)}
 	
+	func setAmplification(count: Int) {
+		self.setVertexAmplificationCount(count, viewMappings: nil)
+	}
+	func setAmplification(viewports: [Int] = [], targets: [Int] = []) {
+		let count = max(viewports.count, targets.count)
+		assert(count >= 1)
+		let maps = (0..<count).map {i in MTLVertexAmplificationViewMapping(
+			viewportArrayIndexOffset: (i < viewports.count) ? uint(viewports[i]) : 0,
+			renderTargetArrayIndexOffset: (i < targets.count) ? uint(targets[i]) : 0)}
+		self.setVertexAmplificationCount(count, viewMappings: maps)
+	}
+	func unsetAmplification() {self.setAmplification(count: 1)}
+	
 }
 
 extension MTLFunction {
@@ -109,6 +128,9 @@ extension MTLArgumentEncoder {
 	
 	func setBytes(_ bytes: UnsafeRawPointer, length: Int, index: Int) {
 		self.constantData(at: index).copyMemory(from: bytes, byteCount: length)
+	}
+	func setBytes<T>(_ bytes: UnsafePointer<T>, count: Int = 1, index: Int) {
+		self.setBytes(bytes, length: count * sizeof(T.self), index: index)
 	}
 	
 }

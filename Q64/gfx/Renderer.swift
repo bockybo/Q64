@@ -2,7 +2,6 @@ import MetalKit
 
 
 // TODO:
-// point light shadows w/ vertex amplification
 // pipeline on gpu?
 // clustered forward & deferred
 // order independent transparancy
@@ -275,8 +274,18 @@ class Renderer: NSObject, MTKViewDelegate {
 	private func drawgeometry(enc: MTLRenderCommandEncoder) {
 		var iid = 0
 		for model in self.flt.models {
-			enc.draw(model.meshes, iid: iid, nid: model.nid)
+			for mesh in model.meshes {
+				enc.draw(mesh, iid: iid, nid: model.nid)
+			}
 			iid += model.nid
+		}
+	}
+	
+	private func drawshadows(enc: MTLRenderCommandEncoder, count: Int, start: Int) {
+		for lid in start..<start+count {
+			var lid = uint(lid)
+			enc.setVBytes(&lid, index: 4)
+			self.drawgeometry(enc: enc)
 		}
 	}
 	
@@ -287,6 +296,10 @@ class Renderer: NSObject, MTKViewDelegate {
 		enc.dispatchThreadsPerTile(MTLSizeMake(Self.tile_w, Self.tile_h, 1))
 	}
 	
+	private let lightmesh = util.mesh.icos(
+		dim: float3(12 / (sqrtf(3) * (3+sqrtf(5)))),
+		descr: lib.vtxdescrs.base
+	)
 	private func drawvolumes(
 		enc: MTLRenderCommandEncoder,
 		quadstate: MTLRenderPipelineState,
@@ -295,12 +308,12 @@ class Renderer: NSObject, MTKViewDelegate {
 		// TODO: use hemispheres for cones
 		enc.setFrontFacing(.clockwise)
 		enc.setVBuffer(self.flt.lgtbuf, index: 3)
-		enc.setDS(lib.states.dsbufx_quad)
+		enc.setDS(lib.dstates.bufx_quad)
 		enc.setPS(quadstate)
-		enc.draw(lib.lightmesh.quad, iid: 0, nid: 1)
-		enc.setDS(lib.states.dsbufx_vol)
+		enc.draw(6, iid: 0, nid: 1)
+		enc.setDS(lib.dstates.bufx_vol)
 		enc.setPS(volstate)
-		enc.draw(lib.lightmesh.icos, iid: 1, nid: self.flt.nlight - 1)
+		enc.draw(self.lightmesh, iid: 1, nid: self.flt.nlight - 1)
 	}
 	
 	func draw(in view: MTKView) {
@@ -320,21 +333,13 @@ class Renderer: NSObject, MTKViewDelegate {
 				enc.setVBuffer(self.flt.lgtbuf, index: 3)
 				enc.setVBuffer(self.flt.scnbuf, index: 2)
 				enc.setVBuffer(self.flt.mdlbuf, index: 1)
-				enc.setDS(lib.states.dsx_shade)
-				var lid: uint = 0
-				enc.setPS(lib.states.psx_shade1)
-				while lid < 1+self.flt.nclight {
-					enc.setVBytes(&lid, index: 4)
-					self.drawgeometry(enc: enc)
-					lid += 1
-				}
-				enc.setPS(lib.states.psx_shade6)
-				enc.setVertexAmplificationCount(6, viewMappings: nil)
-				while lid < self.flt.nlight {
-					enc.setVBytes(&lid, index: 4)
-					self.drawgeometry(enc: enc)
-					lid += 1
-				}
+				enc.setDS(lib.dstates.shade)
+				enc.setPS(lib.pstates.shade1)
+				self.drawshadows(enc: enc, count: 1, start: 0)
+				self.drawshadows(enc: enc, count: self.flt.nclight, start: 1)
+				enc.setAmplification(count: 6)
+				enc.setPS(lib.pstates.shade6)
+				self.drawshadows(enc: enc, count: self.flt.nilight, start: 1+self.flt.nclight)
 			}
 		}
 		
@@ -376,46 +381,46 @@ class Renderer: NSObject, MTKViewDelegate {
 				switch self.mode {
 					
 				case .forward_classic:
-					enc.setDS(lib.states.dsfwdc_light)
-					enc.setPS(lib.states.psfwdc_light)
+					enc.setDS(lib.dstates.fwdc_light)
+					enc.setPS(lib.pstates.fwdc_light)
 					self.setmaterials(enc: enc)
 					self.drawgeometry(enc: enc)
 					break
 					
 				case .forward_tiled:
-					enc.setDS(lib.states.dsx_prepass)
-					enc.setPS(lib.states.psfwdp_depth)
+					enc.setDS(lib.dstates.prepass)
+					enc.setPS(lib.pstates.fwdp_depth)
 					self.drawgeometry(enc: enc)
-					enc.setPS(lib.states.psfwdp_cull)
+					enc.setPS(lib.pstates.fwdp_cull)
 					self.dispatchcull(enc: enc)
-					enc.setDS(lib.states.dsfwdp_light)
-					enc.setPS(lib.states.psfwdp_light)
+					enc.setDS(lib.dstates.fwdp_light)
+					enc.setPS(lib.pstates.fwdp_light)
 					self.setmaterials(enc: enc)
 					self.drawgeometry(enc: enc)
 					break
 					
 				case .deferred_classic:
-					enc.setDS(lib.states.dsx_prepass)
-					enc.setPS(lib.states.psbufx_gbuf)
+					enc.setDS(lib.dstates.prepass)
+					enc.setPS(lib.pstates.bufx_gbuf)
 					self.setmaterials(enc: enc)
 					self.drawgeometry(enc: enc)
 					self.drawvolumes(
 						enc: enc,
-						quadstate: lib.states.psbufc_quad,
-						volstate:  lib.states.psbufc_vol)
+						quadstate: lib.pstates.bufc_quad,
+						volstate:  lib.pstates.bufc_vol)
 					break
 					
 				case .deferred_tiled:
-					enc.setDS(lib.states.dsx_prepass)
-					enc.setPS(lib.states.psbufx_gbuf)
+					enc.setDS(lib.dstates.prepass)
+					enc.setPS(lib.pstates.bufx_gbuf)
 					self.setmaterials(enc: enc)
 					self.drawgeometry(enc: enc)
-					enc.setPS(lib.states.psbufp_cull)
+					enc.setPS(lib.pstates.bufp_cull)
 					self.dispatchcull(enc: enc)
 					self.drawvolumes(
 						enc: enc,
-						quadstate: lib.states.psbufp_quad,
-						volstate:  lib.states.psbufp_vol)
+						quadstate: lib.pstates.bufp_quad,
+						volstate:  lib.pstates.bufp_vol)
 					break
 					
 				}

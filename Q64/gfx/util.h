@@ -27,42 +27,15 @@ inline float3 viewdir(float4x4 view) {return normalize(viewdlt(view));}
 inline float viewsqd(float4x4 view) {return length_squared(viewdlt(view));}
 inline float viewlen(float4x4 view) {return length(viewdlt(view));}
 
-inline float angle(float3 a, float3 b) {
-	return acos(dot(a, b));
+template <class T>
+inline T unmix(T a, T b, T x) {return (x - a) / (b - a);}
+
+inline float angle(float3 a, float3 b) {return acos(dot(a, b));}
+inline float angle90(float3 a, float3 b) {
+	float d = dot(a, b);
+	return (d >= 0.f)? acos(d) : INFINITY;
 }
 
-inline bool istowards(float3 dir, float3 vec) {
-	return all(sign(dir) != sign(-vec));
-}
-inline bool isaligned(float3 dir, float3 vec) {
-	return dot(dir, vec) > 0.f;
-}
-
-typedef float3 (*director)(float3);
-inline float3 direct0(float3 v) {return {-v.z, -v.y, -v.x};}
-inline float3 direct1(float3 v) {return {+v.z, -v.y, +v.x};}
-inline float3 direct2(float3 v) {return {+v.x, +v.z, -v.y};}
-inline float3 direct3(float3 v) {return {+v.x, -v.z, +v.y};}
-inline float3 direct4(float3 v) {return {+v.x, -v.y, -v.z};}
-inline float3 direct5(float3 v) {return {-v.x, -v.y, +v.z};}
-inline short faceof(float3 v) {
-	// avoid branch returns
-	// but TODO: must be a better way to get vector face
-	short face = 0;
-	face += 0 * (v.x > 0 && validndc(-float2(-v.z, -v.y) / -v.x));
-	face += 1 * (v.x < 0 && validndc(-float2(+v.z, -v.y) / +v.x));
-	face += 2 * (v.y > 0 && validndc(-float2(+v.x, +v.z) / -v.y));
-	face += 3 * (v.y < 0 && validndc(-float2(+v.x, -v.z) / +v.y));
-	face += 4 * (v.z > 0 && validndc(-float2(+v.x, -v.y) / -v.z));
-	face += 5 * (v.z < 0 && validndc(-float2(-v.x, -v.y) / +v.z));
-	return face;
-}
-inline float3 direct(float3 v, short face) {
-	constexpr director directors[6] = {
-		direct0, direct1, direct2,
-		direct3, direct4, direct5};
-	return directors[face % 6](v);
-}
 inline float3 direct(float3 v, float3 f) {
 	constexpr float3 h = float3(0, 1, 0);
 	float3 s = normalize(cross(f, h));
@@ -72,8 +45,30 @@ inline float3 direct(float3 v, float3 f) {
 				  dot(v, -f));
 }
 
-template <class T>
-inline T unmix(T a, T b, T x) {return (x - a) / (b - a);}
+typedef float3 (*_ampdir)(float3);
+inline float3 ampdir0(float3 v) {return {-v.z, -v.y, -v.x};}
+inline float3 ampdir1(float3 v) {return {+v.z, -v.y, +v.x};}
+inline float3 ampdir2(float3 v) {return {+v.x, +v.z, -v.y};}
+inline float3 ampdir3(float3 v) {return {+v.x, -v.z, +v.y};}
+inline float3 ampdir4(float3 v) {return {+v.x, -v.y, -v.z};}
+inline float3 ampdir5(float3 v) {return {-v.x, -v.y, +v.z};}
+inline float3 ampdir(float3 v, short amp) {
+	constexpr _ampdir faces[6] = {
+		ampdir0, ampdir1, ampdir2,
+		ampdir3, ampdir4, ampdir5};
+	return faces[amp](v);
+}
+
+inline bool isfacing(float3 v, short amp) {
+	v = ampdir(v, amp);
+	return v.z > 0 && validndc(v.xy / v.z);
+}
+inline short faceof(float3 v) {
+	short amp = -1;
+	for (int i = 0; i < 6; ++i)
+		amp = isfacing(v, i)? i : amp;
+	return amp;
+}
 
 inline float4 scrpos(xcamera cam, float3 pos) {
 	return mmul4(cam.proj * cam.invview, pos);
@@ -88,15 +83,22 @@ inline float3 eyedir(xcamera cam, float3 pos) {
 inline float3 lgtpos(xlight lgt, float3 pos) {
 	return direct(pos - lgt.pos, lgt.dir);
 }
-inline float3 lgtpos(xlight lgt, float3 pos, short face) {
-	return direct(pos - lgt.pos, face);
+inline float3 lgtpos(xlight lgt, float3 pos, short amp) {
+	return ampdir(pos - lgt.pos, amp);
+}
+
+inline uint sid6(xscene scn, uint lid, uint amp) {
+	uint i0 = scn.nlgt - scn.nilgt;
+	return min((uint)MAX_NSHADE, i0 + (lid - i0)*6 + amp);
 }
 
 inline bool is_qlight(xlight lgt) {return lgt.phi == -1.f;}
 inline bool is_ilight(xlight lgt) {return lgt.phi ==  0.f;}
 inline bool is_clight(xlight lgt) {return lgt.phi > 0.f;}
 
-inline uint sid6(xscene scn, uint lid, uint amp) {
-	uint i0 = scn.nlgt - scn.nilgt;
-	return i0 + (lid - i0)*6 + amp;
-}
+// TODO: use
+//inline short lid_dispatch(uint lid, constant xscene &scn) {
+//	return (lid > 0) + (lid >= scn.nlgt-scn.nilgt);
+//}
+
+

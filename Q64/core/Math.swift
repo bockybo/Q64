@@ -7,6 +7,11 @@ typealias short		= Int16
 typealias uint		= UInt32
 typealias ushort	= UInt16
 
+extension packed_float3 {
+	init(_ vec: float3) {self.init(x: vec.x, y: vec.y, z: vec.z)}
+	var unpacked: float3 {return float3(self.x, self.y, self.z)}
+}
+
 extension SIMD2 {init(_ scalar: Scalar) {self.init(repeating: scalar)}}
 extension SIMD3 {init(_ scalar: Scalar) {self.init(repeating: scalar)}}
 extension SIMD4 {init(_ scalar: Scalar) {self.init(repeating: scalar)}}
@@ -47,7 +52,7 @@ extension float4 {
 extension float4x4 {
 	var xyz: float3x3 {
 		get {
-			return .init(
+			return float3x3(
 				self[0].xyz,
 				self[1].xyz,
 				self[2].xyz)
@@ -57,17 +62,17 @@ extension float4x4 {
 			self[2].xyz = mat3[2]
 		}
 	}
+}
+
+extension float3 {
 	static func *(lhs: float4x4, rhs: float3) -> float3 {return (lhs * float4(rhs, 1)).xyz}
 	static func *(lhs: float3, rhs: float4x4) -> float3 {return rhs * lhs}
 	static func *=(lhs: inout float3, rhs: float4x4) {lhs = lhs * rhs}
 }
 
-extension float3x3 {
-	static let I: float3x3 = matrix_identity_float3x3
-}
-
 extension float4x4 {
-	static let I: float4x4 = matrix_identity_float4x4
+	
+	static let idt: float4x4 = matrix_identity_float4x4
 	
 	var pos: float3 {return  self[3].xyz}
 	var dlt: float3 {return -self[2].xyz}
@@ -76,80 +81,74 @@ extension float4x4 {
 	var inv: float4x4 {return self.inverse}
 	var T: float4x4 {return self.transpose}
 	
+}
+
+extension float4x4 {
 	
-	static func pos(_ pos: float3) -> float4x4 {return .tf {
-		$0[3].xyz = pos
-	}}
+	static func pos(_ pos: float3) -> float4x4 {
+		return float4x4(
+			float4(1, 0, 0, 0),
+			float4(0, 1, 0, 0),
+			float4(0, 0, 1, 0),
+			float4(pos, 1))
+	}
 	
-	static func mag(_ mag: float3) -> float4x4 {return .tf {
-		$0[0].x = mag.x
-		$0[1].y = mag.y
-		$0[2].z = mag.z
-	}}
+	static func mag(_ mag: float3) -> float4x4 {
+		return float4x4(
+			float4(mag.x, 0, 0, 0),
+			float4(0, mag.y, 0, 0),
+			float4(0, 0, mag.z, 0),
+			float4(0, 0, 0, 1))
+	}
 	
-	static func xrot(_ rad: float) -> float4x4 {return .tf {
-		let x = cos(rad), y = sin(rad)
-		$0[1].xyz = float3(0, +x, -y)
-		$0[2].xyz = float3(0, +y, +x)
-	}}
-	static func yrot(_ rad: float) -> float4x4 {return .tf {
-		let x = cos(rad), y = sin(rad)
-		$0[0].xyz = float3(+x, 0, +y)
-		$0[2].xyz = float3(-y, 0, +x)
-	}}
-	static func zrot(_ rad: float) -> float4x4 {return .tf {
-		let x = cos(rad), y = sin(rad)
-		$0[0].xyz = float3(+x, -y, 0)
-		$0[1].xyz = float3(+y, +x, 0)
-	}}
-	
-	static func rot(_ rad: float, axes: float3) -> float4x4 {return .tf {
+	static func rot(_ rad: float, axes: float3) -> float4x4 {
 		let ct = cos(rad)
 		let st = sin(rad)
 		let ci = 1 - ct
 		let x = axes.x
 		let y = axes.y
 		let z = axes.z
-		$0[0].xyz = float3(ct + x * x * ci, y * x * ci + z * st, z * x * ci - y * st)
-		$0[1].xyz = float3(x * y * ci - z * st, ct + y * y * ci, z * y * ci + x * st)
-		$0[2].xyz = float3(x * z * ci + y * st, y * z * ci - x * st, ct + z * z * ci)
-	}}
+		return float4x4(
+			float4(ct + x * x * ci, y * x * ci + z * st, z * x * ci - y * st, 0),
+			float4(x * y * ci - z * st, ct + y * y * ci, z * y * ci + x * st, 0),
+			float4(x * z * ci + y * st, y * z * ci - x * st, ct + z * z * ci, 0),
+			float4(0, 0, 0, 1))
+	}
 	
-	static func look(dir: float3, src: float3 = float3(0), up: float3 = .y) -> float4x4 {return .tf {
-		let s = normalize(cross(dir, up))
-		let u = normalize(cross(s, dir))
-		$0[0].xyz = s
-		$0[1].xyz = u
-		$0[2].xyz = -dir
-		$0[3].xyz =  src
-	}}
-	static func look(dst: float3, src: float3 = float3(0), up: float3 = .y) -> float4x4 {
-		return .look(dir: normalize(dst - src), src: src, up: up)
+	static func direct(_ f: float3, up: float3 = .y) -> float4x4 {
+		let f = normalize(f)
+		let s = normalize(cross(f, up))
+		let u = normalize(cross(s, f))
+		return float4x4(
+			float4( s, 0),
+			float4( u, 0),
+			float4(-f, 0),
+			float4(0, 0, 0, 1))
 	}
 	
 	static func ortho(p0: float3, p1: float3) -> float4x4 {
-		let m = float4x4.mag(float3(2, 2, -1) / (p1 - p0))
-		let t = float4x4.pos(float3(1, 1,  0) * (p1 + p0) * -0.5)
-		return m * t
+		return float4x4(
+			1/(p1.x - p0.x) * float4(2, 0, 0, -(p0.x + p1.x)),
+			1/(p1.y - p0.y) * float4(0, 2, 0, -(p0.y + p1.y)),
+			1/(p1.z - p0.z) * float4(0, 0, -1, -p0.z),
+			float4(0, 0, 0, 1))
 	}
+	
 	static func persp(
-		fov: float,
-		asp: float = 1,
 		z0: float,
 		z1: float,
-		w: Bool = true
+		fov: float = .pi/2,
+		asp: float = 1
 	) -> float4x4 {
 		let y = 1 / tan(0.5 * fov)
 		let x = y / asp
-		let z = z1 / (z0 - z1)
-		var proj = float4x4.mag(float3(x, y, z))
-		proj[2].w = -1
-		proj[3].z = z * z0
-		proj[3].w = w ? 1 : 0
-		return proj
+		let z = -z1 / (z1 - z0)
+		return float4x4(
+			float4(x, 0, 0, 0),
+			float4(0, y, 0, 0),
+			float4(0, 0, z, -1),
+			float4(0, 0, z*z0, 0))
 	}
-	
-	
 	
 	static func xpos(_ p: float) -> float4x4 {return .pos(float3(p, 0, 0))}
 	static func ypos(_ p: float) -> float4x4 {return .pos(float3(0, p, 0))}
@@ -158,12 +157,8 @@ extension float4x4 {
 	static func ymag(_ m: float) -> float4x4 {return .mag(float3(1, m, 1))}
 	static func zmag(_ m: float) -> float4x4 {return .mag(float3(1, 1, m))}
 	static func  mag(_ m: float) -> float4x4 {return .mag(float3(m, m, m))}
-	
-	
-	private static func tf(_ f: (inout float4x4)->()) -> float4x4 {
-		var ctm = float4x4.I
-		f(&ctm)
-		return ctm
-	}
+	static func xrot(_ r: float) -> float4x4 {return .rot(-r, axes: .x)}
+	static func yrot(_ r: float) -> float4x4 {return .rot(-r, axes: .y)}
+	static func zrot(_ r: float) -> float4x4 {return .rot(-r, axes: .z)}
 	
 }

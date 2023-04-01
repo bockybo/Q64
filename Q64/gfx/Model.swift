@@ -20,7 +20,7 @@ class Model {
 
 struct Instance {
 	var matID: Int
-	var ctm: float4x4 = .I
+	var ctm: float4x4 = .idt
 	var mdl: xmodel {
 		return xmodel(
 			ctm: self.ctm,

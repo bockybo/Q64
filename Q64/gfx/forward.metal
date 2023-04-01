@@ -29,7 +29,7 @@ inline cpix fwdx_lighting(geo g,
 	float3 wld = g.pos;
 	float3 rgb = 0.f;
 	for (uint i = 0; (i += ctz(msk >> i)) < scn.nlgt; ++i)
-		rgb = com_lighting(rgb, wld, mat, scn, lgts, {shds, i});
+		rgb = comx_lighting(rgb, wld, mat, scn, lgts, {shds, i});
 	return {half4((half3)rgb, 1.h)};
 }
 fragment cpix frgfwdc_light(geo g								[[stage_in]],

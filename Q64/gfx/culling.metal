@@ -107,8 +107,7 @@ kernel void knl_cull(imageblock<dpix, imageblock_layout_implicit> blk,
 	
 	uint msk = 0;
 	uint gid = tptg.x * tptg.y;
-	uint n = (scn.nlgt < 32)? scn.nlgt : 32;
-	for (uint lid = tid; lid < n; lid += gid)
+	for (uint lid = tid; lid < scn.nlgt; lid += gid)
 		// TODO: loop til scene counts for light types, rather than dispatch
 		msk |= dispatch_visible(lgts[lid], fst, scn.cam) << lid;
 	atomic_fetch_or_explicit(&tile.msk, msk, memory_order_relaxed);

@@ -30,10 +30,14 @@ fragment gbuf frgbufx_gbuf(geo g							[[stage_in]],
 	};
 }
 
-vertex lfrg vtxbufx_quad(const device xpvtx *vtcs	[[buffer(0)]],
-						 uint vid					[[vertex_id]],
+vertex lfrg vtxbufx_quad(uint vid					[[vertex_id]],
 						 uint lid					[[instance_id]]) {
-	return {.loc = float4(vtcs[vid], 1.f), .lid = lid};
+	constexpr float2 vtcs[6] = {
+		float2(+1.f, -1.f), float2(-1.f, -1.f), float2(-1.f, +1.f),
+		float2(+1.f, -1.f), float2(-1.f, +1.f), float2(+1.f, +1.f),
+	};
+	float2 pos = vtcs[vid];
+	return {.loc = float4(pos, 0.f, 1.f), .lid = lid};
 }
 vertex lfrg vtxbufx_vol(const device xpvtx *vtcs 	[[buffer(0)]],
 						constant xscene &scn		[[buffer(2)]],
@@ -66,7 +70,7 @@ inline cpix bufx_lighting(lfrg f,
 	float2 ndc = loc2ndc(f.loc.xy/(float2)scn.cam.res);
 	float3 wld = wldpos(scn.cam, float3(ndc, buf.dep));
 	float3 rgb = (float3)pix.color.rgb;
-	rgb = com_lighting(rgb, wld, mat, scn, lgts, {shds, f.lid});
+	rgb = comx_lighting(rgb, wld, mat, scn, lgts, {shds, f.lid});
 	return {half4((half3)rgb, 1.h)};
 }
 
