@@ -3,7 +3,7 @@ using namespace metal;
 
 
 struct geo {
-	float4 loc [[position]];
+	float4 scr [[position]];
 	float3 pos;
 	float2 tex;
 	float3 nml;

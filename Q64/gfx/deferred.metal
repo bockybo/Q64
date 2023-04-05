@@ -15,7 +15,7 @@ struct gbuf {
 };
 
 struct lfrg {
-	float4 loc [[position]];
+	float4 scr [[position]];
 	uint lid [[flat]];
 };
 
@@ -23,7 +23,7 @@ fragment gbuf frgbufx_gbuf(geo g							[[stage_in]],
 						   constant materialbuf &materials	[[buffer(0)]]) {
 	xmaterial mat = materialsmp(g, materials);
 	return {
-		.dep = g.loc.z,
+		.dep = g.scr.z,
 		.alb = half4((half3)mat.alb, 0.h),
 		.nml = half4((half3)mat.nml, 0.h),
 		.mat = half2(mat.rgh, mat.mtl),
@@ -34,30 +34,28 @@ vertex lfrg vtxbufx_quad(uint vid					[[vertex_id]],
 						 uint lid					[[instance_id]]) {
 	constexpr float2 vtcs[6] = {
 		float2(+1.f, -1.f), float2(-1.f, -1.f), float2(-1.f, +1.f),
-		float2(+1.f, -1.f), float2(-1.f, +1.f), float2(+1.f, +1.f),
-	};
-	float2 pos = vtcs[vid];
-	return {.loc = float4(pos, 0.f, 1.f), .lid = lid};
+		float2(+1.f, -1.f), float2(-1.f, +1.f), float2(+1.f, +1.f)};
+	return {.scr = float4(vtcs[vid], 0.f, 1.f), .lid = lid};
 }
-vertex lfrg vtxbufx_vol(const device xpvtx *vtcs 	[[buffer(0)]],
-						constant xscene &scn		[[buffer(2)]],
-						constant xlight *lgts		[[buffer(3)]],
-						uint vid					[[vertex_id]],
-						uint lid					[[instance_id]]) {
+
+vertex lfrg vtxbufx_icos(const device xpvtx *vtcs 	[[buffer(0)]],
+						 constant xscene &scn		[[buffer(2)]],
+						 constant xlight *lgts		[[buffer(3)]],
+						 uint vid					[[vertex_id]],
+						 uint lid					[[instance_id]]) {
 	xlight lgt = lgts[lid];
 	float3 pos = vtcs[vid];
 	pos *= lgt.rad;
 	pos += lgt.pos;
-	float4 loc = scrpos(scn.cam, pos);
-	return {.loc = loc, .lid = lid};
+	return {.scr = scrpos(scn.cam, pos), .lid = lid};
 }
 
 inline cpix bufx_lighting(lfrg f,
-						  const cpix pix,
-						  const gbuf buf,
+						  cpix pix,
+						  gbuf buf,
 						  constant xscene &scn,
 						  constant xlight *lgts,
-						  texture2d_array<float> shds,
+						  shadowmap shds,
 						  uint msk) {
 	if (!(msk & (1 << f.lid)))
 		return pix;
@@ -67,27 +65,29 @@ inline cpix bufx_lighting(lfrg f,
 		.rgh = (float) buf.mat.r,
 		.mtl = (float) buf.mat.g,
 	};
-	float2 ndc = loc2ndc(f.loc.xy/(float2)scn.cam.res);
-	float3 wld = wldpos(scn.cam, float3(ndc, buf.dep));
+	float3 wld = wldpos(scn.cam, f.scr.xy, buf.dep);
 	float3 rgb = (float3)pix.color.rgb;
-	rgb = comx_lighting(rgb, wld, mat, scn, lgts, {shds, f.lid});
+	rgb = comx_lighting(rgb, wld, mat, scn, lgts, shds, f.lid);
 	return {half4((half3)rgb, 1.h)};
 }
 
-fragment cpix frgbufc_light(lfrg f								[[stage_in]],
-							const cpix pix,
-							const gbuf buf,
-							constant xscene &scn				[[buffer(2)]],
-							constant xlight *lgts				[[buffer(3)]],
-							texture2d_array<float> shds			[[texture(0)]]) {
+fragment cpix frgbufc_light(lfrg f					[[stage_in]],
+							cpix pix,
+							gbuf buf,
+							constant xscene &scn	[[buffer(2)]],
+							constant xlight *lgts	[[buffer(3)]],
+							shadowmap shds			[[texture(0)]]) {
 	return bufx_lighting(f, pix, buf, scn, lgts, shds, mskc(scn.nlgt));
 }
-fragment cpix frgbufp_light(lfrg f								[[stage_in]],
-							const cpix pix,
-							const gbuf buf,
-							threadgroup tile &tile				[[threadgroup(0)]],
-							constant xscene &scn				[[buffer(2)]],
-							constant xlight *lgts				[[buffer(3)]],
-							texture2d_array<float> shds			[[texture(0)]]) {
+fragment cpix frgbufp_light(lfrg f					[[stage_in]],
+							cpix pix,
+							gbuf buf,
+							threadgroup tile &tile	[[threadgroup(0)]],
+							constant xscene &scn	[[buffer(2)]],
+							constant xlight *lgts	[[buffer(3)]],
+							shadowmap shds			[[texture(0)]]) {
 	return bufx_lighting(f, pix, buf, scn, lgts, shds, mskp(tile));
 }
+
+
+

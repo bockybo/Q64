@@ -33,7 +33,7 @@ inline T unmix(T a, T b, T x) {return (x - a) / (b - a);}
 inline float angle(float3 a, float3 b) {return acos(dot(a, b));}
 inline float angle90(float3 a, float3 b) {
 	float d = dot(a, b);
-	return (d >= 0.f)? acos(d) : INFINITY;
+	return (d >= 0.f)? acos(d) : FLT_MAX;
 }
 
 inline float3 direct(float3 v, float3 f) {
@@ -45,46 +45,44 @@ inline float3 direct(float3 v, float3 f) {
 				  dot(v, -f));
 }
 
-typedef float3 (*_ampdir)(float3);
-inline float3 ampdir0(float3 v) {return {-v.z, -v.y, -v.x};}
-inline float3 ampdir1(float3 v) {return {+v.z, -v.y, +v.x};}
-inline float3 ampdir2(float3 v) {return {+v.x, +v.z, -v.y};}
-inline float3 ampdir3(float3 v) {return {+v.x, -v.z, +v.y};}
-inline float3 ampdir4(float3 v) {return {+v.x, -v.y, -v.z};}
-inline float3 ampdir5(float3 v) {return {-v.x, -v.y, +v.z};}
-inline float3 ampdir(float3 v, short amp) {
-	constexpr _ampdir faces[6] = {
-		ampdir0, ampdir1, ampdir2,
-		ampdir3, ampdir4, ampdir5};
-	return faces[amp](v);
+typedef float3 (*_facefn)(float3);
+inline float3 reface0(float3 v) {return {-v.z, -v.y, -v.x};}
+inline float3 reface1(float3 v) {return {+v.z, -v.y, +v.x};}
+inline float3 reface2(float3 v) {return {+v.x, +v.z, -v.y};}
+inline float3 reface3(float3 v) {return {+v.x, -v.z, +v.y};}
+inline float3 reface4(float3 v) {return {+v.x, -v.y, -v.z};}
+inline float3 reface5(float3 v) {return {-v.x, -v.y, +v.z};}
+inline float3 reface(float3 v, short i) {
+	constexpr _facefn faces[6] = {
+		reface0, reface1, reface2,
+		reface3, reface4, reface5};
+	return faces[i](v);
 }
 
-inline bool isfacing(float3 v, short amp) {
-	v = ampdir(v, amp);
+inline bool isfacing(float3 v, short i) {
+	v = reface(v, i);
 	return v.z > 0 && validndc(v.xy / v.z);
 }
 inline short faceof(float3 v) {
-	short amp = -1;
+	short face = -1;
 	for (int i = 0; i < 6; ++i)
-		amp = isfacing(v, i)? i : amp;
-	return amp;
+		face = isfacing(v, i)? i : face;
+	return face;
 }
 
-inline float4 scrpos(xcamera cam, float3 pos) {
-	return mmul4(cam.proj * cam.invview, pos);
+inline float4 scrpos(xcamera cam, float3 wld) {
+	return mmul4(cam.proj * cam.invview, wld);
 }
-inline float3 wldpos(xcamera cam, float3 ndc) {
-	return mmulw(cam.view * cam.invproj, ndc);
+inline float3 eyepos(xcamera cam, float2 loc, float dep) {
+	float2 ndc = loc2ndc(loc / (float2)cam.res);
+	return mmulw(cam.invproj, float3(ndc, dep));
 }
-inline float3 eyedir(xcamera cam, float3 pos) {
-	return normalize(viewpos(cam.view) - pos);
+inline float3 wldpos(xcamera cam, float2 loc, float dep) {
+	return mmul3(cam.view, eyepos(cam, loc, dep));
 }
 
-inline float3 lgtpos(xlight lgt, float3 pos) {
-	return direct(pos - lgt.pos, lgt.dir);
-}
-inline float3 lgtpos(xlight lgt, float3 pos, short amp) {
-	return ampdir(pos - lgt.pos, amp);
+inline float3 eyedir(xcamera cam, float3 wld) {
+	return normalize(viewpos(cam.view) - wld);
 }
 
 inline uint sid6(xscene scn, uint lid, uint amp) {
@@ -92,13 +90,7 @@ inline uint sid6(xscene scn, uint lid, uint amp) {
 	return min((uint)MAX_NSHADE, i0 + (lid - i0)*6 + amp);
 }
 
-inline bool is_qlight(xlight lgt) {return lgt.phi == -1.f;}
-inline bool is_ilight(xlight lgt) {return lgt.phi ==  0.f;}
-inline bool is_clight(xlight lgt) {return lgt.phi > 0.f;}
-
-// TODO: use
-//inline short lid_dispatch(uint lid, constant xscene &scn) {
-//	return (lid > 0) + (lid >= scn.nlgt-scn.nilgt);
-//}
-
-
+inline short light_type(xlight lgt) {return (bool)lgt.rad + (bool)lgt.phi;}
+inline bool is_qlight(xlight lgt) {return light_type(lgt) == 0;}
+inline bool is_ilight(xlight lgt) {return light_type(lgt) == 1;}
+inline bool is_clight(xlight lgt) {return light_type(lgt) == 2;}

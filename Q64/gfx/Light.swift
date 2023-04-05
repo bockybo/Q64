@@ -9,18 +9,19 @@ struct QLight: Light {
 	var hue: float3 = normalize(float3(1))
 	var dir: float3 = float3(0, 0, 1)
 	var w: float = 100
+	var z0: float = 0.1
 	var z1: float = 1e4
 	var lgt: xlight {
 		return xlight(
 			proj: .ortho(
-				p0: float3(-self.w, -self.w, 0),
+				p0: float3(-self.w, -self.w, self.z0),
 				p1: float3(+self.w, +self.w, self.z1)
 			),
 			hue: self.hue,
 			pos: float3(0),
 			dir: normalize(self.dir),
-			rad: 1,
-			phi: -1
+			rad: 0,
+			phi: 0
 		)
 	}
 }

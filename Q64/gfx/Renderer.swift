@@ -29,17 +29,12 @@ class Renderer: NSObject, MTKViewDelegate {
 	static let shadow_size = 16384 / 8
 	static let shadow_msaa = 1
 	
-	static let tile_w = 16
-	static let tile_h = 16
-	static let threadsize = sizeof(float.self) * 2
-	static let atomicsize = sizeof(uint.self)
-	static var groupsize: Int {
-		let tptg = Self.tile_w * Self.tile_h
-		let bptg = Self.atomicsize + Self.threadsize*tptg
-		return 16 * (1 + (bptg - 1)/16)
-	}
+	static let tiledim = MTLSizeMake(16, 16, 1)
+	static let tilesize = align(to: 16,
+								sizeof(uint.self) +
+								sizeof(float.self) * 2)
 	
-	let mode = Mode.deferred_classic
+	let mode = Mode.forward_tiled
 	enum Mode {
 		case forward_classic
 		case forward_tiled
@@ -69,32 +64,35 @@ class Renderer: NSObject, MTKViewDelegate {
 		self.flts[self.iflt].copy(self.scene)
 	}
 	private struct Flight {
-		
-		let scnbuf = util.buffer(len: sizeof(xscene.self), label: "scene buffer")
-		let mdlbuf = util.buffer(len: sizeof(xmodel.self) * Int(MAX_NMODEL), label: "model buffer")
-		let lgtbuf = util.buffer(len: sizeof(xlight.self) * Int(MAX_NLIGHT), label: "light buffer")
-		
+		let scnbuf = util.buffer(
+			length: sizeof(xscene.self),
+			options: .storageModeManaged,
+			label: "scene buffer"
+		)
+		let mdlbuf = util.buffer(
+			length: sizeof(xmodel.self) * Int(MAX_NMODEL),
+			options: .storageModeManaged,
+			label: "model buffer"
+		)
+		let lgtbuf = util.buffer(
+			length: sizeof(xlight.self) * Int(MAX_NLIGHT),
+			options: .storageModeManaged,
+			label: "light buffer"
+		)
 		var models: [Model] = []
-		
 		var nclight: Int = 0
 		var nilight: Int = 0
-		var nlight: Int {return 1 + self.nclight + self.nilight}
+		var nlight: Int {return 1 + self.nclight +   self.nilight}
 		var nshade: Int {return 1 + self.nclight + 6*self.nilight}
-		
 		mutating func copy(_ scene: Scene) {
-			
 			var scn = scene.scn
-			let mdls = scene.models.reduce([], {$0 + $1.mdls})
-			let lgts = scene.lights.map {$0.lgt}
-			
-			self.scnbuf.write(&scn, length: sizeof(xscene.self))
-			self.mdlbuf.write(mdls, length: sizeof(xmodel.self) * mdls.count)
-			self.lgtbuf.write(lgts, length: sizeof(xlight.self) * lgts.count)
-			
+			self.scnbuf.write(&scn)
+			self.mdlbuf.write(scene.models.reduce([], {$0 + $1.mdls}))
+			self.lgtbuf.write(scene.lights.map {$0.lgt})
 			self.models = scene.models
 			self.nclight = scene.clights.count
 			self.nilight = scene.ilights.count
-			
+			assert(self.nshade <= Int(MAX_NSHADE))
 		}
 	}
 	
@@ -188,7 +186,7 @@ class Renderer: NSObject, MTKViewDelegate {
 				descr in
 				setup(descr)
 				descr.pixelFormat		= Renderer.fmt_depth
-				descr.usage				= []
+				descr.usage				= [.renderTarget]
 				descr.storageMode		= .private
 				descr.textureType		= .type2DArray
 			}
@@ -202,7 +200,7 @@ class Renderer: NSObject, MTKViewDelegate {
 					descr in
 					setup(descr)
 					descr.pixelFormat		= Renderer.fmt_shade
-					descr.usage				= []
+					descr.usage				= [.renderTarget]
 					descr.storageMode		= .private
 					descr.textureType		= .type2DMultisampleArray
 					descr.sampleCount		= Int(msaa)
@@ -211,7 +209,7 @@ class Renderer: NSObject, MTKViewDelegate {
 					descr in
 					setup(descr)
 					descr.pixelFormat		= Renderer.fmt_depth
-					descr.usage				= []
+					descr.usage				= [.renderTarget]
 					descr.storageMode		= .memoryless
 					descr.textureType		= .type2DMultisampleArray
 					descr.sampleCount		= Int(msaa)
@@ -244,11 +242,10 @@ class Renderer: NSObject, MTKViewDelegate {
 	}
 	
 	
-	private let materials = lib.shaders.frgbufx_gbuf.makeArgumentEncoder(
-		bufferIndex: 0,
-		bufferOptions: .storageModeManaged
+	private let materials = lib.shaders.frgfwdc_light.makeArgumentBuffer(
+		at: 0,
+		options: .storageModeManaged
 	)
-	
 	private func writematerials(_ materials: [Material]) {
 		assert(materials.count <= MAX_NMATERIAL)
 		let n = Material.nproperty
@@ -256,10 +253,10 @@ class Renderer: NSObject, MTKViewDelegate {
 			let textures = material.textures
 			var defaults = material.defaults
 			let i = 2 * n * matID
-			self.materials.arg.setTextures(textures, range: i..<i+n)
-			self.materials.arg.setBytes(&defaults, length: sizeof(defaults), index: i+n)
+			self.materials.enc.setTextures(textures, range: i..<i+n)
+			self.materials.enc.setBytes(&defaults, index: i+n)
 		}
-		self.materials.buf.didModifyRange(0..<self.materials.arg.encodedLength)
+		self.materials.buf.didModifyAll()
 	}
 	
 	
@@ -292,28 +289,27 @@ class Renderer: NSObject, MTKViewDelegate {
 	private func dispatchcull(enc: MTLRenderCommandEncoder) {
 		enc.setTBuffer(self.flt.scnbuf, index: 2)
 		enc.setTBuffer(self.flt.lgtbuf, index: 3)
-		enc.setThreadgroupMemoryLength(Self.groupsize, offset: 0, index: 0)
-		enc.dispatchThreadsPerTile(MTLSizeMake(Self.tile_w, Self.tile_h, 1))
+		enc.setThreadgroupMemoryLength(Self.tilesize, offset: 0, index: 0)
+		enc.dispatchThreadsPerTile(Self.tiledim)
 	}
 	
-	private let lightmesh = util.mesh.icos(
+	private let lightvol = util.mesh.icos(
 		dim: float3(12 / (sqrtf(3) * (3+sqrtf(5)))),
 		descr: lib.vtxdescrs.base
 	)
-	private func drawvolumes(
+	private func drawgbuffer(
 		enc: MTLRenderCommandEncoder,
-		quadstate: MTLRenderPipelineState,
-		volstate:  MTLRenderPipelineState
+		quad_state: MTLRenderPipelineState,
+		icos_state: MTLRenderPipelineState
 	) {
-		// TODO: use hemispheres for cones
 		enc.setFrontFacing(.clockwise)
 		enc.setVBuffer(self.flt.lgtbuf, index: 3)
 		enc.setDS(lib.dstates.bufx_quad)
-		enc.setPS(quadstate)
+		enc.setPS(quad_state)
 		enc.draw(6, iid: 0, nid: 1)
-		enc.setDS(lib.dstates.bufx_vol)
-		enc.setPS(volstate)
-		enc.draw(self.lightmesh, iid: 1, nid: self.flt.nlight - 1)
+		enc.setDS(lib.dstates.bufx_icos)
+		enc.setPS(icos_state)
+		enc.draw(self.lightvol, iid: 1, nid: self.flt.nlight - 1)
 	}
 	
 	func draw(in view: MTKView) {
@@ -322,11 +318,11 @@ class Renderer: NSObject, MTKViewDelegate {
 		
 		self.cmdque.commit(label: "commit: shadow gen") {
 			buf in
-			
+
 			buf.pass(label: "pass: shadow gen", descr: util.passdescr {
 				descr in
 				self.shadowmaps.attach(to: descr)
-				descr.renderTargetArrayLength = min(Int(MAX_NSHADE), self.flt.nshade)
+				descr.renderTargetArrayLength = self.flt.nshade
 			}) {enc in
 				enc.setCullMode(.back)
 				enc.setFrontFacing(.clockwise)
@@ -347,7 +343,7 @@ class Renderer: NSObject, MTKViewDelegate {
 			buf in
 			buf.addCompletedHandler {_ in self.semaphore.signal()}
 			guard let drawable = view.currentDrawable else {return}
-			
+
 			buf.pass(label: "pass: light & drawable", descr: util.passdescr {
 				descr in
 				self.framebuffer.attach(to: descr)
@@ -361,32 +357,32 @@ class Renderer: NSObject, MTKViewDelegate {
 				descr.stencilAttachment.loadAction		= .dontCare
 				descr.stencilAttachment.storeAction		= .dontCare
 				if self.mode == .forward_tiled || self.mode == .deferred_tiled {
-					descr.tileWidth  = Self.tile_w
-					descr.tileHeight = Self.tile_h
-					descr.threadgroupMemoryLength = Self.groupsize
+					descr.tileWidth  = Self.tiledim.width
+					descr.tileHeight = Self.tiledim.height
+					descr.threadgroupMemoryLength = Self.tilesize
 				}
 			}) {enc in
-				
-				enc.setStencilReferenceValue(0xFF)
+
+				enc.setStencilReferenceValue(128)
 				enc.setCullMode(.back)
 				enc.setFrontFacing(.counterClockwise)
-				
+
 				enc.setFragmentTexture(self.shadowmaps.rdmmt, index: 0)
 				enc.setFBuffer(self.materials.buf, index: 0)
 				enc.setVBuffer(self.flt.mdlbuf, index: 1)
 				enc.setVBuffer(self.flt.scnbuf, index: 2)
 				enc.setFBuffer(self.flt.scnbuf, index: 2)
 				enc.setFBuffer(self.flt.lgtbuf, index: 3)
-				
+
 				switch self.mode {
-					
+
 				case .forward_classic:
 					enc.setDS(lib.dstates.fwdc_light)
 					enc.setPS(lib.pstates.fwdc_light)
 					self.setmaterials(enc: enc)
 					self.drawgeometry(enc: enc)
 					break
-					
+
 				case .forward_tiled:
 					enc.setDS(lib.dstates.prepass)
 					enc.setPS(lib.pstates.fwdp_depth)
@@ -398,18 +394,18 @@ class Renderer: NSObject, MTKViewDelegate {
 					self.setmaterials(enc: enc)
 					self.drawgeometry(enc: enc)
 					break
-					
+
 				case .deferred_classic:
 					enc.setDS(lib.dstates.prepass)
 					enc.setPS(lib.pstates.bufx_gbuf)
 					self.setmaterials(enc: enc)
 					self.drawgeometry(enc: enc)
-					self.drawvolumes(
+					self.drawgbuffer(
 						enc: enc,
-						quadstate: lib.pstates.bufc_quad,
-						volstate:  lib.pstates.bufc_vol)
+						quad_state: lib.pstates.bufc_quad,
+						icos_state: lib.pstates.bufc_icos)
 					break
-					
+
 				case .deferred_tiled:
 					enc.setDS(lib.dstates.prepass)
 					enc.setPS(lib.pstates.bufx_gbuf)
@@ -417,16 +413,16 @@ class Renderer: NSObject, MTKViewDelegate {
 					self.drawgeometry(enc: enc)
 					enc.setPS(lib.pstates.bufp_cull)
 					self.dispatchcull(enc: enc)
-					self.drawvolumes(
+					self.drawgbuffer(
 						enc: enc,
-						quadstate: lib.pstates.bufp_quad,
-						volstate:  lib.pstates.bufp_vol)
+						quad_state: lib.pstates.bufp_quad,
+						icos_state: lib.pstates.bufp_icos)
 					break
-					
+
 				}
-				
+
 			}
-			
+
 			buf.present(drawable)
 
 		}

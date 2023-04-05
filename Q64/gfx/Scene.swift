@@ -8,26 +8,17 @@ class Scene {
 		self.materials = materials
 	}
 	
-	var models: [Model] = []
 	var camera = Camera()
+	
+	var models: [Model] = []
+	func add(_ model: Model) {self.models.append(model)}
+	func add(_ models: [Model]) {self.models += models}
 	
 	var sun = QLight()
 	var clights: [CLight] = []
 	var ilights: [ILight] = []
-	
 	var lights: [Light] {
 		return [self.sun] + self.clights + self.ilights
-	}
-	
-	func add(_ model: Model) {
-		self.models.append(model)
-	}
-	func add(_ models: [Model]) {
-		self.models += models
-	}
-	subscript(i: Int) -> Model {
-		get {return self.models[i]}
-		set(model) {self.models[i] = model}
 	}
 	
 	var scn: xscene {

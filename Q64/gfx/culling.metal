@@ -5,111 +5,100 @@ using namespace metal;
 #import "culling.h"
 
 
-struct frustum {
-	float4 planes[6];
-	float3 points[8]; // TODO: use for aabb?
-};
+typedef struct {float3 n; float d = 0.f;} plane;
+typedef plane frustum[6];
 
-inline float4 make_plane(float3 p0, float3 p1, float3 p2) {
-	float3 d0 = p0 - p2;
-	float3 d1 = p1 - p2;
-	float3 n = normalize(cross(d0, d1));
-	return float4(n, dot(n, p2));
-}
-inline bool inplane(float4 plane, float3 pos, float eps = 0.f) {
-	return eps >= plane.w - dot(plane.xyz, pos);
-}
-inline bool inplane(float4 plane, float3 p, float3 d) {
-	return inplane(plane, p) || inplane(plane, p + d);
+void make_frustum(frustum fst,
+				  xcamera cam,
+				  ushort2 scr0,
+				  ushort2 scr1,
+				  float mindepth,
+				  float maxdepth) {
+	float3 pts[6];
+	pts[0] = eyepos(cam, float2(scr0.x, scr0.y), 1.f);
+	pts[1] = eyepos(cam, float2(scr1.x, scr0.y), 1.f);
+	pts[2] = eyepos(cam, float2(scr0.x, scr1.y), 1.f);
+	pts[3] = eyepos(cam, float2(scr1.x, scr1.y), 1.f);
+	pts[4] = eyepos(cam, 0.f, mindepth);
+	pts[5] = eyepos(cam, 0.f, maxdepth);
+	fst[0] = {.n = normalize(cross(pts[2], pts[0]))};
+	fst[1] = {.n = normalize(cross(pts[1], pts[3]))};
+	fst[2] = {.n = normalize(cross(pts[0], pts[1]))};
+	fst[3] = {.n = normalize(cross(pts[3], pts[2]))};
+	fst[4] = {.n = {0.f, 0.f, -1.f}, .d = -pts[4].z};
+	fst[5] = {.n = {0.f, 0.f, +1.f}, .d = +pts[5].z};
 }
 
-frustum make_frustum(xcamera cam,
-					 float2 p0,
-					 float2 p1,
-					 float mindepth,
-					 float maxdepth) {
-	frustum fst;
-	
-	fst.points[0] = mmul3(cam.invproj, float3(p0.x, p0.y, 1.f), 0.f); // toplt
-	fst.points[1] = mmul3(cam.invproj, float3(p1.x, p0.y, 1.f), 0.f); // toprt
-	fst.points[2] = mmul3(cam.invproj, float3(p0.x, p1.y, 1.f), 0.f); // botlt
-	fst.points[3] = mmul3(cam.invproj, float3(p1.x, p1.y, 1.f), 0.f); // botrt
-	
-	fst.points[4] = mmulw(cam.invproj, float3(0.f, 0.f, mindepth)); // z0
-	fst.points[5] = mmulw(cam.invproj, float3(0.f, 0.f, maxdepth)); // z1
-	
-	fst.planes[0] = make_plane(fst.points[2], fst.points[0], 0.f); // lt
-	fst.planes[1] = make_plane(fst.points[1], fst.points[3], 0.f); // rt
-	fst.planes[2] = make_plane(fst.points[0], fst.points[1], 0.f); // top
-	fst.planes[3] = make_plane(fst.points[3], fst.points[2], 0.f); // bot
-	
-	fst.planes[4] = float4(0.f, 0.f, -1.f, -fst.points[4].z); // near
-	fst.planes[5] = float4(0.f, 0.f, +1.f, +fst.points[5].z); // far
-	
-	return fst;
+inline bool inplane(plane p, float3 pos, float eps = 0.f) {
+	return dot(pos, p.n) >= p.d - eps;
 }
-inline bool visible_quad(xlight lgt, frustum fst, xcamera cam) {return true;}
-inline bool visible_icos(xlight lgt, frustum fst, xcamera cam) {
-	float3 p = mmul3(cam.invview, lgt.pos, 1.f);
+inline bool inplane(plane p, float3 pos, float3 dir) {
+	return inplane(p, pos) || inplane(p, pos + dir);
+}
+
+typedef bool (*viscmp)(xlight lgt, frustum fst, xcamera cam);
+inline bool qvis(xlight lgt, frustum fst, xcamera cam) {return true;}
+inline bool ivis(xlight lgt, frustum fst, xcamera cam) {
+	float3 pos = mmul3(cam.invview, lgt.pos, 1.f);
 	bool vis = true;
 	for (int i = 0; i < 6; ++i)
-		vis &= inplane(fst.planes[i], p, lgt.rad);
+		vis &= inplane(fst[i], pos, lgt.rad);
 	return vis;
 }
-inline bool visible_cone(xlight lgt, frustum fst, xcamera cam) {
-	float3 p = mmul3(cam.invview, lgt.pos, 1.f);
-	float3 d = mmul3(cam.invview, lgt.dir, 0.f);
-	d = normalize(d);
-	float t = tan(lgt.phi);
+inline bool cvis(xlight lgt, frustum fst, xcamera cam) {
+	float3 pos = mmul3(cam.invview, lgt.pos, 1.f);
+	float3 dir = mmul3(cam.invview, lgt.dir, 0.f);
+	dir = normalize(dir);
+	float c = lgt.rad * cos(lgt.phi);
+	float s = lgt.rad * sin(lgt.phi);
 	bool vis = true;
 	for (int i = 0; i < 6; ++i) {
-		float4 plane = fst.planes[i];
-		float3 m = plane.xyz;
-		m = normalize(cross(d, m));
-		m = normalize(cross(d, m));
-		vis &= inplane(plane, p, lgt.rad * (d - t*m));
+		float3 nml = fst[i].n;
+		nml = cross(nml, dir);
+		nml = cross(nml, dir);
+		nml = normalize(nml);
+		vis &= inplane(fst[i], pos, c*dir - s*nml);
 	}
 	return vis;
 }
-inline bool dispatch_visible(xlight lgt, frustum fst, xcamera cam) {
-	if (is_qlight(lgt)) return visible_quad(lgt, fst, cam);
-	if (is_ilight(lgt)) return visible_icos(lgt, fst, cam);
-	return visible_cone(lgt, fst, cam);
+
+inline bool dispatch_viscmp(xlight lgt, frustum fst, xcamera cam) {
+	constexpr viscmp cmps[3] = {qvis, ivis, cvis};
+	return cmps[light_type(lgt)](lgt, fst, cam);
 }
 
 kernel void knl_cull(imageblock<dpix, imageblock_layout_implicit> blk,
 					 constant xscene &scn		[[buffer(2)]],
 					 constant xlight *lgts		[[buffer(3)]],
 					 threadgroup tile &tile		[[threadgroup(0)]],
+					 ushort tid					[[thread_index_in_threadgroup]],
 					 ushort2 tptg				[[threads_per_threadgroup]],
 					 ushort2 titg				[[thread_position_in_threadgroup]],
 					 ushort2 tgpg				[[threadgroups_per_grid]],
-					 ushort2 tgig				[[threadgroup_position_in_grid]],
-					 uint tid					[[thread_index_in_threadgroup]]) {
-	
+					 ushort2 tgig				[[threadgroup_position_in_grid]]) {
+
 	if (tid == 0) {
-		atomic_store_explicit(&tile.msk, 0, memory_order_relaxed);
-		tile.mindepth = INFINITY;
-		tile.maxdepth = 0.0;
+		atomic_store_explicit(&tile.msk, 0u, memory_order_relaxed);
+		tile.mindepth = FLT_MAX;
+		tile.maxdepth = 0.f;
 	}
 	threadgroup_barrier(mem_flags::mem_threadgroup);
-	uint udep = as_type<uint>(blk.read(titg).depth);
-	atomic_fetch_min_explicit((threadgroup atomic_uint *)&tile.mindepth, udep, memory_order_relaxed);
-	atomic_fetch_max_explicit((threadgroup atomic_uint *)&tile.maxdepth, udep, memory_order_relaxed);
+
+	uint z = as_type<uint>(blk.read(titg).depth);
+	atomic_fetch_min_explicit((threadgroup atomic_uint *)&tile.mindepth, z, memory_order_relaxed);
+	atomic_fetch_max_explicit((threadgroup atomic_uint *)&tile.maxdepth, z, memory_order_relaxed);
 	threadgroup_barrier(mem_flags::mem_threadgroup);
-	
-	float2 gdtg = 1.f/(float2)tgpg;
-	frustum fst = make_frustum(scn.cam,
-							   loc2ndc(gdtg * float2(tgig)),
-							   loc2ndc(gdtg * float2(tgig + 1)),
-							   tile.mindepth,
-							   tile.maxdepth);
-	
-	uint msk = 0;
-	uint gid = tptg.x * tptg.y;
-	for (uint lid = tid; lid < scn.nlgt; lid += gid)
-		// TODO: loop til scene counts for light types, rather than dispatch
-		msk |= dispatch_visible(lgts[lid], fst, scn.cam) << lid;
+
+	frustum fst;
+	make_frustum(fst, scn.cam,
+				 tptg * tgig,
+				 tptg * (tgig + 1),
+				 tile.mindepth,
+				 tile.maxdepth);
+
+	uint msk = 0u;
+	for (uint lid = tid; lid < scn.nlgt; lid += tptg.x*tptg.y)
+		msk |= dispatch_viscmp(lgts[lid], fst, scn.cam) << lid;
 	atomic_fetch_or_explicit(&tile.msk, msk, memory_order_relaxed);
 	
 }

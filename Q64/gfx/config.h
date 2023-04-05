@@ -9,7 +9,7 @@
 
 #define BASE_F0				0.04f
 
-#define SHD_NPCF			1
+#define SHD_NPCF			4
 #define SHD_PMIN			0.4f
 #define SHD_PMAX			1.0f
 

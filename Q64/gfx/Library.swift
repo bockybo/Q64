@@ -2,6 +2,7 @@ import MetalKit
 
 
 class lib {
+	
 	static let device = MTLCreateSystemDefaultDevice()!
 	static let deflib = lib.device.makeDefaultLibrary()!
 	static let texldr = MTKTextureLoader(device: lib.device)
@@ -23,11 +24,10 @@ class lib {
 		static let frgfwdp_light	= util.shader("frgfwdp_light")
 		
 		static let vtxbufx_quad		= util.shader("vtxbufx_quad")
-		static let vtxbufx_vol		= util.shader("vtxbufx_vol")
+		static let vtxbufx_icos		= util.shader("vtxbufx_icos")
 		static let frgbufx_gbuf		= util.shader("frgbufx_gbuf")
 		static let frgbufc_light	= util.shader("frgbufc_light")
 		static let frgbufp_light	= util.shader("frgbufp_light")
-		
 		
 	}
 	
@@ -103,7 +103,6 @@ class lib {
 			descr.threadgroupSizeMatchesTileSize	= true
 		}
 		
-		
 		static let bufx_gbuf = util.pipestate(label: "ps bufx gbuffer") {
 			descr in
 			descr.vertexFunction					= lib.shaders.vtx_main
@@ -116,7 +115,6 @@ class lib {
 			descr.colorAttachments[3].pixelFormat	= Renderer.fmt_nml
 			descr.colorAttachments[4].pixelFormat	= Renderer.fmt_mat
 		}
-		
 		static let bufc_quad = util.pipestate(label: "ps buf0 lighting quad") {
 			descr in
 			descr.vertexFunction					= lib.shaders.vtxbufx_quad
@@ -129,9 +127,9 @@ class lib {
 			descr.colorAttachments[3].pixelFormat	= Renderer.fmt_nml
 			descr.colorAttachments[4].pixelFormat	= Renderer.fmt_mat
 		}
-		static let bufc_vol = util.pipestate(label: "ps buf0 lighting volume") {
+		static let bufc_icos = util.pipestate(label: "ps buf0 lighting volume") {
 			descr in
-			descr.vertexFunction					= lib.shaders.vtxbufx_vol
+			descr.vertexFunction					= lib.shaders.vtxbufx_icos
 			descr.fragmentFunction					= lib.shaders.frgbufc_light
 			descr.colorAttachments[0].pixelFormat	= Renderer.fmt_color
 			descr.depthAttachmentPixelFormat		= Renderer.fmt_depth
@@ -154,9 +152,9 @@ class lib {
 			descr.colorAttachments[3].pixelFormat	= Renderer.fmt_nml
 			descr.colorAttachments[4].pixelFormat	= Renderer.fmt_mat
 		}
-		static let bufp_vol = util.pipestate(label: "ps buf+ lighting volume") {
+		static let bufp_icos = util.pipestate(label: "ps buf+ lighting volume") {
 			descr in
-			descr.vertexFunction					= lib.shaders.vtxbufx_vol
+			descr.vertexFunction					= lib.shaders.vtxbufx_icos
 			descr.fragmentFunction					= lib.shaders.frgbufp_light
 			descr.colorAttachments[0].pixelFormat	= Renderer.fmt_color
 			descr.depthAttachmentPixelFormat		= Renderer.fmt_depth
@@ -212,9 +210,11 @@ class lib {
 			descr.frontFaceStencil.stencilCompareFunction		= .equal
 			descr.backFaceStencil.stencilCompareFunction		= .equal
 		}
-		static let bufx_vol = util.depthstate(label: "ds bufx lighting vol") {
+		static let bufx_icos = util.depthstate(label: "ds bufx lighting icos") {
 			descr in
 			descr.depthCompareFunction							= .greaterEqual
+			descr.frontFaceStencil.stencilCompareFunction		= .equal
+			descr.backFaceStencil.stencilCompareFunction		= .equal
 		}
 		
 	}

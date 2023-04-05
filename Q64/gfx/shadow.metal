@@ -22,7 +22,7 @@ vertex sfrg vtx_shade1(const device xmvtx *vtcs		[[buffer(0)]],
 	xmodel mdl = mdls[iid];
 	xlight lgt = lgts[lid];
 	float3 pos = mmul3(mdl.ctm, vtcs[vid].pos);
-	float4 loc = mmul4(lgt.proj, lgtpos(lgt, pos));
+	float4 loc = mmul4(lgt.proj, direct(pos - lgt.pos, lgt.dir));
 	return {.loc = loc, .sid = lid};
 }
 vertex sfrg vtx_shade6(const device xmvtx *vtcs		[[buffer(0)]],
@@ -36,7 +36,7 @@ vertex sfrg vtx_shade6(const device xmvtx *vtcs		[[buffer(0)]],
 	xmodel mdl = mdls[iid];
 	xlight lgt = lgts[lid];
 	float3 pos = mmul3(mdl.ctm, vtcs[vid].pos);
-	float4 loc = mmul4(lgt.proj, lgtpos(lgt, pos, amp));
+	float4 loc = mmul4(lgt.proj, reface(pos - lgt.pos, amp));
 	return {.loc = loc, .sid = sid6(scn, lid, amp)};
 }
 

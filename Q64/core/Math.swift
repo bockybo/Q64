@@ -127,11 +127,16 @@ extension float4x4 {
 	}
 	
 	static func ortho(p0: float3, p1: float3) -> float4x4 {
-		return float4x4(
-			1/(p1.x - p0.x) * float4(2, 0, 0, -(p0.x + p1.x)),
-			1/(p1.y - p0.y) * float4(0, 2, 0, -(p0.y + p1.y)),
-			1/(p1.z - p0.z) * float4(0, 0, -1, -p0.z),
-			float4(0, 0, 0, 1))
+		let sx =  2 / (p1.x - p0.x)
+		let sy =  2 / (p1.y - p0.y)
+		let sz = -1 / (p1.z - p0.z)
+		let tx = (p0.x + p1.x) / (p0.x - p1.x)
+		let ty = (p1.y + p0.y) / (p0.y - p1.y)
+		let tz = p0.z / (p0.z - p1.z)
+		return float4x4(float4(sx,  0,  0, 0),
+						float4( 0, sy,  0, 0),
+						float4( 0,  0, sz, 0),
+						float4(tx, ty, tz, 1))
 	}
 	
 	static func persp(

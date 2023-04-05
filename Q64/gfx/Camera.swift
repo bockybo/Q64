@@ -22,6 +22,7 @@ struct Camera {
 		view *= .zrot(self.rot.z)
 		view *= .yrot(self.rot.y)
 		view *= .xrot(self.rot.x)
+		
 		return xcamera(
 			proj: proj,
 			view: view,

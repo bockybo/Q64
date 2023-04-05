@@ -6,14 +6,10 @@ import MetalKit
 //	subview to pull unifs <- server doesn't need hooks
 class Demo: Ctrl {
 	static let dim: float = 50
-	static let nsph = 8
-	static let nhem = 4
+	static let nsph = 5
+	static let nhem = 0
 	
 	static let materials = [
-		Material(
-			rgh_default: 0.1,
-			mtl_default: 0.0
-		),
 		Material(
 			alb: util.texture(path: "snow_alb.jpg", srgb: true),
 			nml: util.texture(path: "snow_nml.jpg"),
@@ -60,39 +56,39 @@ class Demo: Ctrl {
 	]
 	
 	let crs = Model(meshes: util.mesh.load("cruiser.obj", ctm: .mag(0.25)), [
-		Instance(matID: 0)
+		Instance(matID: 10)
 	])
 	let gnd = Model(meshes: [util.mesh.box(dim: Demo.dim * .xz + .y)], [
-		Instance(matID: 1, ctm: .ypos(-0.5))
+		Instance(matID: 0, ctm: .ypos(-0.5))
 	])
 	let ogn = Model(meshes: [util.mesh.sph(dim: 0.4 * (.xz + .y * 2))], [
-		Instance(matID: 2)
+		Instance(matID: 1)
 	])
 	let tmp = Model(meshes: util.mesh.load("Temple.obj", ctm: .mag(0.008)), [
-		Instance(matID: 3, ctm: .pos(float3(0, 0.01, -5)))
+		Instance(matID: 2, ctm: .pos(float3(0, 0.01, -5)))
 	])
 	let sun = Model(meshes: [util.mesh.sph(dim: float3(1.2),
 										   seg: uint2(100),
 										   inwd: true)], [
-		Instance(matID: 4)
+		Instance(matID: 3)
 	])
 	let sph = Model(meshes: [util.mesh.hem(dim: float3(0.5, 6.0, 0.5),
 										   seg: uint2(100, 20))],
-		.init(repeating: Instance(matID: 5), count: Demo.nsph)
+		.init(repeating: Instance(matID: 4), count: Demo.nsph)
 	)
 	let hem = Model(meshes: [util.mesh.cap(dim: float3(1.0, 2.5, 1.0),
 										   seg: uint3(20, 20, 10))],
-		.init(repeating: Instance(matID: 6), count: Demo.nhem)
+		.init(repeating: Instance(matID: 5), count: Demo.nhem)
 	)
 	let pil = Model(meshes: [util.mesh.cap(dim: float3(0.3, 0.8, 0.3),
 										   seg: uint3(20, 20, 20),
 										   ctm: .xrot(.pi/2))],
-		(0..<Demo.nsph).map {i in Instance(matID: 7 + i%3)}
+		(0..<Demo.nsph).map {i in Instance(matID: 6 + i%3)}
 	)
 	let box = Model(meshes: [util.mesh.box(dim: float3(32, 8, 3))], [
-		Instance(matID: 10, ctm: .ypos(-0.5) * .zpos(-16)),
-		Instance(matID: 10, ctm: .ypos(-0.5) * .xpos(-16) * .yrot(.pi/2)),
-		Instance(matID: 10, ctm: .ypos(-0.5) * .xpos(+16) * .yrot(.pi/2)),
+		Instance(matID: 9, ctm: .ypos(-0.5) * .zpos(-16)),
+		Instance(matID: 9, ctm: .ypos(-0.5) * .xpos(-16) * .yrot(.pi/2)),
+		Instance(matID: 9, ctm: .ypos(-0.5) * .xpos(+16) * .yrot(.pi/2)),
 	])
 	
 	
@@ -117,7 +113,10 @@ class Demo: Ctrl {
 		scene.sun.hue = float3(1)
 //		scene.sun.hue = 0.4 * normalize(float3(0.95, 0.85, 0.65))
 		scene.sun.dir = -float3(1, 0.5, 1) * Demo.dim
+		
 		scene.sun.w = Demo.dim / 1.5
+		scene.sun.z0 = 0.1
+		scene.sun.z1 = Demo.dim
 		
 		scene.ilights += [
 			.init(hue: float3(1, 1, 0), rad: 24),
@@ -261,8 +260,14 @@ class Demo: Ctrl {
 	}}
 	lazy var binds = Binds(
 		keydn: [
+			
 			.esc: {self.paused = !self.paused},
 			.tab: {self.camera.coast = !self.camera.coast},
+			
+			._1: {self.crs[0].matID = 10},
+			._2: {self.crs[0].matID = 11},
+			._3: {self.crs[0].matID = 12},
+			
 			.spc:	{self.camera.mov += .y},
 			.f:		{self.camera.mov -= .y},
 			.w:		{self.camera.mov -= .z},
@@ -275,12 +280,8 @@ class Demo: Ctrl {
 			.rt:	{self.cruiser.mov += .z},
 			.ent:	{self.cruiser.mov += .y},
 			
-			._1: {self.crs[0].matID = 11},
-			._2: {self.crs[0].matID = 12},
-			._3: {self.crs[0].matID = 13},
-			._4: {self.crs[0].matID = 14},
-			
 		],
+		
 		keyup: [
 			.spc:	{self.camera.mov -= .y},
 			.f:		{self.camera.mov += .y},
@@ -294,9 +295,11 @@ class Demo: Ctrl {
 			.rt:	{self.cruiser.mov -= .z},
 			.ent:	{self.cruiser.mov -= .y},
 		],
+		
 		mov: [
 			-1: {if !self.paused {self.camera.rot(sns: $0)}}
 		]
+		
 	)
 	
 }

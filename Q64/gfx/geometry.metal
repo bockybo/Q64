@@ -14,8 +14,7 @@ vertex geo vtx_main(const device xmvtx *vtcs		[[buffer(0)]],
 	xmodel mdl = mdls[iid];
 	float4x4 inv = transpose(mdl.inv);
 	geo g = {.tex = v.tex, .mat = mdl.mat};
-	g.pos = mmul3(mdl.ctm, v.pos);
-	g.loc = scrpos(scn.cam, g.pos);
+	g.scr = scrpos(scn.cam, g.pos = mmul3(mdl.ctm, v.pos));
 	g.nml = normalize(mmul3(inv, (float3)v.nml, 0.f));
 	g.tgt = normalize(mmul3(inv, (float3)v.tgt.xyz, 0.f));
 	g.btg = normalize(cross(g.nml, g.tgt) * v.tgt.w);

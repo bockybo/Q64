@@ -2,11 +2,18 @@ import MetalKit
 
 
 extension MTLBuffer {
-	func write(_ src: UnsafeRawPointer, length: Int) {
-		assert(length <= self.length)
-		memcpy(self.contents(), src, length)
-		if self.storageMode == .managed {self.didModifyRange(0..<length)}
+	func write(_ src: UnsafeRawPointer, length: Int, offset: Int = 0) {
+		assert(length + offset <= self.length)
+		memcpy(self.contents() + offset, src, length)
+		if self.storageMode == .managed {self.didModifyRange(length..<length+offset)}
 	}
+	func write<T>(_ src: UnsafePointer<T>, count: Int = 1, start: Int = 0) {
+		self.write(src, length: count * sizeof(T.self), offset: start * sizeof(T.self))
+	}
+	func write<T>(_ src: [T], start: Int = 0) {
+		self.write(src, count: src.count, start: start)
+	}
+	func didModifyAll() {self.didModifyRange(0..<self.length)}
 }
 
 extension MTLCommandQueue {
@@ -34,18 +41,18 @@ extension MTLCommandBuffer {
 
 extension MTLRenderCommandEncoder {
 	
-	func draw(_ nvtx: Int, iid: Int = 0, nid: Int = 1, vid: Int = 0) {
+	func draw(_ n: Int, iid: Int = 0, nid: Int = 1, vid: Int = 0) {
 		if (nid == 0) {return}
 		assert(nid > 0)
 		self.drawPrimitives(
 			type:			.triangle,
 			vertexStart:	vid,
-			vertexCount:	nvtx,
+			vertexCount:	n,
 			instanceCount:	nid,
 			baseInstance:	iid
 		)
 	}
-	func draw(_ submesh: MTKSubmesh, iid: Int = 0, nid: Int = 1) {
+	func draw(_ submesh: MTKSubmesh, iid: Int = 0, nid: Int = 1, vid: Int = 0) {
 		if (nid == 0) {return}
 		assert(nid > 0) // shouldn't metal assert this??
 		self.drawIndexedPrimitives(
@@ -55,7 +62,7 @@ extension MTLRenderCommandEncoder {
 			indexBuffer:		submesh.indexBuffer.buffer,
 			indexBufferOffset:	submesh.indexBuffer.offset,
 			instanceCount:		nid,
-			baseVertex:			0,
+			baseVertex:			vid,
 			baseInstance: 		iid
 		)
 	}
@@ -66,7 +73,7 @@ extension MTLRenderCommandEncoder {
 		for submesh in mesh.submeshes {
 			self.draw(submesh, iid: iid, nid: nid)
 		}
-//		self.unsetVBuffer(index: 0)
+		self.unsetVBuffer(index: 0)
 	}
 	
 	func setVBuffer(_ buf: MTLBuffer?, offset: Int = 0, index: Int) {
@@ -78,6 +85,7 @@ extension MTLRenderCommandEncoder {
 	func setTBuffer(_ buf: MTLBuffer?, offset: Int = 0, index: Int) {
 		self.setTileBuffer(buf, offset: offset, index: index)
 	}
+	
 	func unsetVBuffer(index: Int) {self.setVBuffer(nil, index: index)}
 	func unsetFBuffer(index: Int) {self.setFBuffer(nil, index: index)}
 	func unsetTBuffer(index: Int) {self.setTBuffer(nil, index: index)}
@@ -101,6 +109,8 @@ extension MTLRenderCommandEncoder {
 	func setAmplification(viewports: [Int] = [], targets: [Int] = []) {
 		let count = max(viewports.count, targets.count)
 		assert(count >= 1)
+		let viewports = viewports + .init(repeating: 0, count: viewports.count - count)
+		let targets = targets + .init(repeating: 0, count: targets.count - count)
 		let maps = (0..<count).map {i in MTLVertexAmplificationViewMapping(
 			viewportArrayIndexOffset: (i < viewports.count) ? uint(viewports[i]) : 0,
 			renderTargetArrayIndexOffset: (i < targets.count) ? uint(targets[i]) : 0)}
@@ -110,27 +120,26 @@ extension MTLRenderCommandEncoder {
 	
 }
 
+struct ArgumentBuffer {
+	let enc: MTLArgumentEncoder
+	let buf: MTLBuffer
+}
 extension MTLFunction {
-	
-	// this is dumb but you need the ref like what are you supposed to do
-	func makeArgumentEncoder(
-		bufferIndex: Int,
-		bufferOptions: MTLResourceOptions = .storageModePrivate
-	) -> (arg: MTLArgumentEncoder, buf: MTLBuffer) {
-		let arg = self.makeArgumentEncoder(bufferIndex: bufferIndex)
-		let buf = util.buffer(len: arg.encodedLength, opt: bufferOptions)
-		arg.setArgumentBuffer(buf, offset: 0)
-		return (arg: arg, buf: buf)
+	func makeArgumentBuffer(
+		at index: Int,
+		options: MTLResourceOptions = .storageModeShared
+	) -> ArgumentBuffer {
+		let enc = self.makeArgumentEncoder(bufferIndex: index)
+		let buf = util.buffer(length: enc.encodedLength, options: options)
+		enc.setArgumentBuffer(buf, offset: 0)
+		return ArgumentBuffer(enc: enc, buf: buf)
 	}
-	
 }
 extension MTLArgumentEncoder {
-	
 	func setBytes(_ bytes: UnsafeRawPointer, length: Int, index: Int) {
 		self.constantData(at: index).copyMemory(from: bytes, byteCount: length)
 	}
 	func setBytes<T>(_ bytes: UnsafePointer<T>, count: Int = 1, index: Int) {
 		self.setBytes(bytes, length: count * sizeof(T.self), index: index)
 	}
-	
 }
