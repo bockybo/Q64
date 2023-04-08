@@ -6,7 +6,7 @@ struct Camera {
 	var res: uint2 = uint2(1)
 	var fov: float = 75 * .pi/180
 	var z0: float = 0.1
-	var z1: float = 1e3
+	var z1: float = 1e2
 	
 	var pos = float3(0)
 	var rot = float3(0)
@@ -28,6 +28,8 @@ struct Camera {
 			view: view,
 			invproj: proj.inv,
 			invview: view.inv,
+			z0: self.z0,
+			z1: self.z1,
 			res: self.res
 		)
 	}

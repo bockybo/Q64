@@ -6,7 +6,7 @@ import MetalKit
 //	subview to pull unifs <- server doesn't need hooks
 class Demo: Ctrl {
 	static let dim: float = 50
-	static let nsph = 5
+	static let nsph = 0
 	static let nhem = 0
 	
 	static let materials = [
@@ -123,6 +123,7 @@ class Demo: Ctrl {
 			.init(hue: float3(1, 0, 1), rad: 24),
 			.init(hue: float3(0, 1, 1), rad: 24),
 		]
+//		scene.ilights.append(.init(hue: float3(100), rad: 10))
 		
 		for i in 0..<self.sph.nid {
 			let a = 2 * .pi * float(i)/float(self.sph.nid)
@@ -176,6 +177,7 @@ class Demo: Ctrl {
 			let z = 2.4 * sinf(a + self.t)
 			scene.ilights[i].pos = self.cruiser.pos + float3(x, 1.5, z)
 		}
+//		scene.ilights[0].pos = self.cruiser.pos + float3(0, 0.5, 0)
 		
 		for i in 0..<self.pil.nid {
 			let pos = scene.clights[i].pos

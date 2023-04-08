@@ -5,12 +5,12 @@ using namespace metal;
 #import "culling.h"
 
 
-typedef texture2d_array<float> shadowmap;
+typedef texture2d_array<float> shadowmaps;
 
 float3 comx_lighting(float3 rgb,
 					 float3 wld,
 					 xmaterial mat,
 					 constant xscene &scn,
 					 constant xlight *lgts,
-					 texture2d_array<float> shds,
+					 shadowmaps shds,
 					 uint lid);

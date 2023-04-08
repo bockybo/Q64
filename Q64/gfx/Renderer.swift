@@ -2,16 +2,14 @@ import MetalKit
 
 
 // TODO:
-// pipeline on gpu?
-// clustered forward & deferred
+// separate light bufs
+// cascaded shadowmaps
+// move pipeline to gpu?
 // order independent transparancy
 // particles
-// parallel encoding
-// post processing?
-//  screenspace ao?
-//  msaa?
-//  bloom?
-// then org models, lighting; scene graph
+// skeletal animation
+// post processing
+// scene graph & component sys
 
 
 class Renderer: NSObject, MTKViewDelegate {
@@ -26,20 +24,30 @@ class Renderer: NSObject, MTKViewDelegate {
 	
 	static let nflight = 3
 	
-	static let shadow_size = 16384 / 8
-	static let shadow_msaa = 1
+	static let shadowsize = 16384 / 8
 	
-	static let tiledim = MTLSizeMake(16, 16, 1)
-	static let tilesize = align(to: 16,
-								sizeof(uint.self) +
-								sizeof(float.self) * 2)
+	static let groupdim = 16
+	static let tiledim = 16
 	
-	let mode = Mode.forward_tiled
+	let mode = Mode.forward_clustered
 	enum Mode {
 		case forward_classic
-		case forward_tiled
+		case forward_plus
+		case forward_clustered
 		case deferred_classic
-		case deferred_tiled
+		case deferred_plus
+		case deferred_clustered
+		
+		var is_forward:		Bool {return (self == .forward_classic ||
+										  self == .forward_plus ||
+										  self == .forward_clustered)}
+		var is_classic:		Bool {return (self == .forward_classic ||
+										  self == .deferred_classic)}
+		var is_clustered:	Bool {return (self == .forward_clustered ||
+										  self == .deferred_clustered)}
+		var is_deferred:	Bool {return !self.is_forward}
+		var is_tiled:		Bool {return !self.is_classic}
+		
 	}
 	
 	private let semaphore = DispatchSemaphore(value: Renderer.nflight)
@@ -118,32 +126,14 @@ class Renderer: NSObject, MTKViewDelegate {
 				descr.width			= Int(res.x)
 				descr.height		= Int(res.y)
 			}}
-			switch mode {
-			case .forward_classic:
-				self.textures = []
-				break
-			case .forward_tiled:
-				self.textures = [
-					tex("fb: dep", Renderer.fmt_dep),
-				]
-				break
-			case .deferred_classic:
-				self.textures = [
-					tex("fb: dep", Renderer.fmt_dep),
-					tex("fb: alb", Renderer.fmt_alb),
-					tex("fb: nml", Renderer.fmt_nml),
-					tex("fb: mat", Renderer.fmt_mat),
-				]
-				break
-			case .deferred_tiled:
-				self.textures = [
-					tex("fb: dep", Renderer.fmt_dep),
-					tex("fb: alb", Renderer.fmt_alb),
-					tex("fb: nml", Renderer.fmt_nml),
-					tex("fb: mat", Renderer.fmt_mat),
-				]
-				break
-			}
+			if mode.is_deferred {self.textures = [
+				tex("fb: dep", Renderer.fmt_dep),
+				tex("fb: alb", Renderer.fmt_alb),
+				tex("fb: nml", Renderer.fmt_nml),
+				tex("fb: mat", Renderer.fmt_mat),
+			]} else if mode == .forward_plus {self.textures = [
+				tex("fb: dep", Renderer.fmt_dep),
+			]} else {self.textures = []}
 		}
 		
 		func attach(to descr: MTLRenderPassDescriptor) {
@@ -156,93 +146,48 @@ class Renderer: NSObject, MTKViewDelegate {
 		
 	}
 	
-	private let shadowmaps = Shadowmaps(
-		size: Renderer.shadow_size,
-		msaa: Renderer.shadow_msaa
-	)
+	
+	private let shadowmaps = Shadowmaps(Renderer.shadowsize, count: Int(MAX_NSHADE))
 	private struct Shadowmaps {
-		let rdmmt: MTLTexture
-		let rddep: MTLTexture
-		let wrtmmt: MTLTexture?
-		let wrtdep: MTLTexture?
-		
-		init(size: Int, msaa: Int = 1) {
-			
-			let setup = {(descr: MTLTextureDescriptor) in
+		let mmt: MTLTexture
+		let dep: MTLTexture
+		init(_ size: Int, count: Int) {
+			self.mmt = util.texture(label: "resolved shadowmap moments") {
+				descr in
 				descr.width				= size
 				descr.height			= size
-				descr.arrayLength		= Int(MAX_NSHADE)
-			}
-			
-			self.rdmmt = util.texture(label: "resolved shadowmap moments") {
-				descr in
-				setup(descr)
+				descr.arrayLength		= count
 				descr.pixelFormat		= Renderer.fmt_shade
 				descr.usage				= [.renderTarget, .shaderRead]
 				descr.storageMode		= .private
 				descr.textureType		= .type2DArray
 			}
-			self.rddep = util.texture(label: "resolved shadowmap depths") {
+			self.dep = util.texture(label: "resolved shadowmap depths") {
 				descr in
-				setup(descr)
+				descr.width				= size
+				descr.height			= size
+				descr.arrayLength		= count
 				descr.pixelFormat		= Renderer.fmt_depth
 				descr.usage				= [.renderTarget]
-				descr.storageMode		= .private
+				descr.storageMode		= .memoryless
 				descr.textureType		= .type2DArray
 			}
-			
-			if msaa == 1 {
-				self.wrtmmt = nil
-				self.wrtdep = nil
-			}
-			else {
-				self.wrtmmt = util.texture(label: "multisampled shadowmap moments") {
-					descr in
-					setup(descr)
-					descr.pixelFormat		= Renderer.fmt_shade
-					descr.usage				= [.renderTarget]
-					descr.storageMode		= .private
-					descr.textureType		= .type2DMultisampleArray
-					descr.sampleCount		= Int(msaa)
-				}
-				self.wrtdep = util.texture(label: "multisampled shadowmap depths") {
-					descr in
-					setup(descr)
-					descr.pixelFormat		= Renderer.fmt_depth
-					descr.usage				= [.renderTarget]
-					descr.storageMode		= .memoryless
-					descr.textureType		= .type2DMultisampleArray
-					descr.sampleCount		= Int(msaa)
-				}
-			}
-			
 		}
-		
-		var multisampled: Bool {return self.wrtmmt != nil}
 		func attach(to descr: MTLRenderPassDescriptor) {
-			if !self.multisampled {
-				descr.colorAttachments[0].loadAction  = .clear
-				descr.colorAttachments[0].storeAction = .store
-				descr.colorAttachments[0].texture = self.rdmmt
-				descr.depthAttachment.loadAction  = .dontCare
-				descr.depthAttachment.storeAction = .dontCare
-				descr.depthAttachment.texture = self.rddep
-			} else {
-				descr.colorAttachments[0].loadAction  = .clear
-				descr.colorAttachments[0].storeAction = .multisampleResolve
-				descr.colorAttachments[0].texture = self.wrtmmt!
-				descr.colorAttachments[0].resolveTexture = self.rdmmt
-				descr.depthAttachment.loadAction  = .dontCare
-				descr.depthAttachment.storeAction = .multisampleResolve
-				descr.depthAttachment.texture = self.wrtdep!
-				descr.depthAttachment.resolveTexture = self.rddep
-			}
+			descr.colorAttachments[0].loadAction  = .clear
+			descr.colorAttachments[0].storeAction = .store
+			descr.colorAttachments[0].texture = self.mmt
+			descr.depthAttachment.loadAction  = .dontCare
+			descr.depthAttachment.storeAction = .dontCare
+			descr.depthAttachment.texture = self.dep
+			descr.renderTargetArrayLength = self.count
 		}
-		
+		var size: Int {return self.mmt.width}
+		var count: Int {return self.mmt.arrayLength}
 	}
 	
 	
-	private let materials = lib.shaders.frgfwdc_light.makeArgumentBuffer(
+	private let materials = lib.shaders.frgfwd0_light.makeArgumentBuffer(
 		at: 0,
 		options: .storageModeManaged
 	)
@@ -281,16 +226,25 @@ class Renderer: NSObject, MTKViewDelegate {
 	private func drawshadows(enc: MTLRenderCommandEncoder, count: Int, start: Int) {
 		for lid in start..<start+count {
 			var lid = uint(lid)
-			enc.setVBytes(&lid, index: 4)
+			enc.setVBytes(at: 4, to: &lid)
 			self.drawgeometry(enc: enc)
 		}
 	}
 	
+	private var tilesizes: [Int] {
+		guard self.mode.is_tiled else {return []}
+		return (self.mode.is_clustered ? [
+			sizeof(uint.self) * Int(NCLUSTER)
+		] : [
+			sizeof(uint.self) * 1,
+			sizeof(uint.self) * 2
+		]).map {align(up: 16, $0)}
+	}
 	private func dispatchcull(enc: MTLRenderCommandEncoder) {
-		enc.setTBuffer(self.flt.scnbuf, index: 2)
-		enc.setTBuffer(self.flt.lgtbuf, index: 3)
-		enc.setThreadgroupMemoryLength(Self.tilesize, offset: 0, index: 0)
-		enc.dispatchThreadsPerTile(Self.tiledim)
+		enc.setTBuffer(at: 2, to: self.flt.scnbuf)
+		enc.setTBuffer(at: 3, to: self.flt.lgtbuf)
+		enc.setThreadgroupMemoryLengths(self.tilesizes)
+		enc.dispatchThreadsPerTile(dimension: Self.groupdim)
 	}
 	
 	private let lightvol = util.mesh.icos(
@@ -303,7 +257,7 @@ class Renderer: NSObject, MTKViewDelegate {
 		icos_state: MTLRenderPipelineState
 	) {
 		enc.setFrontFacing(.clockwise)
-		enc.setVBuffer(self.flt.lgtbuf, index: 3)
+		enc.setVBuffer(at: 3, to: self.flt.lgtbuf)
 		enc.setDS(lib.dstates.bufx_quad)
 		enc.setPS(quad_state)
 		enc.draw(6, iid: 0, nid: 1)
@@ -318,17 +272,15 @@ class Renderer: NSObject, MTKViewDelegate {
 		
 		self.cmdque.commit(label: "commit: shadow gen") {
 			buf in
-
-			buf.pass(label: "pass: shadow gen", descr: util.passdescr {
+			buf.pass(label: "pass: shadow gen", {
 				descr in
 				self.shadowmaps.attach(to: descr)
-				descr.renderTargetArrayLength = self.flt.nshade
 			}) {enc in
 				enc.setCullMode(.back)
 				enc.setFrontFacing(.clockwise)
-				enc.setVBuffer(self.flt.lgtbuf, index: 3)
-				enc.setVBuffer(self.flt.scnbuf, index: 2)
-				enc.setVBuffer(self.flt.mdlbuf, index: 1)
+				enc.setVBuffer(at: 3, to: self.flt.lgtbuf)
+				enc.setVBuffer(at: 2, to: self.flt.scnbuf)
+				enc.setVBuffer(at: 1, to: self.flt.mdlbuf)
 				enc.setDS(lib.dstates.shade)
 				enc.setPS(lib.pstates.shade1)
 				self.drawshadows(enc: enc, count: 1, start: 0)
@@ -343,8 +295,8 @@ class Renderer: NSObject, MTKViewDelegate {
 			buf in
 			buf.addCompletedHandler {_ in self.semaphore.signal()}
 			guard let drawable = view.currentDrawable else {return}
-
-			buf.pass(label: "pass: light & drawable", descr: util.passdescr {
+			
+			buf.pass(label: "pass: light & drawable", {
 				descr in
 				self.framebuffer.attach(to: descr)
 				descr.colorAttachments[0].texture		= drawable.texture
@@ -356,34 +308,34 @@ class Renderer: NSObject, MTKViewDelegate {
 				descr.stencilAttachment.texture			= view.depthStencilTexture!
 				descr.stencilAttachment.loadAction		= .dontCare
 				descr.stencilAttachment.storeAction		= .dontCare
-				if self.mode == .forward_tiled || self.mode == .deferred_tiled {
-					descr.tileWidth  = Self.tiledim.width
-					descr.tileHeight = Self.tiledim.height
-					descr.threadgroupMemoryLength = Self.tilesize
+				if self.mode.is_tiled {
+					descr.tileWidth  = Self.tiledim
+					descr.tileHeight = Self.tiledim
+					descr.threadgroupMemoryLength = self.tilesizes.reduce(0, +)
 				}
 			}) {enc in
 
-				enc.setStencilReferenceValue(128)
+				enc.setStencilReferenceValue(0xFF)
 				enc.setCullMode(.back)
 				enc.setFrontFacing(.counterClockwise)
 
-				enc.setFragmentTexture(self.shadowmaps.rdmmt, index: 0)
-				enc.setFBuffer(self.materials.buf, index: 0)
-				enc.setVBuffer(self.flt.mdlbuf, index: 1)
-				enc.setVBuffer(self.flt.scnbuf, index: 2)
-				enc.setFBuffer(self.flt.scnbuf, index: 2)
-				enc.setFBuffer(self.flt.lgtbuf, index: 3)
+				enc.setFTexture(at: 0, to: self.shadowmaps.mmt)
+				enc.setFBuffer(at: 0, to: self.materials.buf)
+				enc.setVBuffer(at: 1, to: self.flt.mdlbuf)
+				enc.setVBuffer(at: 2, to: self.flt.scnbuf)
+				enc.setFBuffer(at: 2, to: self.flt.scnbuf)
+				enc.setFBuffer(at: 3, to: self.flt.lgtbuf)
 
 				switch self.mode {
 
 				case .forward_classic:
-					enc.setDS(lib.dstates.fwdc_light)
-					enc.setPS(lib.pstates.fwdc_light)
+					enc.setDS(lib.dstates.fwd0_light)
+					enc.setPS(lib.pstates.fwd0_light)
 					self.setmaterials(enc: enc)
 					self.drawgeometry(enc: enc)
 					break
 
-				case .forward_tiled:
+				case .forward_plus:
 					enc.setDS(lib.dstates.prepass)
 					enc.setPS(lib.pstates.fwdp_depth)
 					self.drawgeometry(enc: enc)
@@ -391,6 +343,15 @@ class Renderer: NSObject, MTKViewDelegate {
 					self.dispatchcull(enc: enc)
 					enc.setDS(lib.dstates.fwdp_light)
 					enc.setPS(lib.pstates.fwdp_light)
+					self.setmaterials(enc: enc)
+					self.drawgeometry(enc: enc)
+					break
+					
+				case .forward_clustered:
+					enc.setPS(lib.pstates.fwdc_cull)
+					self.dispatchcull(enc: enc)
+					enc.setDS(lib.dstates.fwdc_light)
+					enc.setPS(lib.pstates.fwdc_light)
 					self.setmaterials(enc: enc)
 					self.drawgeometry(enc: enc)
 					break
@@ -402,11 +363,11 @@ class Renderer: NSObject, MTKViewDelegate {
 					self.drawgeometry(enc: enc)
 					self.drawgbuffer(
 						enc: enc,
-						quad_state: lib.pstates.bufc_quad,
-						icos_state: lib.pstates.bufc_icos)
+						quad_state: lib.pstates.buf0_quad,
+						icos_state: lib.pstates.buf0_icos)
 					break
 
-				case .deferred_tiled:
+				case .deferred_plus:
 					enc.setDS(lib.dstates.prepass)
 					enc.setPS(lib.pstates.bufx_gbuf)
 					self.setmaterials(enc: enc)
@@ -418,11 +379,24 @@ class Renderer: NSObject, MTKViewDelegate {
 						quad_state: lib.pstates.bufp_quad,
 						icos_state: lib.pstates.bufp_icos)
 					break
+					
+				case .deferred_clustered:
+					enc.setDS(lib.dstates.prepass)
+					enc.setPS(lib.pstates.bufx_gbuf)
+					self.setmaterials(enc: enc)
+					self.drawgeometry(enc: enc)
+					enc.setPS(lib.pstates.bufc_cull)
+					self.dispatchcull(enc: enc)
+					self.drawgbuffer(
+						enc: enc,
+						quad_state: lib.pstates.bufc_quad,
+						icos_state: lib.pstates.bufc_icos)
+					break
 
 				}
 
 			}
-
+			
 			buf.present(drawable)
 
 		}

@@ -13,7 +13,7 @@ struct spix {
 	float2 mmts [[raster_order_group(0), color(0)]];
 };
 
-vertex sfrg vtx_shade1(const device xmvtx *vtcs		[[buffer(0)]],
+vertex sfrg vtx_shade1(const device mvtx *vtcs		[[buffer(0)]],
 					   const device xmodel *mdls	[[buffer(1)]],
 					   constant xlight *lgts		[[buffer(3)]],
 					   constant uint &lid			[[buffer(4)]],
@@ -25,7 +25,7 @@ vertex sfrg vtx_shade1(const device xmvtx *vtcs		[[buffer(0)]],
 	float4 loc = mmul4(lgt.proj, direct(pos - lgt.pos, lgt.dir));
 	return {.loc = loc, .sid = lid};
 }
-vertex sfrg vtx_shade6(const device xmvtx *vtcs		[[buffer(0)]],
+vertex sfrg vtx_shade6(const device mvtx *vtcs		[[buffer(0)]],
 					   const device xmodel *mdls	[[buffer(1)]],
 					   constant xscene &scn			[[buffer(2)]],
 					   constant xlight *lgts		[[buffer(3)]],

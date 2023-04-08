@@ -7,7 +7,6 @@ using namespace metal;
 #import "lighting_model.h"
 
 
-
 inline float shadowcmp(float cmp, float2 mmts) {
 	return cmp <= mmts.x;
 }
@@ -17,20 +16,19 @@ inline float shadowcmp(float cmp, float2 mmts) {
 //	float v = mmts.y - mmts.x*mmts.x;
 //	float d = cmp - mmts.x;
 //	float p = v / (v + d*d);
-//	return (d <= 0.f)? 1.f : saturate(unmix(pmin, pmax, p));
+//	return (d <= 0.f)? 1.f : saturate(lin(pmin, pmax, p));
 //}
-inline float2 shadowsmp(shadowmap shd, uint sid, float2 loc) {
+inline float2 shadowsmp(shadowmaps shds, uint sid, float2 loc) {
 	constexpr sampler smp(filter::linear);
 	constexpr int n = SHD_NPCF;
 	float2 mmts = 0.f;
-	for (int x = 0; x < n; ++x)
-		for (int y = 0; y < n; ++y)
-			mmts += shd.sample(smp, loc, sid, int2(x, y)-n/2).xy;
+	for (int i = 0; i < n*n; ++i)
+		mmts += shds.sample(smp, loc, sid, int2(i/n, i%n) - n/2).xy;
 	return mmts / (float)(n*n);
 }
-inline float shadow(shadowmap shd, uint sid, xlight lgt, float3 pos) {
+inline float shadow(shadowmaps shds, uint sid, xlight lgt, float3 pos) {
 	float3 ndc = mmulw(lgt.proj, pos);
-	return shadowcmp(ndc.z, shadowsmp(shd, sid, ndc2loc(ndc.xy)));
+	return shadowcmp(ndc.z, shadowsmp(shds, sid, ndc2loc(ndc.xy)));
 }
 
 float3 bdrf(xmaterial mat, float3 l, float3 v) {
@@ -61,34 +59,25 @@ float3 bdrf(xmaterial mat, float3 l, float3 v) {
 	
 }
 
-inline float3 debug_mask(float3 rgb, xlight lgt) {
-	return rgb + normalize(lgt.hue)*0.2f;
-}
-inline float3 debug_cull(float3 rgb) {
-	constexpr float3 a = float3(0.00f, 0.10f, 0.25f);
-	constexpr float3 b = float3(1.00f, 0.25f, 0.00f);
-	return all(rgb == 0.f)? a : rgb + (b - a)/32.f;
-}
-
 // xyz: normalized direction, w: attenuation
 typedef float4 (*attenuator)(float3 wld,
 							 xscene scn,
 							 xlight lgt,
-							 shadowmap shd,
+							 shadowmaps shds,
 							 uint lid);
 float4 qatt(float3 wld,
 			xscene scn,
 			xlight lgt,
-			shadowmap shd,
+			shadowmaps shds,
 			uint lid) {
 	float3 dir = lgt.dir;
-	float  att = shadow(shd, lid, lgt, direct(wld, dir));
+	float  att = shadow(shds, lid, lgt, direct(wld, dir));
 	return float4(dir, att);
 }
 float4 iatt(float3 wld,
 			xscene scn,
 			xlight lgt,
-			shadowmap shd,
+			shadowmaps shds,
 			uint lid) {
 	float3 dlt = wld - lgt.pos;
 	float3 dir = normalize(dlt);
@@ -96,13 +85,13 @@ float4 iatt(float3 wld,
 	float att = max(0.f, 1.f - rad/lgt.rad);
 	short amp = faceof(-dlt);
 	uint sid = sid6(scn, lid, amp);
-	att *= shadow(shd, sid, lgt, reface(dlt, amp));
+	att *= shadow(shds, sid, lgt, reface(dlt, amp));
 	return float4(dir, att);
 }
 float4 catt(float3 wld,
 			xscene scn,
 			xlight lgt,
-			shadowmap shd,
+			shadowmaps shds,
 			uint lid) {
 	float3 dlt = wld - lgt.pos;
 	float3 dir = normalize(dlt);
@@ -111,28 +100,39 @@ float4 catt(float3 wld,
 	float att = 1.f;
 	att *= max(0.f, 1.f - rad/lgt.rad);
 	att *= max(0.f, 1.f - phi/lgt.phi);
-	att *= shadow(shd, lid, lgt, direct(dlt, lgt.dir));
+	att *= shadow(shds, lid, lgt, direct(dlt, lgt.dir));
 	return float4(dir, att);
 }
 
+inline float3 debug_mask(float3 rgb, xlight lgt) {
+	return rgb + normalize(lgt.hue)*0.2f;
+}
+inline float3 debug_cull(float3 rgb, xlight lgt) {
+	constexpr float3 a = float3(0.00f, 0.10f, 0.25f);
+	constexpr float3 b = float3(1.00f, 0.25f, 0.00f);
+	if (is_qlight(lgt))
+		return 0.05f;
+	else if (all(rgb <= 0.05f))
+		return a;
+	else
+		return rgb + (b - a)/MAX_NLIGHT;
+}
 float3 comx_lighting(float3 rgb,
 					 float3 wld,
 					 xmaterial mat,
 					 constant xscene &scn,
 					 constant xlight *lgts,
-					 shadowmap shd,
+					 shadowmaps shds,
 					 uint lid) {
 	constexpr attenuator attfns[3] = {qatt, iatt, catt};
 	xlight lgt = lgts[lid];
-#if DEBUG_CULL
-	return debug_cull(rgb);
-#endif
 #if DEBUG_MASK
 	return debug_mask(rgb, lgt);
 #endif
-	float4 a = attfns[light_type(lgt)](wld, scn, lgt, shd, lid);
-	float3 dir = a.xyz;
-	float  att = a.w;
-	rgb += att * lgt.hue * bdrf(mat, -dir, eyedir(scn.cam, wld));
-	return rgb;
+#if DEBUG_CULL
+	return debug_cull(rgb, lgt);
+#endif
+	float3 eye = normalize(viewpos(scn.cam.view) - wld);
+	float4 att = attfns[light_type(lgt)](wld, scn, lgt, shds, lid);
+	return rgb + att.w * lgt.hue * bdrf(mat, -att.xyz, eye);
 }

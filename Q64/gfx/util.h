@@ -4,6 +4,14 @@ using namespace metal;
 #import "shared.h"
 
 
+typedef packed_float3 pvtx;
+typedef struct {
+	packed_float3 pos;
+	packed_float3 nml;
+	packed_float4 tgt;
+	packed_float2 tex;
+} mvtx;
+
 struct cpix {half4 color [[raster_order_group(0), color(0)]];};
 struct dpix {float depth [[raster_order_group(0), color(1)]];};
 
@@ -27,8 +35,10 @@ inline float3 viewdir(float4x4 view) {return normalize(viewdlt(view));}
 inline float viewsqd(float4x4 view) {return length_squared(viewdlt(view));}
 inline float viewlen(float4x4 view) {return length(viewdlt(view));}
 
-template <class T>
-inline T unmix(T a, T b, T x) {return (x - a) / (b - a);}
+template <typename T> inline T lin(T a, T b, T x) {return (x - a) / (b - a);}
+
+template <typename T> inline T exp2m1(T x) {return exp2(x) - (T)1;}
+template <typename T> inline T log2p1(T x) {return log2(x + (T)1);}
 
 inline float angle(float3 a, float3 b) {return acos(dot(a, b));}
 inline float angle90(float3 a, float3 b) {
@@ -70,26 +80,35 @@ inline short faceof(float3 v) {
 	return face;
 }
 
-inline float4 scrpos(xcamera cam, float3 wld) {
-	return mmul4(cam.proj * cam.invview, wld);
+inline float4 eye2scr(xcamera cam, float3 eye) {return mmul4(cam.proj, eye);}
+inline float4 wld2scr(xcamera cam, float3 wld) {
+	return eye2scr(cam, mmul3(cam.invview, wld));
 }
-inline float3 eyepos(xcamera cam, float2 loc, float dep) {
-	float2 ndc = loc2ndc(loc / (float2)cam.res);
-	return mmulw(cam.invproj, float3(ndc, dep));
+inline float3 scr2eye(xcamera cam, float2 scr, float dep) {
+	return mmulw(cam.invproj, float3(loc2ndc(scr/(float2)cam.res), dep));
 }
-inline float3 wldpos(xcamera cam, float2 loc, float dep) {
-	return mmul3(cam.view, eyepos(cam, loc, dep));
+inline float3 scr2wld(xcamera cam, float2 scr, float dep) {
+	return mmul3(cam.view, scr2eye(cam, scr, dep));
 }
 
-inline float3 eyedir(xcamera cam, float3 wld) {
-	return normalize(viewpos(cam.view) - wld);
+inline float2 unprojxy1(xcamera cam, float2 scr) {
+	float xs = cam.proj[0][0];
+	float ys = cam.proj[1][1];
+	return loc2ndc(scr / (float2)cam.res) / float2(xs, ys);
+}
+inline float unproj00z(xcamera cam, float z) {
+	float z0 = cam.z0;
+	float z1 = cam.z1;
+	return z0 * z1 / mix(z1, z0, z);
+	
 }
 
 inline uint sid6(xscene scn, uint lid, uint amp) {
 	uint i0 = scn.nlgt - scn.nilgt;
-	return min((uint)MAX_NSHADE, i0 + (lid - i0)*6 + amp);
+	return i0 + (lid - i0)*6 + amp;
 }
 
+// TODO: need to separate light buffers, loop directly w/out dispatch stall
 inline short light_type(xlight lgt) {return (bool)lgt.rad + (bool)lgt.phi;}
 inline bool is_qlight(xlight lgt) {return light_type(lgt) == 0;}
 inline bool is_ilight(xlight lgt) {return light_type(lgt) == 1;}

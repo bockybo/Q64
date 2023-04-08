@@ -26,14 +26,6 @@ typedef simd_float3x3 float3x3;
 typedef simd_float4x4 float4x4;
 
 
-typedef packed_float3 xpvtx;
-typedef struct {
-	packed_float3 pos;
-	packed_float3 nml;
-	packed_float4 tgt;
-	packed_float2 tex;
-} xmvtx;
-
 typedef struct {
 	float4x4 ctm;
 	float4x4 inv;
@@ -47,6 +39,8 @@ typedef struct {
 	float4x4 view;
 	float4x4 invproj;
 	float4x4 invview;
+	float z0;
+	float z1;
 	uint2 res;
 } xcamera;
 typedef struct {

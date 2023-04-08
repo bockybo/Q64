@@ -7,6 +7,9 @@
 #define DEBUG_MASK			0
 #define DEBUG_CULL 			0
 
+#define NCLUSTER			24
+#define CLUSTERSCHEME		scheme_zpower
+
 #define BASE_F0				0.04f
 
 #define SHD_NPCF			4

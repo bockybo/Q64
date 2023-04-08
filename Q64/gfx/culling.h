@@ -2,15 +2,8 @@
 using namespace metal;
 
 
-struct tile {
-	atomic_uint msk;
-	float mindepth;
-	float maxdepth;
-};
+typedef atomic_uint visbin;
 
-inline uint mskc(uint nlgt) {
-	return -1u >> -min(0u, nlgt - MAX_NLIGHT);
-}
-inline uint mskp(threadgroup tile &tile) {
-	return atomic_load_explicit(&tile.msk, memory_order_relaxed);
-}
+uint ldbin(uint nlgt);
+uint ldbin(threadgroup visbin &bin);
+uint ldbin(threadgroup visbin *bins, xcamera cam, float z);
