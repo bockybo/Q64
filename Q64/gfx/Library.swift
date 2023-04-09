@@ -16,8 +16,8 @@ class lib {
 		static let vtx_shade6		= util.shader("vtx_shade6")
 		static let frg_shade		= util.shader("frg_shade")
 		
-		static let knl_cull2d		= util.shader("knl_cull2d")
-		static let knl_cull3d		= util.shader("knl_cull3d")
+		static let knl_cull			= util.shader("knl_cull")
+		static let knl_clus			= util.shader("knl_clus")
 		
 		static let vtxfwdp_depth	= util.shader("vtxfwdp_depth")
 		static let frgfwdp_depth	= util.shader("frgfwdp_depth")
@@ -194,20 +194,20 @@ class lib {
 		
 		static let fwdp_cull = util.tilestate(label: "ps fwd+ light culling") {
 			descr in
-			descr.tileFunction						= lib.shaders.knl_cull2d
+			descr.tileFunction						= lib.shaders.knl_cull
 			descr.colorAttachments[0].pixelFormat	= Renderer.fmt_color
 			descr.colorAttachments[1].pixelFormat	= Renderer.fmt_dep
 			descr.threadgroupSizeMatchesTileSize	= true
 		}
-		static let fwdc_cull = util.tilestate(label: "ps fwdc light culling") {
+		static let fwdc_clus = util.tilestate(label: "ps fwdc light clustering") {
 			descr in
-			descr.tileFunction						= lib.shaders.knl_cull3d
+			descr.tileFunction						= lib.shaders.knl_clus
 			descr.colorAttachments[0].pixelFormat	= Renderer.fmt_color
 			descr.threadgroupSizeMatchesTileSize	= true
 		}
 		static let bufp_cull = util.tilestate(label: "ps buf+ light culling") {
 			descr in
-			descr.tileFunction						= lib.shaders.knl_cull2d
+			descr.tileFunction						= lib.shaders.knl_cull
 			descr.colorAttachments[0].pixelFormat	= Renderer.fmt_color
 			descr.colorAttachments[1].pixelFormat	= Renderer.fmt_dep
 			descr.colorAttachments[2].pixelFormat	= Renderer.fmt_alb
@@ -215,9 +215,9 @@ class lib {
 			descr.colorAttachments[4].pixelFormat	= Renderer.fmt_mat
 			descr.threadgroupSizeMatchesTileSize	= true
 		}
-		static let bufc_cull = util.tilestate(label: "ps bufc light culling") {
+		static let bufc_clus = util.tilestate(label: "ps bufc light clustering") {
 			descr in
-			descr.tileFunction						= lib.shaders.knl_cull3d
+			descr.tileFunction						= lib.shaders.knl_clus
 			descr.colorAttachments[0].pixelFormat	= Renderer.fmt_color
 			descr.colorAttachments[1].pixelFormat	= Renderer.fmt_dep
 			descr.colorAttachments[2].pixelFormat	= Renderer.fmt_alb

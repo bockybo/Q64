@@ -32,8 +32,6 @@ typedef struct {
 	uint mat;
 } xmodel;
 
-// for dev clarity, tmp keep proj & view seperate
-// but pack before bind down the road
 typedef struct {
 	float4x4 proj;
 	float4x4 view;

@@ -24,10 +24,9 @@ class Renderer: NSObject, MTKViewDelegate {
 	
 	static let nflight = 3
 	
-	static let shadowsize = 16384 / 8
-	
-	static let groupdim = 16
 	static let tiledim = 16
+	
+	static let shadowsize = 16384 / 8
 	
 	let mode = Mode.forward_clustered
 	enum Mode {
@@ -152,7 +151,7 @@ class Renderer: NSObject, MTKViewDelegate {
 		let mmt: MTLTexture
 		let dep: MTLTexture
 		init(_ size: Int, count: Int) {
-			self.mmt = util.texture(label: "resolved shadowmap moments") {
+			self.mmt = util.texture(label: "shadowmap moments") {
 				descr in
 				descr.width				= size
 				descr.height			= size
@@ -162,7 +161,7 @@ class Renderer: NSObject, MTKViewDelegate {
 				descr.storageMode		= .private
 				descr.textureType		= .type2DArray
 			}
-			self.dep = util.texture(label: "resolved shadowmap depths") {
+			self.dep = util.texture(label: "shadowmap depths") {
 				descr in
 				descr.width				= size
 				descr.height			= size
@@ -231,6 +230,7 @@ class Renderer: NSObject, MTKViewDelegate {
 		}
 	}
 	
+	// getting out of hand here, might bite oop bullet
 	private var tilesizes: [Int] {
 		guard self.mode.is_tiled else {return []}
 		return (self.mode.is_clustered ? [
@@ -240,11 +240,16 @@ class Renderer: NSObject, MTKViewDelegate {
 			sizeof(uint.self) * 2
 		]).map {align(up: 16, $0)}
 	}
+	private var groupdim: Int {
+		guard self.mode.is_tiled else {return 0}
+		if self.mode.is_clustered {return 2+Int(sqrt(Float(NCLUSTER)))}
+		else {return Self.tiledim}
+	}
 	private func dispatchcull(enc: MTLRenderCommandEncoder) {
 		enc.setTBuffer(at: 2, to: self.flt.scnbuf)
 		enc.setTBuffer(at: 3, to: self.flt.lgtbuf)
 		enc.setThreadgroupMemoryLengths(self.tilesizes)
-		enc.dispatchThreadsPerTile(dimension: Self.groupdim)
+		enc.dispatchThreadsPerTile(dimension: self.groupdim)
 	}
 	
 	private let lightvol = util.mesh.icos(
@@ -348,7 +353,7 @@ class Renderer: NSObject, MTKViewDelegate {
 					break
 					
 				case .forward_clustered:
-					enc.setPS(lib.pstates.fwdc_cull)
+					enc.setPS(lib.pstates.fwdc_clus)
 					self.dispatchcull(enc: enc)
 					enc.setDS(lib.dstates.fwdc_light)
 					enc.setPS(lib.pstates.fwdc_light)
@@ -385,7 +390,7 @@ class Renderer: NSObject, MTKViewDelegate {
 					enc.setPS(lib.pstates.bufx_gbuf)
 					self.setmaterials(enc: enc)
 					self.drawgeometry(enc: enc)
-					enc.setPS(lib.pstates.bufc_cull)
+					enc.setPS(lib.pstates.bufc_clus)
 					self.dispatchcull(enc: enc)
 					self.drawgbuffer(
 						enc: enc,

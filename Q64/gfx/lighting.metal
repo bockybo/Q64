@@ -113,7 +113,7 @@ inline float3 debug_cull(float3 rgb, xlight lgt) {
 	if (is_qlight(lgt))
 		return 0.05f;
 	else if (all(rgb <= 0.05f))
-		return a;
+		return rgb + a;
 	else
 		return rgb + (b - a)/MAX_NLIGHT;
 }

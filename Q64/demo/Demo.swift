@@ -6,7 +6,7 @@ import MetalKit
 //	subview to pull unifs <- server doesn't need hooks
 class Demo: Ctrl {
 	static let dim: float = 50
-	static let nsph = 0
+	static let nsph = 6
 	static let nhem = 0
 	
 	static let materials = [

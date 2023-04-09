@@ -24,16 +24,6 @@ inline float clus2z(xcamera cam, int i) {return CLUSTERSCHEME.clus2z(cam, i / (f
 inline int z2clus(xcamera cam, float z) {return CLUSTERSCHEME.z2clus(cam, z) * (float)NCLUSTER;}
 
 
-struct plane {
-	float3 n;
-	float  d;
-	plane() = default;
-	plane(float3 n, float d): n(n), d(d) {}
-	plane(float3 p, float3 q): n(normalize(cross(p, q))), d(0.f) {}
-	bool ispast(float3 p, float r = 0.f) {return dot(p, n) >= d - r;}
-	bool ispast(float3 p, float3 v) {return ispast(p) || ispast(p + v);}
-};
-
 struct bbox {
 	float3 pmin = -INFINITY;
 	float3 pmax = +INFINITY;
@@ -46,57 +36,31 @@ struct bbox {
 				length_squared(max(0.f, p - pmax)));
 	}
 };
-
-// TODO: doing all methods obv too liberal. find optim; test false positives
 struct chunk {
-	plane pls[6];
 	bbox box;
-	float4 sph;
+	float hyp;
 	chunk(float2 p0,
 		  float2 p1,
 		  float z0,
 		  float z1) {
-		pls[0] = plane({p0.x, p1.y, -1.f}, {p0.x, p0.y, -1.f});
-		pls[1] = plane({p1.x, p0.y, -1.f}, {p1.x, p1.y, -1.f});
-		pls[2] = plane({p0.x, p0.y, -1.f}, {p1.x, p0.y, -1.f});
-		pls[3] = plane({p1.x, p1.y, -1.f}, {p0.x, p1.y, -1.f});
-		pls[4] = plane({0.f, 0.f, -1.f}, +z0);
-		pls[5] = plane({0.f, 0.f, +1.f}, -z1);
 		box = bbox(z0 * float3(p0, -1.f),
 				   z1 * float3(p1, -1.f));
-		sph = float4(box.ctr(), length(box.ext()));
+		hyp = length(box.pmax - box.ctr());
 	}
 	bool visible(float3 p, float r = 0.f) {
-		bool vis = true;
-		vis &= r*r >= box.minsqd(p);
-		float3 n = normalize(sph.xyz - p);
-		vis &= r >= (min(n.x*box.pmin.x, n.x*box.pmax.x) +
-					 min(n.y*box.pmin.y, n.y*box.pmax.y) +
-					 dot(-n, p) + n.z * box.pmax.z);
-		for (int i = 0; i < 6; ++i)
-			vis &= pls[i].ispast(p, r);
-		return vis;
+		return r*r >= box.minsqd(p);
 	}
 	bool visible(float3 p, float3 v, float r, float c, float s) {
-		bool vis = true;
-		vis &= r*r >= box.minsqd(p);
-		vis &= r*r >= box.minsqd(p + v * r * 0.5f / (c*c));
-		float3 d = sph.xyz - p;
+		float3 d = box.ctr() - p;
 		float sqd = length_squared(d);
 		float len = dot(d, v);
 		float minlen = c*sqrt(sqd - len*len) - s*len;
-		vis &= !(minlen >  sph.w
-				 || len >  sph.w + r
-				 || len < -sph.w);
-		for (int i = 0; i < 6; ++i) {
-			float3 n = pls[i].n;
-			n = cross(n, v);
-			n = cross(n, v);
-			vis &= pls[i].ispast(p, r*(c*v - s*normalize(n)));
-		}
-		return vis;
+		return visible(p, r) && !(minlen >  hyp
+								  || len >  hyp + r
+								  || len < -hyp);
 	}
 };
+
 
 typedef bool (*viscmp)(chunk ch, float4x4 inv, xlight lgt);
 inline bool qvis(chunk ch, float4x4 inv, xlight lgt) {return true;}
@@ -145,22 +109,22 @@ struct zbound {
 	atomic_uint zmin;
 	atomic_uint zmax;
 };
-kernel void knl_cull2d(imageblock<dpix, imageblock_layout_implicit> blk,
-					   constant xscene &scn			[[buffer(2)]],
-					   constant xlight *lgts		[[buffer(3)]],
-					   threadgroup visbin *bins		[[threadgroup(0)]],
-					   threadgroup zbound &bnds		[[threadgroup(1)]],
-					   uint lid						[[thread_index_in_threadgroup]],
-					   uint2 tid					[[thread_position_in_threadgroup]],
-					   uint2 gid					[[threadgroup_position_in_grid]],
-					   uint2 dim					[[threads_per_threadgroup]]) {
-	if (lid == 0) {
+kernel void knl_cull(imageblock<dpix, imageblock_layout_implicit> blk,
+					 constant xscene &scn			[[buffer(2)]],
+					 constant xlight *lgts			[[buffer(3)]],
+					 threadgroup visbin *bins		[[threadgroup(0)]],
+					 threadgroup zbound &bnds		[[threadgroup(1)]],
+					 uint tix						[[thread_index_in_threadgroup]],
+					 uint2 tid						[[thread_position_in_threadgroup]],
+					 uint2 gid						[[threadgroup_position_in_grid]],
+					 uint2 dim						[[threads_per_threadgroup]]) {
+	if (tix == 0) {
 		ATOMIC(store, &bins[0], 0u);
 		ATOMIC(store, &bnds.zmin, as_type<uint>(FLT_MAX));
 		ATOMIC(store, &bnds.zmax, as_type<uint>(0.f));
 	}
-	float z = blk.read((ushort2)tid).depth;
 	threadgroup_barrier(mem_flags::mem_threadgroup);
+	float z = blk.read((ushort2)tid).depth;
 	ATOMIC(fetch_min, &bnds.zmin, as_type<uint>(z));
 	ATOMIC(fetch_max, &bnds.zmax, as_type<uint>(z));
 	threadgroup_barrier(mem_flags::mem_threadgroup);
@@ -168,26 +132,23 @@ kernel void knl_cull2d(imageblock<dpix, imageblock_layout_implicit> blk,
 			 unprojxy1(scn.cam, float2(dim * (gid + 1u))),
 			 unproj00z(scn.cam, as_type<float>(ATOMIC(load, &bnds.zmin))),
 			 unproj00z(scn.cam, as_type<float>(ATOMIC(load, &bnds.zmax))));
-	ATOMIC(fetch_or, &bins[0], com_culling(ch, lgts, scn, lid, dim.x*dim.y));
+	ATOMIC(fetch_or, &bins[0], com_culling(ch, lgts, scn, tix, dim.x*dim.y));
 }
 
-// TODO: absolutely should not dispatch in 2d here.
-//		 figure out how to dispatch 3d groups but stay in tile memory
-kernel void knl_cull3d(constant xscene &scn			[[buffer(2)]],
-					   constant xlight *lgts		[[buffer(3)]],
-					   threadgroup visbin *bins		[[threadgroup(0)]],
-					   uint lid						[[thread_index_in_threadgroup]],
-					   uint2 gid					[[threadgroup_position_in_grid]],
-					   uint2 dim					[[threads_per_threadgroup]]) {
-	for (int i = lid; i < NCLUSTER; i += dim.x*dim.y)
-		ATOMIC(store, &bins[i], 0u);
-	float2 p0 = unprojxy1(scn.cam, float2(dim * gid));
-	float2 p1 = unprojxy1(scn.cam, float2(dim * (gid + 1u)));
-	threadgroup_barrier(mem_flags::mem_threadgroup);
-	for (int i = 0; i < NCLUSTER; ++i) {
-		chunk ch(p0, p1,
-				 clus2z(scn.cam, i),
-				 clus2z(scn.cam, i + 1));
-		ATOMIC(fetch_or, &bins[i], com_culling(ch, lgts, scn, lid, dim.x*dim.y));
+kernel void knl_clus(constant xscene &scn		[[buffer(2)]],
+					 constant xlight *lgts		[[buffer(3)]],
+					 threadgroup visbin *bins	[[threadgroup(0)]],
+					 uint tix					[[thread_index_in_threadgroup]],
+					 uint2 gid					[[threadgroup_position_in_grid]],
+					 uint2 dim					[[threads_per_threadgroup]]) {
+	if (tix < NCLUSTER) {
+		chunk ch(unprojxy1(scn.cam, float2(dim * gid)),
+				 unprojxy1(scn.cam, float2(dim * (gid + 1u))),
+				 clus2z(scn.cam, tix),
+				 clus2z(scn.cam, tix + 1));
+		uint bin = 0u;
+		for (uint i = 0; i < scn.nlgt; ++i)
+			bin |= dispatch_visible(ch, scn.cam.invview, lgts[i]) << i;
+		ATOMIC(store, &bins[tix], bin);
 	}
 }
